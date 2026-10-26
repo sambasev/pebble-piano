@@ -1,0 +1,25 @@
+{
+  "id": "kriti",
+  "name": "Kriti",
+  "summary": "Strict: two stars to move on, and two clean runs in a row in the drill.",
+  "hintAfter": 2,
+  "teacherAfter": 3,
+  "requiredStars": 2,
+  "practiceStrictness": "standard",
+  "drill": {
+    "afterFailedPerforms": 2,
+    "startsAutomatically": true,
+    "cleanRunsNeeded": 2,
+    "slowTempoPercent": 70
+  },
+  "messages": {
+    "performFailed": "Not yet. We'll fix it.",
+    "drillOffer": "Bar {bar} needs work. We'll drill it now.",
+    "drillIntro": "Bar {bar}. Notes first, then in time. Clean twice in a row before we move on.",
+    "runClean": "Clean. Once more.",
+    "runAgain": "Again.",
+    "stepDone": "Good. Next: {step}.",
+    "movingOn": "We'll come back to it. Next: {step}.",
+    "drillDone": "Bar {bar} is clean. Now the whole song, full speed."
+  }
+}

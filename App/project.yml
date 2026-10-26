@@ -1,0 +1,95 @@
+# PianoPad as a real Mac app (bundle, icon, sandbox), for TestFlight and the App Store.
+# The Swift package can't be archived for App Store Connect, so this project wraps it:
+# the app target compiles Sources/PianoPad and links the package's libraries.
+#
+#   brew install xcodegen
+#   cd App && PIANOPAD_TEAM=<your team ID> xcodegen && open PerfectPiano.xcodeproj
+#
+# The .xcodeproj and App/Generated/ are generated (and git-ignored): edit this file, not them.
+name: PerfectPiano
+
+options:
+  deploymentTarget:
+    macOS: "13.0"
+  createIntermediateGroups: true
+
+packages:
+  PianoGrader:
+    path: ..
+
+targets:
+  PianoPadApp:
+    type: application
+    platform: macOS
+    sources:
+      - path: ../Sources/PianoPad
+      - path: Resources/Assets.xcassets
+      # Copied into the bundle as folders, so PlaySession finds Books/… and Examples/…
+      # under Bundle.main.resourceURL. Remove the Books entry to ship without the book.
+      - path: ../Books
+        type: folder
+        buildPhase: resources
+      - path: ../Examples
+        type: folder
+        buildPhase: resources
+      # Lesson units (unit.json and exercise MIDI) for the Learn tab.
+      - path: ../Lessons
+        type: folder
+        buildPhase: resources
+      # Backing tracks to ship: a copy of your library (tracks/, links.json) plus the audio
+      # files. Installed into each user's library on launch (BackingTrackLibrary.installBundled).
+      - path: ../BackingTracks
+        type: folder
+        buildPhase: resources
+        optional: true
+    dependencies:
+      - package: PianoGrader
+        product: PianoGraderCore
+      - package: PianoGrader
+        product: PianoGraderIO
+      - package: PianoGrader
+        product: PianoPadState
+      - package: PianoGrader
+        product: PianoLessons
+    info:
+      path: Generated/Info.plist
+      properties:
+        CFBundleName: PerfectPiano
+        CFBundleDisplayName: PerfectPiano
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        LSApplicationCategoryType: public.app-category.music
+        LSMinimumSystemVersion: $(MACOSX_DEPLOYMENT_TARGET)
+        NSMicrophoneUsageDescription: PerfectPiano listens to your piano through the microphone to check the notes you play.
+        NSBluetoothAlwaysUsageDescription: PerfectPiano connects to your piano over Bluetooth MIDI to hear the notes you play.
+        NSHumanReadableCopyright: © 2026 Sam
+        # No custom encryption: skips the export-compliance question on every upload.
+        ITSAppUsesNonExemptEncryption: false
+    entitlements:
+      path: Generated/PianoPad.entitlements
+      properties:
+        com.apple.security.app-sandbox: true
+        # Microphone grading.
+        com.apple.security.device.audio-input: true
+        # Pairing a Bluetooth MIDI piano (CABTLEMIDIWindowController).
+        com.apple.security.device.bluetooth: true
+        # Open MIDI files, books and backing tracks; save MusicXML exports.
+        com.apple.security.files.user-selected.read-write: true
+        # Reopen recent pieces in later launches (security-scoped bookmarks).
+        com.apple.security.files.bookmarks.app-scope: true
+    settings:
+      base:
+        PRODUCT_NAME: PerfectPiano
+        PRODUCT_MODULE_NAME: PianoPadMac
+        PRODUCT_BUNDLE_IDENTIFIER: com.sambasev.perfectpiano
+        MARKETING_VERSION: "0.1.0"
+        # ship.sh overrides this with a fresh build number (date and time) on every archive.
+        CURRENT_PROJECT_VERSION: "1"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        SWIFT_VERSION: "5.0"
+        CODE_SIGN_STYLE: Automatic
+        DEVELOPMENT_TEAM: ${PIANOPAD_TEAM}
+        ENABLE_HARDENED_RUNTIME: YES
+        COMBINE_HIDPI_IMAGES: YES
+    scheme:
+      configurations: [Debug, Release]

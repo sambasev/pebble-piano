@@ -1,0 +1,400 @@
+{
+  "id": "u1",
+  "title": "Middle C position",
+  "pages": [
+    {
+      "id": "p1",
+      "title": "Meet Middle C",
+      "newNotes": [
+        "C4"
+      ],
+      "unlocks": "p2",
+      "hint": "Middle C is the white key just left of the 2 black keys in the middle. Use your thumb (finger 1).",
+      "blocks": [
+        {
+          "type": "explain",
+          "text": "Find the group of 2 black keys in the middle of the piano.",
+          "highlight": [
+            "C#4",
+            "D#4"
+          ]
+        },
+        {
+          "type": "explain",
+          "text": "The white key just to the left of them is Middle C. Play it with your right thumb.",
+          "highlight": [
+            "C4"
+          ],
+          "advanceOn": "C4"
+        },
+        {
+          "type": "wait",
+          "midi": "p1-ex1.mid",
+          "prompt": "This is Middle C on the staff. Play it three times.",
+          "fingering": [
+            1,
+            1,
+            1
+          ],
+          "hand": "R"
+        },
+        {
+          "type": "wait",
+          "midi": "p1-ex2.mid",
+          "prompt": "Now quarter notes and half notes. Play each C.",
+          "fingering": [
+            1,
+            1,
+            1,
+            1,
+            1,
+            1
+          ],
+          "hand": "R"
+        },
+        {
+          "type": "listen",
+          "midi": "p1-ex3.mid",
+          "prompt": "Listen to the next exercise first. Quarter notes get one click, half notes two.",
+          "tempo": 60
+        },
+        {
+          "type": "timed",
+          "midi": "p1-ex3.mid",
+          "prompt": "Now play it with the clicks. Press Start (or Space), and come in after the count-in.",
+          "tempo": 60,
+          "countInBeats": 4,
+          "fingering": [
+            1,
+            1,
+            1,
+            1,
+            1
+          ],
+          "hand": "R"
+        }
+      ]
+    },
+    {
+      "id": "p2",
+      "title": "Meet D",
+      "newNotes": [
+        "D4"
+      ],
+      "unlocks": "p3",
+      "hint": "D is the white key between the 2 black keys, just right of Middle C. Use finger 2.",
+      "blocks": [
+        {
+          "type": "explain",
+          "text": "Keep your thumb on Middle C. The next white key up, between the 2 black keys, is D. Play it with finger 2.",
+          "highlight": [
+            "D4"
+          ],
+          "advanceOn": "D4"
+        },
+        {
+          "type": "wait",
+          "midi": "p2-ex1.mid",
+          "prompt": "D sits just below the staff, under the bottom line. Play it three times.",
+          "fingering": [
+            2,
+            2,
+            2
+          ],
+          "hand": "R"
+        },
+        {
+          "type": "wait",
+          "midi": "p2-ex2.mid",
+          "prompt": "Now C and D. Follow the finger numbers: 1 is C, 2 is D.",
+          "fingering": [
+            1,
+            2,
+            1,
+            2,
+            1,
+            1,
+            2
+          ],
+          "hand": "R"
+        },
+        {
+          "type": "listen",
+          "midi": "p2-ex3.mid",
+          "prompt": "Listen first.",
+          "tempo": 60
+        },
+        {
+          "type": "timed",
+          "midi": "p2-ex3.mid",
+          "prompt": "Now play it with the clicks.",
+          "tempo": 60,
+          "countInBeats": 4,
+          "fingering": [
+            1,
+            2,
+            1,
+            2,
+            2,
+            2,
+            1
+          ],
+          "hand": "R"
+        }
+      ]
+    },
+    {
+      "id": "p3",
+      "title": "Finger numbers",
+      "unlocks": "p4",
+      "hint": "Finger 3 is your middle finger. With your thumb on C, it rests on E: the white key just right of the 2 black keys.",
+      "blocks": [
+        {
+          "type": "concept",
+          "card": "fingerNumbers",
+          "text": "Each finger has a number. Your thumb is 1, then 2, 3, 4 and 5 out to your little finger. The numbers above the notes tell you which finger to use."
+        },
+        {
+          "type": "concept",
+          "card": "fingerNumbers",
+          "text": "Thumb on Middle C, one finger per white key. Play the note under finger 3.",
+          "check": "E4"
+        }
+      ]
+    },
+    {
+      "id": "p4",
+      "title": "Adding E",
+      "newNotes": [
+        "E4"
+      ],
+      "hint": "E is the white key just right of the 2 black keys. Use finger 3.",
+      "blocks": [
+        {
+          "type": "explain",
+          "text": "With your thumb on C, your middle finger (3) rests on E: the white key just right of the 2 black keys. Play it.",
+          "highlight": [
+            "E4"
+          ],
+          "advanceOn": "E4"
+        },
+        {
+          "type": "wait",
+          "midi": "p4-ex1.mid",
+          "prompt": "E sits on the bottom line of the staff. Play it three times.",
+          "fingering": [
+            3,
+            3,
+            3
+          ],
+          "hand": "R"
+        },
+        {
+          "type": "wait",
+          "midi": "p4-ex2.mid",
+          "prompt": "C, D and E. Follow the finger numbers.",
+          "fingering": [
+            1,
+            2,
+            3,
+            2,
+            1,
+            3,
+            1
+          ],
+          "hand": "R"
+        },
+        {
+          "type": "listen",
+          "midi": "p4-ex3.mid",
+          "prompt": "Listen. Does this tune sound familiar?",
+          "tempo": 60
+        },
+        {
+          "type": "timed",
+          "midi": "p4-ex3.mid",
+          "prompt": "It's the start of Mary Had a Little Lamb. Play it with the clicks.",
+          "tempo": 60,
+          "countInBeats": 4,
+          "fingering": [
+            3,
+            2,
+            1,
+            2,
+            3,
+            3,
+            3
+          ],
+          "hand": "R"
+        }
+      ],
+      "unlocks": "c1"
+    },
+    {
+      "id": "c1",
+      "title": "Checkpoint: Au Clair de la Lune",
+      "unlocks": "p5",
+      "hint": "Only C, D and E: thumb on C, fingers 2 and 3 on D and E. Follow the numbers over the notes.",
+      "blocks": [
+        {
+          "type": "songChallenge",
+          "midi": "songs/auClairDeLaLune.mid",
+          "title": "Au Clair de la Lune"
+        }
+      ]
+    },
+    {
+      "id": "p5",
+      "title": "Meet F",
+      "newNotes": [
+        "F4"
+      ],
+      "unlocks": "p6",
+      "hint": "F is the white key just left of the group of 3 black keys. Use finger 4, your ring finger.",
+      "blocks": [
+        {
+          "type": "explain",
+          "text": "Now find the group of 3 black keys. The white key just left of them is F. With your thumb on C, your ring finger (4) rests on it. Play it.",
+          "highlight": [
+            "F4"
+          ],
+          "advanceOn": "F4"
+        },
+        {
+          "type": "wait",
+          "midi": "p5-ex1.mid",
+          "prompt": "F sits in the first space of the staff. Play it three times with finger 4.",
+          "fingering": [
+            4,
+            4,
+            4
+          ],
+          "hand": "R"
+        },
+        {
+          "type": "wait",
+          "midi": "p5-ex2.mid",
+          "prompt": "E and F, then down to C and back. Follow the finger numbers.",
+          "fingering": [
+            3,
+            4,
+            3,
+            2,
+            1,
+            2,
+            3,
+            4
+          ],
+          "hand": "R"
+        },
+        {
+          "type": "listen",
+          "midi": "p5-ex3.mid",
+          "prompt": "Listen first.",
+          "tempo": 60
+        },
+        {
+          "type": "timed",
+          "midi": "p5-ex3.mid",
+          "prompt": "Up from C to F and back down. Play it with the clicks.",
+          "tempo": 60,
+          "countInBeats": 4,
+          "fingering": [
+            1,
+            2,
+            3,
+            4,
+            3,
+            2,
+            1
+          ],
+          "hand": "R"
+        }
+      ]
+    },
+    {
+      "id": "p6",
+      "title": "Meet G",
+      "newNotes": [
+        "G4"
+      ],
+      "unlocks": "p7",
+      "hint": "G is the next white key after F, between the first two of the 3 black keys. Use finger 5, your little finger.",
+      "blocks": [
+        {
+          "type": "explain",
+          "text": "One more: the next white key after F is G. Your little finger (5) rests on it. Now every finger has a key. Play G.",
+          "highlight": [
+            "G4"
+          ],
+          "advanceOn": "G4"
+        },
+        {
+          "type": "wait",
+          "midi": "p6-ex1.mid",
+          "prompt": "G sits on the second line of the staff. Play it three times with finger 5.",
+          "fingering": [
+            5,
+            5,
+            5
+          ],
+          "hand": "R"
+        },
+        {
+          "type": "wait",
+          "midi": "p6-ex2.mid",
+          "prompt": "E, F, G and back. Keep your hand still and let each finger do the work.",
+          "fingering": [
+            3,
+            4,
+            5,
+            5,
+            4,
+            3
+          ],
+          "hand": "R"
+        },
+        {
+          "type": "listen",
+          "midi": "p6-ex3.mid",
+          "prompt": "Listen first.",
+          "tempo": 60
+        },
+        {
+          "type": "timed",
+          "midi": "p6-ex3.mid",
+          "prompt": "All five fingers up and back down: C D E F G. Play it with the clicks.",
+          "tempo": 60,
+          "countInBeats": 4,
+          "fingering": [
+            1,
+            2,
+            3,
+            4,
+            5,
+            5,
+            5,
+            4,
+            3,
+            2,
+            1
+          ],
+          "hand": "R"
+        }
+      ]
+    },
+    {
+      "id": "p7",
+      "title": "Your song",
+      "hint": "Thumb on Middle C, one finger per key up to G. The numbers over the notes say which finger.",
+      "blocks": [
+        {
+          "type": "songChallenge",
+          "midi": "songs/mary.mid",
+          "title": "Your goal song",
+          "useGoalSong": true
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "id": "alex",
+  "name": "Alex",
+  "summary": "Relaxed: one star moves you on, and the drill is offered, never forced.",
+  "hintAfter": 2,
+  "teacherAfter": 3,
+  "requiredStars": 1,
+  "practiceStrictness": "gentle",
+  "drill": {
+    "afterFailedPerforms": 2,
+    "startsAutomatically": false,
+    "cleanRunsNeeded": 1,
+    "maxRunsPerStep": 4,
+    "slowTempoPercent": 70
+  },
+  "messages": {
+    "performFailed": "Nice try! That one's tricky. Have another go, or let's fix the hard bit together.",
+    "drillOffer": "Bar {bar} is the tricky bit. Want to fix it together?",
+    "drillIntro": "Let's fix bar {bar}. Notes first: the music waits for you.",
+    "runClean": "Lovely, that's it! Once more like that.",
+    "runAgain": "Almost. Here it comes again.",
+    "stepDone": "Great. Next: {step}.",
+    "movingOn": "Good effort. Let's keep going: {step}.",
+    "drillDone": "Bar {bar} sounds much better. Now perform the whole song."
+  }
+}

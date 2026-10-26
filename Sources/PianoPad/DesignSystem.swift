@@ -1,0 +1,471 @@
+#if os(macOS)
+import AppKit
+import SwiftUI
+
+// PerfectPiano Expressive Glass: the app's design tokens and shared components.
+// The source of truth is the "PerfectPiano Expressive Glass" design system (its tokens.json);
+// keep the names and values here in step with it.
+//
+// Principles: one bold action per screen; glass for chrome, paper for music; shape carries
+// meaning (pills are actions, squares are tools, circles are modes); mistakes are specific
+// and calm, never shown by colour alone.
+
+enum PP {
+    // MARK: Colour (light, dark)
+
+    /// Window background behind everything; gives the glass colour to refract.
+    static let surface = Color.pp(0xEEEAFF, 0x15112A)
+    /// Solid cards and controls that must not be see-through.
+    static let surfaceRaised = Color.pp(0xFFFFFF, 0x221C3D)
+    /// Fill for floating chrome (with a blur behind it).
+    static let surfaceGlass = Color.pp(0xFFFFFF, 0x282048, lightAlpha: 0.62, darkAlpha: 0.62)
+    /// 1 pt rim on glass panels.
+    static let surfaceGlassEdge = Color.pp(0xFFFFFF, 0xFFFFFF, lightAlpha: 0.9, darkAlpha: 0.14)
+    /// Primary text.
+    static let ink = Color.pp(0x1B1630, 0xF2EFFF)
+    /// Secondary text: labels, captions, metadata.
+    static let inkMuted = Color.pp(0x4B4566, 0xB9B2D6)
+    /// Staff lines, hairlines, quiet strokes. Never for text.
+    static let inkStaff = Color.pp(0x9C95B8, 0x6F6890)
+    /// Iris: the one primary action, progress, the next key to play.
+    static let accent = Color.pp(0x5B3DF5, 0x8F7BFF)
+    /// Text and icons on accent.
+    static let onAccent = Color.pp(0xFFFFFF, 0x15112A)
+    /// Decorative shapes and reference audition.
+    static let lilac = Color.pp(0xB7A6FF, 0x4A3A9E)
+    static let apricot = Color.pp(0xFFB38A, 0xB8653A)
+    static let mint = Color.pp(0x7FD8C4, 0x2F8F7D)
+    /// Wrong notes only. Always pair with an icon or words.
+    static let mistake = Color.pp(0xC4262C, 0xFF6B6F)
+    static let mistakeSoft = Color.pp(0xFFD6D7, 0x5A1F24)
+    /// Bar or lesson complete. Pair with a check.
+    static let success = Color.pp(0x0B6B5C, 0x4FD1B5)
+    /// Cautions that are not wrong notes: replays, a missing backing track, app messages.
+    static let warning = Color.pp(0x9A4A12, 0xFFB38A)
+    /// Feedback chips and toasts.
+    static let inverse = Color.pp(0x1B1630, 0xF2EFFF)
+    static let onInverse = Color.pp(0xFFFFFF, 0x15112A)
+    /// On-screen keys. White keys stay light in dark mode so the keyboard still reads as a piano.
+    static let keyWhite = Color.pp(0xFFFFFF, 0xE9E5FA)
+    static let keyBlack = Color.pp(0x1B1630, 0x0B0918)
+    /// Labels on white keys (always dark, because the keys are always light).
+    static let keyLabel = Color(hex: 0x4B4566)
+    static let focusRing = Color.pp(0x5B3DF5, 0xB3A6FF)
+    /// The one shadow in the system, under floating glass.
+    static let glassShadow = Color.pp(0x281478, 0x000000, lightAlpha: 0.12, darkAlpha: 0.45)
+
+    /// Sheet music. Light is white paper; dark is a dim night page with soft lavender ink,
+    /// so the score isn't a floodlight in a dark room. Which one shows is set by `PaperStyle`
+    /// and the window's appearance, and reaches views as `\.paper` in the environment.
+    struct Paper {
+        let isDark: Bool
+        let page: Color
+        let ink: Color
+        let faint: Color
+        let accent: Color
+        let audition: Color
+        let success: Color
+        let mistake: Color
+        let apricot: Color
+        let warning: Color
+        let shadow: Color
+
+        static let light = Paper(
+            isDark: false, page: .white, ink: .black, faint: Color(white: 0.42),
+            accent: Color(hex: 0x5B3DF5), audition: Color(hex: 0x8F7BFF), success: Color(hex: 0x0B6B5C),
+            mistake: Color(hex: 0xC4262C), apricot: Color(hex: 0xFFB38A), warning: Color(hex: 0x9A4A12),
+            shadow: Color(hex: 0x281478, alpha: 0.14))
+
+        static let dark = Paper(
+            isDark: true, page: Color(hex: 0x1E1A33), ink: Color(hex: 0xDAD5EE), faint: Color(hex: 0x9C95B8),
+            accent: Color(hex: 0xA897FF), audition: Color(hex: 0xC4B8FF), success: Color(hex: 0x4FD1B5),
+            mistake: Color(hex: 0xFF6B6F), apricot: Color(hex: 0xB8653A), warning: Color(hex: 0xFFB38A),
+            shadow: Color(hex: 0x000000, alpha: 0.45))
+    }
+
+    // MARK: Spacing, radius, size
+
+    enum Space {
+        static let s1: CGFloat = 4
+        static let s2: CGFloat = 8
+        static let s3: CGFloat = 12
+        static let s4: CGFloat = 16
+        static let s6: CGFloat = 24
+        static let s8: CGFloat = 32
+        static let s12: CGFloat = 48
+    }
+
+    enum Radius {
+        static let sm: CGFloat = 10
+        static let key: CGFloat = 12
+        static let md: CGFloat = 18
+        static let lg: CGFloat = 20
+        static let xl: CGFloat = 32
+    }
+
+    enum Size {
+        /// Smallest target in the lesson flow (compact toolbar controls go down to `compact`).
+        static let targetMin: CGFloat = 44
+        /// The primary action and its neighbouring icon buttons.
+        static let targetPrimary: CGFloat = 60
+        /// Dense Mac toolbars: still comfortable for a pointer.
+        static let compact: CGFloat = 32
+    }
+}
+
+// MARK: - Type
+
+extension Font {
+    static let ppDisplay = Font.system(size: 54, weight: .heavy)
+    static let ppTitle = Font.system(size: 32, weight: .bold)
+    static let ppHeadline = Font.system(size: 18, weight: .semibold)
+    static let ppBody = Font.system(size: 17)
+    static let ppButton = Font.system(size: 18, weight: .semibold)
+    static let ppCallout = Font.system(size: 15, weight: .medium)
+    static let ppEyebrow = Font.system(size: 13, weight: .semibold)
+    static let ppCaption = Font.system(size: 12, weight: .semibold)
+}
+
+extension Text {
+    /// Uppercase label above a title.
+    func ppEyebrow() -> some View {
+        font(.ppEyebrow).tracking(1.2).textCase(.uppercase).foregroundColor(PP.inkMuted)
+    }
+}
+
+// MARK: - Colour helpers
+
+extension Color {
+    init(hex: UInt32, alpha: Double = 1) {
+        self.init(.sRGB,
+                  red: Double((hex >> 16) & 0xFF) / 255,
+                  green: Double((hex >> 8) & 0xFF) / 255,
+                  blue: Double(hex & 0xFF) / 255,
+                  opacity: alpha)
+    }
+
+    /// A colour that follows the window's light or dark appearance.
+    static func pp(_ light: UInt32, _ dark: UInt32, lightAlpha: Double = 1, darkAlpha: Double = 1) -> Color {
+        func ns(_ hex: UInt32, _ alpha: Double) -> NSColor {
+            NSColor(srgbRed: CGFloat((hex >> 16) & 0xFF) / 255,
+                    green: CGFloat((hex >> 8) & 0xFF) / 255,
+                    blue: CGFloat(hex & 0xFF) / 255,
+                    alpha: CGFloat(alpha))
+        }
+        let lightColor = ns(light, lightAlpha), darkColor = ns(dark, darkAlpha)
+        return Color(nsColor: NSColor(name: nil) { appearance in
+            appearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua ? darkColor : lightColor
+        })
+    }
+}
+
+// MARK: - Surfaces
+
+/// The window ground: the lilac surface with three soft shapes for the glass to pick up.
+struct PPBackdrop: View {
+    var body: some View {
+        GeometryReader { geo in
+            let w = geo.size.width, h = geo.size.height
+            ZStack {
+                PP.surface
+                Ellipse()
+                    .fill(PP.lilac)
+                    .frame(width: 420, height: 380)
+                    .rotationEffect(.degrees(-18))
+                    .position(x: 60, y: h * 0.55)
+                Circle()
+                    .fill(PP.apricot)
+                    .frame(width: 360, height: 360)
+                    .position(x: w - 40, y: h - 60)
+                RoundedRectangle(cornerRadius: 56, style: .continuous)
+                    .fill(PP.mint)
+                    .frame(width: 180, height: 180)
+                    .rotationEffect(.degrees(18))
+                    // Behind the report panel, never behind the header's text.
+                    .position(x: w - 70, y: h * 0.42)
+            }
+        }
+        .ignoresSafeArea()
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+}
+
+/// Floating glass: Liquid Glass on macOS 26, a tinted material before that, and a solid
+/// raised surface when Reduce Transparency is on.
+struct PPGlassModifier: ViewModifier {
+    var cornerRadius: CGFloat
+    var padding: CGFloat
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        let padded = content.padding(padding)
+        if reduceTransparency {
+            padded
+                .background(shape.fill(PP.surfaceRaised))
+                .overlay(shape.strokeBorder(PP.inkStaff.opacity(0.4), lineWidth: 1))
+        } else {
+            glass(padded, shape: shape)
+        }
+    }
+
+    @ViewBuilder
+    private func glass<V: View>(_ view: V, shape: RoundedRectangle) -> some View {
+        #if compiler(>=6.2)
+        if #available(macOS 26.0, *) {
+            view.glassEffect(.regular, in: shape)
+        } else {
+            materialGlass(view, shape: shape)
+        }
+        #else
+        materialGlass(view, shape: shape)
+        #endif
+    }
+
+    private func materialGlass<V: View>(_ view: V, shape: RoundedRectangle) -> some View {
+        view
+            .background(shape.fill(PP.surfaceGlass))
+            .background(.ultraThinMaterial, in: shape)
+            .overlay(shape.strokeBorder(PP.surfaceGlassEdge, lineWidth: 1))
+            .shadow(color: PP.glassShadow, radius: 15, x: 0, y: 10)
+    }
+}
+
+extension View {
+    /// Floating chrome: toolbars, the lesson panel, the keyboard tray.
+    func ppGlass(cornerRadius: CGFloat = PP.Radius.xl, padding: CGFloat = PP.Space.s6) -> some View {
+        modifier(PPGlassModifier(cornerRadius: cornerRadius, padding: padding))
+    }
+
+    /// Paper for sheet music (white, or the night page): notation never sits on glass.
+    func ppPaper(cornerRadius: CGFloat = PP.Radius.sm) -> some View {
+        modifier(PPPaperModifier(cornerRadius: cornerRadius))
+    }
+
+    /// Puts the sheet-music palette for the saved `PaperStyle` and this window's appearance
+    /// into the environment. Apply once, at the window's root.
+    func ppPaperStyle() -> some View {
+        modifier(PPPaperStyleModifier())
+    }
+}
+
+// MARK: - Sheet-music paper
+
+/// How sheet music is shown. Saved per user.
+enum PaperStyle: String, CaseIterable, Identifiable {
+    case matchAppearance, light, dark
+    static let storageKey = "paperStyle"
+    var id: String { rawValue }
+    var title: String {
+        switch self {
+        case .matchAppearance: return "Match appearance"
+        case .light: return "Light"
+        case .dark: return "Dark"
+        }
+    }
+}
+
+private struct PaperKey: EnvironmentKey {
+    static let defaultValue = PP.Paper.light
+}
+
+extension EnvironmentValues {
+    /// The sheet-music palette in use.
+    var paper: PP.Paper {
+        get { self[PaperKey.self] }
+        set { self[PaperKey.self] = newValue }
+    }
+}
+
+struct PPPaperStyleModifier: ViewModifier {
+    @AppStorage(PaperStyle.storageKey) private var style = PaperStyle.matchAppearance
+    @Environment(\.colorScheme) private var colorScheme
+
+    func body(content: Content) -> some View {
+        let dark: Bool
+        switch style {
+        case .matchAppearance: dark = colorScheme == .dark
+        case .light: dark = false
+        case .dark: dark = true
+        }
+        return content.environment(\.paper, dark ? .dark : .light)
+    }
+}
+
+struct PPPaperModifier: ViewModifier {
+    var cornerRadius: CGFloat
+    @Environment(\.paper) private var paper
+
+    func body(content: Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
+        return content
+            .background(paper.page)
+            .clipShape(shape)
+            // The night page needs a faint rim to stand off the dark window.
+            .overlay(paper.isDark ? shape.strokeBorder(PP.surfaceGlassEdge, lineWidth: 1) : nil)
+            .shadow(color: paper.shadow, radius: 12, x: 0, y: 6)
+    }
+}
+
+// MARK: - Buttons
+
+/// The one bold action per screen: an iris pill. 60 pt in the lesson flow, `compact` in toolbars.
+struct PPPrimaryButtonStyle: ButtonStyle {
+    var height: CGFloat = PP.Size.targetPrimary
+    @Environment(\.isEnabled) private var isEnabled
+
+    @ViewBuilder
+    func makeBody(configuration: Configuration) -> some View {
+        let large = height >= PP.Size.targetMin
+        configuration.label
+            .font(large ? .ppButton : .system(size: 13, weight: .semibold))
+            .foregroundColor(PP.onAccent)
+            .padding(.horizontal, large ? PP.Space.s8 : PP.Space.s4)
+            .frame(minHeight: height)
+            .background(Capsule().fill(PP.accent))
+            .contentShape(Capsule())
+            .opacity(isEnabled ? (configuration.isPressed ? 0.85 : 1) : 0.4)
+            .scaleEffect(configuration.isPressed ? 0.97 : 1)
+            .animation(.spring(response: 0.25, dampingFraction: 0.7), value: configuration.isPressed)
+    }
+}
+
+/// A quieter action beside the primary: a glass pill with ink text.
+struct PPGlassButtonStyle: ButtonStyle {
+    var height: CGFloat = PP.Size.compact
+    @Environment(\.isEnabled) private var isEnabled
+
+    @ViewBuilder
+    func makeBody(configuration: Configuration) -> some View {
+        let large = height >= PP.Size.targetMin
+        configuration.label
+            .font(large ? .ppButton : .system(size: 13, weight: .medium))
+            .foregroundColor(PP.ink)
+            .padding(.horizontal, large ? PP.Space.s6 : PP.Space.s3)
+            .frame(minHeight: height)
+            .background(Capsule().fill(configuration.isPressed ? PP.surfaceRaised : PP.surfaceGlass))
+            .overlay(Capsule().strokeBorder(PP.inkStaff.opacity(0.45), lineWidth: 1))
+            .contentShape(Capsule())
+            .opacity(isEnabled ? 1 : 0.4)
+    }
+}
+
+/// Icon-only buttons. Square = a one-shot tool; circle = a mode that stays on.
+struct PPIconButtonStyle: ButtonStyle {
+    enum Kind { case tool, mode }
+    var kind: Kind = .tool
+    var isOn = false
+    var size: CGFloat = PP.Size.compact
+    @Environment(\.isEnabled) private var isEnabled
+
+    @ViewBuilder
+    func makeBody(configuration: Configuration) -> some View {
+        let radius = kind == .tool ? min(PP.Radius.md, size * 0.3) : size / 2
+        let shape = RoundedRectangle(cornerRadius: radius, style: .continuous)
+        configuration.label
+            .font(.system(size: size * 0.4, weight: .semibold))
+            .foregroundColor(isOn ? PP.onAccent : PP.ink)
+            .frame(width: size, height: size)
+            .background(shape.fill(isOn ? PP.accent : (configuration.isPressed ? PP.surfaceRaised : PP.surfaceGlass)))
+            .overlay(shape.strokeBorder(isOn ? Color.clear : PP.inkStaff.opacity(0.45), lineWidth: 1))
+            .contentShape(shape)
+            .opacity(isEnabled ? 1 : 0.4)
+    }
+}
+
+/// A mode switch drawn as a chip: iris when on.
+struct PPChipToggleStyle: ToggleStyle {
+    var height: CGFloat = PP.Size.compact
+    @Environment(\.isEnabled) private var isEnabled
+
+    @ViewBuilder
+    func makeBody(configuration: Configuration) -> some View {
+        Button {
+            configuration.isOn.toggle()
+        } label: {
+            HStack(spacing: PP.Space.s1) {
+                if configuration.isOn {
+                    Image(systemName: "checkmark").font(.system(size: 10, weight: .bold))
+                }
+                configuration.label
+            }
+            .font(.system(size: 13, weight: .medium))
+            .foregroundColor(configuration.isOn ? PP.onAccent : PP.ink)
+            .padding(.horizontal, PP.Space.s3)
+            .frame(minHeight: height)
+            .background(Capsule().fill(configuration.isOn ? PP.accent : PP.surfaceGlass))
+            .overlay(Capsule().strokeBorder(configuration.isOn ? Color.clear : PP.inkStaff.opacity(0.45), lineWidth: 1))
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .opacity(isEnabled ? 1 : 0.4)
+        .accessibilityAddTraits(configuration.isOn ? .isSelected : [])
+    }
+}
+
+// MARK: - Feedback
+
+/// One specific sentence about what just happened, with an icon tile for its kind.
+struct PPFeedbackChip: View {
+    enum Kind { case mistake, success, hint, warning }
+    let kind: Kind
+    let text: String
+    /// Lines the text may wrap to; 1 keeps it a single-line pill.
+    var lines: Int = 1
+
+    private var tile: (Color, Color, String) {
+        switch kind {
+        case .mistake: return (PP.mistake, PP.onAccent, "xmark")
+        case .success: return (PP.success, PP.onAccent, "checkmark")
+        case .hint: return (PP.accent, PP.onAccent, "lightbulb")
+        case .warning: return (PP.apricot, Color(hex: 0x1B1630), "arrow.counterclockwise")
+        }
+    }
+
+    var body: some View {
+        let (fill, iconInk, symbol) = tile
+        HStack(spacing: PP.Space.s2) {
+            Image(systemName: symbol)
+                .font(.system(size: 12, weight: .bold))
+                .foregroundColor(iconInk)
+                .frame(width: 26, height: 26)
+                .background(RoundedRectangle(cornerRadius: 8, style: .continuous).fill(fill))
+                .accessibilityHidden(true)
+            Text(text)
+                .font(.ppCallout)
+                .foregroundColor(PP.onInverse)
+                .lineLimit(lines)
+                .truncationMode(.tail)
+                .fixedSize(horizontal: false, vertical: lines > 1)
+        }
+        .padding(.leading, 5)
+        .padding(.trailing, PP.Space.s4)
+        .padding(.vertical, 5)
+        // A capsule on one line (radius = half its 36 pt height), a rounded box when wrapped.
+        .background(RoundedRectangle(cornerRadius: 18, style: .continuous).fill(PP.inverse))
+        .accessibilityElement(children: .combine)
+    }
+}
+
+// MARK: - Shapes
+
+/// A rectangle with only its bottom corners rounded: piano keys.
+struct PPKeyShape: Shape {
+    var radius: CGFloat
+
+    func path(in rect: CGRect) -> Path {
+        let r = min(radius, rect.width / 2, rect.height / 2)
+        var p = Path()
+        p.move(to: CGPoint(x: rect.minX, y: rect.minY))
+        p.addLine(to: CGPoint(x: rect.maxX, y: rect.minY))
+        p.addLine(to: CGPoint(x: rect.maxX, y: rect.maxY - r))
+        p.addQuadCurve(to: CGPoint(x: rect.maxX - r, y: rect.maxY), control: CGPoint(x: rect.maxX, y: rect.maxY))
+        p.addLine(to: CGPoint(x: rect.minX + r, y: rect.maxY))
+        p.addQuadCurve(to: CGPoint(x: rect.minX, y: rect.maxY - r), control: CGPoint(x: rect.minX, y: rect.maxY))
+        p.closeSubpath()
+        return p
+    }
+}
+#endif
