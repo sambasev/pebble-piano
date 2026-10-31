@@ -21,6 +21,9 @@ struct ContentView: View {
                     .padding(PP.Space.s4)
             case .practice:
                 practice
+            case .books:
+                BooksView(model: session.bookImport)
+                    .padding(PP.Space.s4)
             case .backingTracks:
                 BackingTracksView(model: session.backingEditor, store: session.backingStore)
                     .padding(PP.Space.s4)
@@ -60,11 +63,12 @@ struct ContentView: View {
             Picker("Section", selection: $session.tab) {
                 Text("Learn").tag(PlaySession.AppTab.learn)
                 Text("Practice").tag(PlaySession.AppTab.practice)
+                Text("Books").tag(PlaySession.AppTab.books)
                 Text("Backing tracks").tag(PlaySession.AppTab.backingTracks)
             }
             .pickerStyle(.segmented)
             .labelsHidden()
-            .frame(width: 340)
+            .frame(width: 430)
             Spacer()
             Button {
                 showInput.toggle()

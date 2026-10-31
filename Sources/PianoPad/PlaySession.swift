@@ -315,7 +315,7 @@ final class PlaySession: ObservableObject {
         }
     }
 
-    enum AppTab: Hashable { case learn, practice, backingTracks }
+    enum AppTab: Hashable { case learn, practice, books, backingTracks }
 
     /// Tabs where the keys play notes (typing and the on-screen keyboard).
     var tabPlaysNotes: Bool { tab == .practice || tab == .learn }
@@ -324,6 +324,23 @@ final class PlaySession: ObservableObject {
     let backingStore = BackingStore()
     /// The Backing Tracks tab.
     lazy var backingEditor = BackingEditorModel(store: backingStore)
+    /// The Books tab: reading a piece from a PDF music book.
+    lazy var bookImport = BookImportModel(session: self)
+
+    /// Plays one note (nudging a note while checking a piece read from a book).
+    func previewPitch(_ pitch: Int) {
+        synth?.play(pitch: pitch, velocity: 80, duration: 0.6)
+    }
+
+    /// Plays a few notes, scheduled from now (Listen on a bar being checked).
+    func previewNotes(_ notes: [(pitch: Int, start: Double, length: Double)]) {
+        guard let synth else { return }
+        for n in notes {
+            DispatchQueue.main.asyncAfter(deadline: .now() + n.start) {
+                synth.play(pitch: n.pitch, velocity: 80, duration: n.length)
+            }
+        }
+    }
 
     // MARK: Private state
 
@@ -1293,8 +1310,10 @@ final class PlaySession: ObservableObject {
     ///     per block); nil keeps the file's own.
     ///   - remember: add it to the learner's recent pieces (not for lesson files).
     /// `measures` keeps only those measures (1-based), moved to the start: a lesson's bar drill.
+    /// `writtenScore` is shown instead of a transcription of the MIDI: pieces read from a book
+    /// keep their own staves and clefs (Beyer writes both hands in treble clef).
     func loadReference(_ url: URL, keepPassage: Bool = false, tempo: Double? = nil, remember: Bool = true,
-                       measures: ClosedRange<Int>? = nil) {
+                       measures: ClosedRange<Int>? = nil, writtenScore: Score? = nil) {
         stopPlayAlong(discard: false)
         if !keepPassage {
             passage = nil
@@ -1311,7 +1330,7 @@ final class PlaySession: ObservableObject {
             referenceURL = url
             chords = ChordGrouping.group(sequence.notes, window: rubric.chordWindowMs / 1000)
             score = keepPassage ? nil
-                : Transcriber().transcribe(sequence, title: sequence.title ?? url.deletingPathExtension().lastPathComponent)
+                : writtenScore ?? Transcriber().transcribe(sequence, title: sequence.title ?? url.deletingPathExtension().lastPathComponent)
             scoreID = UUID()
             message = sequence.notes.isEmpty ? "\(url.lastPathComponent) has no notes to play." : nil
             if !keepPassage && remember { rememberPiece(url, title: sequence.title) }
@@ -2101,6 +2120,8 @@ extension PlaySession {
         case .practice:
             backingEditor.stopPreview()
             setupPlayAlong()
+        case .books:
+            backingEditor.stopPreview()
         case .backingTracks:
             if backingEditor.draft == nil, let linked = backingStore.track(linkedTrackID) {
                 // Open the editor on the track the current piece uses.
