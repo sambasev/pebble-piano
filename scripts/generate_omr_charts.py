@@ -53,51 +53,54 @@ def chart_model_shootout():
     ]
 
     # Data: Note Accuracy (%)
-    scan_note_acc = [0, 47.1, 87.7, 94.8]
-    modern_note_acc = [0, 69.7, 88.4, 100.0]
+    # LEGATO: 0% on 1895 vintage crop (OOD loop); 100.0% on clean modern vector score
+    scan_note_acc = [0.0, 47.1, 87.7, 94.8]
+    modern_note_acc = [100.0, 69.7, 88.4, 100.0]
 
     # Data: Bar Exact Match (%)
-    scan_bem = [0, 14.3, 71.4, 80.4]
-    modern_bem = [0, 39.3, 67.9, 83.9]
+    scan_bem = [0.0, 14.3, 71.4, 80.4]
+    modern_bem = [100.0, 39.3, 67.9, 83.9]
 
     x = np.arange(len(models))
     width = 0.35
 
     # Subplot 1: Note Accuracy
     rects1 = ax1.bar(x - width/2, scan_note_acc, width, label="1895 Historic Scan", color=GRAY, alpha=0.85)
-    rects2 = ax1.bar(x + width/2, modern_note_acc, width, label="Modern Engraving", color=META_BLUE, alpha=0.95)
+    rects2 = ax1.bar(x + width/2, modern_note_acc, width, label="Modern Score", color=META_BLUE, alpha=0.95)
     ax1.set_ylabel("Note Accuracy (%)")
     ax1.set_title("Note-Level Accuracy (Pitch + Duration)", fontweight="bold")
     ax1.set_xticks(x)
     ax1.set_xticklabels(models)
-    ax1.set_ylim(0, 110)
+    ax1.set_ylim(0, 115)
     ax1.axhline(90, color="gray", linestyle="--", alpha=0.5, label="High-Fidelity Threshold (90%)")
     ax1.legend(loc="upper left")
 
     # Add data labels
     for rect in rects1 + rects2:
         h = rect.get_height()
-        if h > 0:
-            ax1.annotate(f"{h:.1f}%", xy=(rect.get_x() + rect.get_width() / 2, h),
-                         xytext=(0, 4), textcoords="offset points", ha="center", va="bottom", fontsize=10, fontweight="bold")
+        label = f"{h:.1f}%" if h > 0 else "0% (loop)"
+        ax1.annotate(label, xy=(rect.get_x() + rect.get_width() / 2, max(h, 2)),
+                     xytext=(0, 4), textcoords="offset points", ha="center", va="bottom",
+                     fontsize=10, fontweight="bold", color=DARK if h > 0 else "#CC0000")
 
     # Subplot 2: Bar Exact Match
     rects3 = ax2.bar(x - width/2, scan_bem, width, label="1895 Historic Scan", color=GRAY, alpha=0.85)
-    rects4 = ax2.bar(x + width/2, modern_bem, width, label="Modern Engraving", color=GREEN, alpha=0.95)
+    rects4 = ax2.bar(x + width/2, modern_bem, width, label="Modern Score", color=GREEN, alpha=0.95)
     ax2.set_ylabel("Bar Exact Match (%)")
     ax2.set_title("Bar Exact Match Rate (100% Both Hands)", fontweight="bold")
     ax2.set_xticks(x)
     ax2.set_xticklabels(models)
-    ax2.set_ylim(0, 110)
+    ax2.set_ylim(0, 115)
     ax2.legend(loc="upper left")
 
     for rect in rects3 + rects4:
         h = rect.get_height()
-        if h > 0:
-            ax2.annotate(f"{h:.1f}%", xy=(rect.get_x() + rect.get_width() / 2, h),
-                         xytext=(0, 4), textcoords="offset points", ha="center", va="bottom", fontsize=10, fontweight="bold")
+        label = f"{h:.1f}%" if h > 0 else "0% (loop)"
+        ax2.annotate(label, xy=(rect.get_x() + rect.get_width() / 2, max(h, 2)),
+                     xytext=(0, 4), textcoords="offset points", ha="center", va="bottom",
+                     fontsize=10, fontweight="bold", color=DARK if h > 0 else "#CC0000")
 
-    plt.suptitle("OMR Benchmark: Meta Model Shootout on Ferdinand Beyer Op. 101", fontsize=16, fontweight="bold", y=1.02)
+    plt.suptitle("OMR Benchmark: Meta Model Shootout (Historical Scans vs. Modern Scores)", fontsize=16, fontweight="bold", y=1.02)
     plt.tight_layout()
     p_png = OUT_DIR / "omr_model_shootout.png"
     p_svg = OUT_DIR / "omr_model_shootout.svg"
@@ -147,32 +150,35 @@ def chart_error_ablation():
 
 def chart_pareto_efficiency():
     """Figure 3: Pareto Frontier (Accuracy vs. Latency)."""
-    fig, ax = plt.subplots(figsize=(9, 6))
+    fig, ax = plt.subplots(figsize=(10, 6))
 
     points = [
-        {"name": "LEGATO (L40S GPU)", "acc": 0, "lat": 42, "color": GRAY, "marker": "x"},
-        {"name": "Muse Spark 1.3 (Modern)", "acc": 69.7, "lat": 25, "color": ORANGE, "marker": "o"},
-        {"name": "Muse Spark 1.3 (Scan)", "acc": 47.1, "lat": 47, "color": ORANGE, "marker": "s"},
-        {"name": "Muse Wonder 1.0 (Modern)", "acc": 88.4, "lat": 48, "color": META_BLUE, "marker": "o"},
-        {"name": "Muse Wonder 1.0 (Scan)", "acc": 87.7, "lat": 126, "color": META_BLUE, "marker": "s"},
-        {"name": "Hybrid Wonder + CV (Modern)", "acc": 100.0, "lat": 50, "color": GREEN, "marker": "*"},
-        {"name": "Hybrid Wonder + CV (Scan)", "acc": 94.8, "lat": 128, "color": GREEN, "marker": "P"},
+        {"name": "LEGATO (1895 Crop)", "acc": 0.0, "lat": 42.0, "color": GRAY, "marker": "X"},
+        {"name": "LEGATO (Modern Score)", "acc": 100.0, "lat": 9.3, "color": META_PURPLE, "marker": "D"},
+        {"name": "Muse Spark 1.3 (Modern)", "acc": 69.7, "lat": 25.0, "color": ORANGE, "marker": "o"},
+        {"name": "Muse Spark 1.3 (Scan)", "acc": 47.1, "lat": 47.0, "color": ORANGE, "marker": "s"},
+        {"name": "Muse Wonder 1.0 (Modern)", "acc": 88.4, "lat": 48.0, "color": META_BLUE, "marker": "o"},
+        {"name": "Muse Wonder 1.0 (Scan)", "acc": 87.7, "lat": 126.0, "color": META_BLUE, "marker": "s"},
+        {"name": "Hybrid Wonder + CV (Modern)", "acc": 100.0, "lat": 50.0, "color": GREEN, "marker": "*"},
+        {"name": "Hybrid Wonder + CV (Scan)", "acc": 94.8, "lat": 128.0, "color": GREEN, "marker": "P"},
     ]
 
     for p in points:
-        ax.scatter(p["lat"], p["acc"], color=p["color"], marker=p["marker"], s=180, label=p["name"], edgecolors="black", linewidth=1.2)
-        offset = (8, -4) if "Scan" in p["name"] else (8, 4)
-        ax.annotate(p["name"], (p["lat"], p["acc"]), xytext=offset, textcoords="offset points", fontsize=10)
+        ax.scatter(p["lat"], p["acc"], color=p["color"], marker=p["marker"], s=180, label=p["name"],
+                   edgecolors="black" if p["marker"] != "X" else None, linewidth=1.2)
+        offset = (8, -4) if "Scan" in p["name"] or "Crop" in p["name"] else (8, 4)
+        ax.annotate(p["name"], (p["lat"], p["acc"]), xytext=offset, textcoords="offset points", fontsize=10, fontweight="bold")
 
-    ax.set_xlabel("Latency (Seconds per System)")
+    ax.set_xlabel("Latency (Seconds per System / Page)")
     ax.set_ylabel("Note Accuracy (%)")
     ax.set_title("OMR Pareto Frontier: Latency vs. Accuracy", fontweight="bold")
-    ax.set_ylim(-5, 110)
-    ax.set_xlim(15, 150)
+    ax.set_ylim(-8, 115)
+    ax.set_xlim(0, 155)
     ax.grid(True, linestyle="--", alpha=0.6)
 
     # Highlight optimal region
-    ax.axhspan(90, 105, color=GREEN, alpha=0.1, label="Playable Quality Zone (>=90%)")
+    ax.axhspan(90, 108, color=GREEN, alpha=0.1, label="Playable Quality Zone (>=90%)")
+    ax.legend(loc="lower right", framealpha=0.9)
 
     plt.tight_layout()
     p_png = OUT_DIR / "omr_pareto_frontier.png"

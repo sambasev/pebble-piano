@@ -127,12 +127,24 @@ class Legato:
 
 
 @app.local_entrypoint()
-def main(pieces: str = "no12,no13,no24", beams: int = 10, fp16: bool = False, full_page: bool = False):
+def main(pieces: str = "no12,no13,no24", beams: int = 10, fp16: bool = False, full_page: bool = False, image: str = ""):
     """Reads the Beyer crops and scores them like scripts/ai_probe2.py.
-    --full-page instead sends whole pages 24 and 27 (closer to LEGATO's training data) and prints the ABC."""
+    --full-page sends whole pages 24 and 27.
+    --image <path> reads any specific image file and prints the transcribed ABC and measures."""
     root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    legato = Legato(fp16=fp16)
+
+    if image:
+        with open(image, "rb") as f:
+            r = legato.read.remote(f.read(), beams)
+        print(f"== {image} ({r['seconds']:.1f}s on GPU)")
+        print(f"ABC Notation:\n{r.get('abc', '')[:1500]}\n")
+        print(f"Measures parsed: {len(r.get('measures', []))}")
+        if r.get("measures"):
+            print("First 3 measures:", r["measures"][:3])
+        return
+
     if full_page:
-        legato = Legato(fp16=fp16)
         out_dir = os.path.join(root, ".build", "legato")
         os.makedirs(out_dir, exist_ok=True)
         for page in ("op101-p24", "op101-p27"):
