@@ -46,9 +46,15 @@ import PianoGraderCore
                     }
                     Text(session.isPlaying ? "Listening…" : session.heardQuestion ? "Choose an answer." : "Listen to the complete example before answering.")
                         .font(.caption).foregroundStyle(.secondary)
-                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 160))]) {
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 180), spacing: 12)], spacing: 12) {
                         ForEach(Array(question.choices.enumerated()), id: \.element.id) { i, answer in
-                            Button(answer.title) { session.answer(answer.id) }
+                            Button { session.answer(answer.id) } label: {
+                                Text(answer.title)
+                                    .font(question.stage.level <= 2 ? .system(size: 32, weight: .bold, design: .rounded) : .title3.weight(.semibold))
+                                    .multilineTextAlignment(.center)
+                                    .frame(maxWidth: .infinity, minHeight: 56)
+                                    .padding(.horizontal, 8)
+                            }
                                 .buttonStyle(.bordered).controlSize(.large)
                                 .keyboardShortcut(KeyEquivalent(Array("1234567890-=")[i]), modifiers: [])
                                 .disabled(!session.canAnswer)

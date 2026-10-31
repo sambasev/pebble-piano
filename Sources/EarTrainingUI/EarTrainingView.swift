@@ -282,7 +282,9 @@ import PianoGraderCore
                 Text(shortcutLabel(index)).font(.caption.monospaced().bold())
                     .frame(width: 26, height: 26)
                     .background(color.opacity(0.12), in: RoundedRectangle(cornerRadius: 6))
-                Text(answer.title).font(.callout.weight(.medium)).multilineTextAlignment(.leading)
+                Text(answer.title)
+                    .font(question.stage.level <= 2 ? .system(size: 32, weight: .bold, design: .rounded) : .callout.weight(.medium))
+                    .multilineTextAlignment(.leading)
                 Spacer(minLength: 0)
                 if correct { Image(systemName: "checkmark.circle.fill").foregroundStyle(.green) }
                 if wrong { Image(systemName: "xmark.circle.fill").foregroundStyle(.red) }
