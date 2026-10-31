@@ -55,6 +55,8 @@ targets:
         product: PianoPadState
       - package: PianoGrader
         product: PianoLessons
+      - package: PianoGrader
+        product: PianoAI
       - package: TelemetryDeck
     info:
       path: Generated/Info.plist

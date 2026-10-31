@@ -9,6 +9,7 @@ let package = Package(
         .library(name: "PianoGraderIO", targets: ["PianoGraderIO"]),
         .library(name: "PianoPadState", targets: ["PianoPadState"]),
         .library(name: "PianoLessons", targets: ["PianoLessons"]),
+        .library(name: "PianoAI", targets: ["PianoAI"]),
         .executable(name: "grade", targets: ["grade"]),
         .executable(name: "PianoPad", targets: ["PianoPad"]),
     ],
@@ -44,6 +45,9 @@ let package = Package(
             name: "PianoLessons",
             dependencies: ["PianoGraderCore"]
         ),
+        // Meta Model API (Muse Spark, SAM 3.1, Muse Voice Transcribe) and OpenAI-compatible
+        // open-weight hosts (Fireworks, Modal). Foundation only; unit-tested with canned responses.
+        .target(name: "PianoAI"),
         // Command-line tool: grade a recorded take, record one live, or check fixtures.
         .executableTarget(
             name: "grade",
@@ -56,7 +60,7 @@ let package = Package(
         // Mac app for quick testing: on-screen keyboard, musical typing, MIDI input, grading.
         .executableTarget(
             name: "PianoPad",
-            dependencies: ["PianoGraderCore", "PianoGraderIO", "PianoPadState", "PianoLessons"]
+            dependencies: ["PianoGraderCore", "PianoGraderIO", "PianoPadState", "PianoLessons", "PianoAI"]
         ),
         .testTarget(
             name: "PianoGraderCoreTests",
@@ -65,6 +69,10 @@ let package = Package(
         .testTarget(
             name: "PianoPadStateTests",
             dependencies: ["PianoPadState"]
+        ),
+        .testTarget(
+            name: "PianoAITests",
+            dependencies: ["PianoAI"]
         ),
         .testTarget(
             name: "PianoLessonsTests",

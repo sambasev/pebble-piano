@@ -6,6 +6,7 @@ struct ContentView: View {
     @EnvironmentObject var session: PlaySession
     @State private var showJudgeSettings = false
     @State private var showSettings = false
+    @State private var showAISettings = false
     @State private var showInput = false
     @AppStorage(PaperStyle.storageKey) private var paperStyle = PaperStyle.matchAppearance
 
@@ -314,6 +315,8 @@ struct ContentView: View {
                 Button("Calibrate piano (mic)…") { session.startCalibration() }
                 Button("Measure silence (mic noise gate)") { session.measureSilence() }
                 Button("Clear piano calibration") { session.clearCalibration() }.disabled(!session.isCalibrated)
+                Divider()
+                Button("AI settings…") { showAISettings = true }
             } label: {
                 Image(systemName: "ellipsis")
                     .font(.system(size: 13, weight: .bold))
@@ -323,7 +326,8 @@ struct ContentView: View {
             .buttonStyle(PPIconButtonStyle(kind: .tool))
             .menuIndicator(.hidden)
             .fixedSize()
-            .help("Open, export, MIDI devices and microphone calibration")
+            .help("Open, export, MIDI devices, microphone calibration and AI settings")
+            .sheet(isPresented: $showAISettings) { AISettingsView { showAISettings = false } }
         }
     }
 
