@@ -209,6 +209,8 @@ public struct ScoreRenderer {
                 for event in score.measures[ml.index].events(onStaff: 0).sorted(by: { $0.start < $1.start }) {
                     guard next < fingers.count else { return items }
                     guard !event.isRest, !event.notes.allSatisfy(\.tieStop), let x = ml.columns[event.start] else { continue }
+                    // 0: no finger number printed for this note (books print them only now and then).
+                    guard fingers[next] > 0 else { next += 1; continue }
                     let highest = event.notes.map { clef.staffStep(of: $0.spelled) }.max() ?? 0
                     let aboveStaff = layout.y(ofStep: 8, staff: 0, system: system.index) - 1.4 * s
                     let aboveNote = layout.y(ofStep: highest, staff: 0, system: system.index) - 4.6 * s

@@ -49,6 +49,7 @@ let package = Package(
         // open-weight hosts (Fireworks, Modal). Foundation only; unit-tested with canned responses.
         .target(
             name: "PianoAI",
+            dependencies: ["PianoGraderCore"],
             // Always optimised: measuring noteheads walks every pixel of each system image.
             swiftSettings: [.unsafeFlags(["-O"], .when(configuration: .debug))]
         ),
@@ -76,7 +77,7 @@ let package = Package(
         ),
         .testTarget(
             name: "PianoAITests",
-            dependencies: ["PianoAI"]
+            dependencies: ["PianoAI", "PianoGraderCore"]
         ),
         .testTarget(
             name: "PianoLessonsTests",
