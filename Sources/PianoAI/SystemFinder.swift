@@ -18,6 +18,15 @@ public struct FoundSystem: Equatable, Sendable {
     /// Staff line spacing, in pixels.
     public var spacing: Double
 
+    public init(index: Int, left: Int, top: Int, right: Int, bottom: Int, spacing: Double) {
+        self.index = index
+        self.left = left
+        self.top = top
+        self.right = right
+        self.bottom = bottom
+        self.spacing = spacing
+    }
+
     public var width: Int { right - left }
     public var height: Int { bottom - top }
 }
