@@ -78,6 +78,24 @@ LIB="$HOME/Library/Application Support/PianoPad/Backing Tracks"
 mkdir -p BackingTracks
 if [ -d "$LIB" ]; then cp -R "$LIB/." BackingTracks/; fi
 if [ -d "$REPO/../backing_tracks" ]; then cp "$REPO/../backing_tracks/"* BackingTracks/ 2>/dev/null || true; fi
+# Each track's audio, from wherever the track says it is (the app skips a track whose audio
+# isn't bundled, so a missing one is an error, not a warning).
+missing=0
+for json in BackingTracks/tracks/*.backing.json; do
+    [ -e "$json" ] || continue
+    audio=$(plutil -extract audioPath raw -o - "$json" 2>/dev/null || true)
+    name=$(basename "$audio")
+    [ -n "$name" ] && [ -f "BackingTracks/$name" ] && continue
+    if [ -n "$audio" ] && [ -f "$audio" ]; then
+        cp "$audio" BackingTracks/
+    elif [ -n "$name" ] && [ -f "$LIB/$name" ]; then
+        cp "$LIB/$name" BackingTracks/
+    else
+        echo "MISSING audio for $(plutil -extract name raw -o - "$json" 2>/dev/null): $audio"
+        missing=1
+    fi
+done
+[ "$missing" = 0 ] || { echo "Put the missing audio next to the repo in ../backing_tracks/, or fix the track's audio in the app, then run again."; exit 1; }
 echo "Backing tracks to ship:"; ls -R BackingTracks
 
 # 3. Xcode project.
