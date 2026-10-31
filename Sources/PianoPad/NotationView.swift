@@ -15,6 +15,8 @@ struct NotationView: View {
     var onTapMeasure: ((Int) -> Void)? = nil
     /// The tempo line above the staff (lesson pages): asked every frame. Nil: no line.
     var tempoProgress: ((TimeInterval) -> ScoreProgress?)? = nil
+    /// The tempo line is moving (music playing, or the Wait-mode preview).
+    var tempoAnimating = true
 
     @StateObject private var cache = NotationCache()
     @Environment(\.paper) private var paper
@@ -44,7 +46,8 @@ struct NotationView: View {
                         }
                         .overlay(alignment: .topLeading) {
                             if let tempoProgress {
-                                TempoProgressLine(layout: prepared.layout, paper: paper, progress: tempoProgress)
+                                TempoProgressLine(layout: prepared.layout, paper: paper, progress: tempoProgress,
+                                                  animating: tempoAnimating)
                                     .frame(width: width, height: prepared.layout.height)
                             }
                         }

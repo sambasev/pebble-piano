@@ -97,7 +97,8 @@ private struct PagePlayerView: View {
             VStack(alignment: .leading, spacing: PP.Space.s2) {
                 TempoStrip()
                 NotationView(score: score, scoreID: session.scoreID, overlay: overlay(fingering: runner.fingering(for: block) ?? []),
-                             tempoProgress: { [session] uptime in session.tempoProgress(atUptime: uptime) })
+                             tempoProgress: { [session] uptime in session.tempoProgress(atUptime: uptime) },
+                             tempoAnimating: session.tempoDisplayMoves)
                     .ppPaper()
             }
         } else if case .concept(let card) = block, card.card == "fingerNumbers" {
@@ -441,7 +442,7 @@ private struct TempoStrip: View {
     }
 
     var body: some View {
-        TimelineView(.animation) { _ in
+        TimelineView(.animation(minimumInterval: nil, paused: !session.tempoDisplayMoves)) { _ in
             let p = position(uptime: ProcessInfo.processInfo.systemUptime)
             let beats = max(1, session.meter.numerator)
             HStack(spacing: PP.Space.s3) {
@@ -492,8 +493,8 @@ private struct TempoStrip: View {
         if let now = session.liveQuarter(atUptime: uptime) {
             q = now
             countIn = session.playAlongState == .countIn
-        } else if session.isAuditioning, let playhead = session.playheadQuarter {
-            q = playhead
+        } else if let playing = session.auditionQuarter(atUptime: uptime) {
+            q = playing
         } else if session.mode == .wait {
             // Learning the notes: a preview pulse at the target tempo.
             live = false

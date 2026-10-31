@@ -144,7 +144,8 @@ struct ContentView: View {
                                      onTapMeasure: { session.playFrom(bar: $0) },
                                      // The tempo line, in play-along only (with or without a backing track).
                                      tempoProgress: session.mode == .playAlong
-                                         ? { [session] uptime in session.tempoProgress(atUptime: uptime) } : nil)
+                                         ? { [session] uptime in session.tempoProgress(atUptime: uptime) } : nil,
+                                     tempoAnimating: session.tempoDisplayMoves)
                             .ppPaper()
                     }
                     .frame(maxWidth: .infinity, minHeight: 300, maxHeight: .infinity)

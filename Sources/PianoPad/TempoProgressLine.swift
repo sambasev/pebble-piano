@@ -18,9 +18,11 @@ struct TempoProgressLine: View {
     let paper: PP.Paper
     /// Asked every frame with the system uptime; nil hides the fill.
     let progress: (TimeInterval) -> ScoreProgress?
+    /// Redraw every frame only while something moves; otherwise it's drawn once.
+    var animating = true
 
     var body: some View {
-        TimelineView(.animation) { _ in
+        TimelineView(.animation(minimumInterval: nil, paused: !animating)) { _ in
             let p = progress(ProcessInfo.processInfo.systemUptime)
             Canvas { context, _ in
                 let s = layout.metrics.spacing
@@ -52,13 +54,20 @@ struct TempoProgressLine: View {
 }
 
 extension PlaySession {
+    /// Something on the tempo line or beat dots is moving: music playing, or the Wait-mode
+    /// preview sweep. Otherwise their frame-by-frame redraw pauses.
+    var tempoDisplayMoves: Bool {
+        isPlayingAlong || isAuditioning || (mode == .wait && phase != .graded)
+    }
+
+
     /// The tempo line in the score: the music while it plays (play-along with or without a
     /// backing track, count-in included, or Listen). In Wait mode, where there's no music to
     /// follow, a faint sweep at the target tempo (through the piece and a bar's rest) gives a
     /// feel for the speed. Otherwise, including once play-along has stopped, the line is empty.
     func tempoProgress(atUptime uptime: TimeInterval) -> ScoreProgress? {
         if let q = liveQuarter(atUptime: uptime) { return ScoreProgress(quarter: q, live: true) }
-        if isAuditioning, let q = playheadQuarter { return ScoreProgress(quarter: q, live: true) }
+        if let q = auditionQuarter(atUptime: uptime) { return ScoreProgress(quarter: q, live: true) }
         guard mode == .wait, let score, let last = score.measures.last, phase != .graded else { return nil }
         let start = firstBarQuarter
         let end = Double(last.startSixteenth + last.length) / Double(Score.sixteenthsPerQuarter)

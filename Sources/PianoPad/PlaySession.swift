@@ -380,6 +380,20 @@ final class PlaySession: ObservableObject {
     private var auditionCount: [Int: Int] = [:]   // overlapping instances of a pitch
     private var autoGradeWork: DispatchWorkItem?
     private var auditionTimer: Timer?
+    /// The preview under way: when it started and how its time maps to the music.
+    private struct AuditionClock {
+        var startedAt: TimeInterval
+        var leadIn: Double
+        var speed: Double
+        var secondsPerQuarter: Double
+        var firstQuarter: Double
+        func quarter(atSeconds t: Double) -> Double { firstQuarter + max(0, t - leadIn) * speed / secondsPerQuarter }
+    }
+    private var auditionClock: AuditionClock?
+    /// Note onsets in quarters, sorted: the playhead is published only when it reaches the
+    /// next one, not every frame (the drawn playhead sits on the note anyway), so playback
+    /// doesn't re-render the whole page 60 times a second.
+    private var playheadSteps: [Double] = []
 
     // Play-along (main thread only)
     private var clock: BeatClock?
@@ -1152,52 +1166,95 @@ final class PlaySession: ObservableObject {
         let leadIn = 0.25
         let speed = max(0.1, auditionSpeed)
         let start = reference.notes.map(\.onset).min() ?? 0
-        var end = 0.0
+        let notes = reference.notes.map { note in
+            PianoSynth.SequenceNote(pitch: note.pitch, velocity: note.velocity,
+                                    start: leadIn + (note.onset - start) / speed,
+                                    end: leadIn + max(note.offset - start, note.onset - start + 0.05) / speed)
+        }
+        let end = notes.map(\.end).max() ?? leadIn
 
-        for note in reference.notes {
-            let on = leadIn + (note.onset - start) / speed
-            let off = leadIn + max(note.offset - start, note.onset - start + 0.05) / speed
-            end = max(end, off)
-            schedule(at: on) { [weak self] in
-                guard let self else { return }
-                if self.auditionCount[note.pitch, default: 0] > 0 { synth.noteOff(pitch: note.pitch) } // re-strike
-                synth.noteOn(pitch: note.pitch, velocity: note.velocity)
-                self.auditionCount[note.pitch, default: 0] += 1
-                self.auditionHeld.insert(note.pitch)
-            }
-            schedule(at: off) { [weak self] in
-                guard let self else { return }
-                let remaining = max(0, self.auditionCount[note.pitch, default: 1] - 1)
-                self.auditionCount[note.pitch] = remaining
-                if remaining == 0 {
-                    synth.noteOff(pitch: note.pitch)
-                    self.auditionHeld.remove(note.pitch)
+        // The notes play on the audio engine's clock, so a busy main thread can't make them
+        // stutter. If that can't start, they're timed on the main thread as before.
+        let onAudioClock = synth.playSequence(notes)
+        if !onAudioClock {
+            for note in notes {
+                schedule(at: note.start) { [weak self] in
+                    guard let self else { return }
+                    if self.auditionCount[note.pitch, default: 0] > 0 { synth.noteOff(pitch: note.pitch) } // re-strike
+                    synth.noteOn(pitch: note.pitch, velocity: note.velocity)
+                    self.auditionCount[note.pitch, default: 0] += 1
+                    self.auditionHeld.insert(note.pitch)
+                }
+                schedule(at: note.end) { [weak self] in
+                    guard let self else { return }
+                    let remaining = max(0, self.auditionCount[note.pitch, default: 1] - 1)
+                    self.auditionCount[note.pitch] = remaining
+                    if remaining == 0 {
+                        synth.noteOff(pitch: note.pitch)
+                        self.auditionHeld.remove(note.pitch)
+                    }
                 }
             }
         }
-        schedule(at: end + 0.1) { [weak self] in
-            self?.stopAudition()
-            self?.lessonObserver?.playerListenFinished()
-        }
 
-        // Move the playhead with the audio. The reference has one tempo, so time maps
-        // linearly to quarter notes.
-        let secondsPerQuarter = 60.0 / max(1, reference.initialTempoBPM)
-        let firstQuarter = reference.notes.map(\.onsetBeats).min() ?? 0
-        let startedAt = ProcessInfo.processInfo.systemUptime + leadIn
-        playheadQuarter = firstQuarter
-        auditionTimer = Timer.scheduledTimer(withTimeInterval: 1.0 / 60, repeats: true) { [weak self] _ in
-            let elapsed = max(0, ProcessInfo.processInfo.systemUptime - startedAt)
-            self?.playheadQuarter = firstQuarter + elapsed * speed / secondsPerQuarter
+        // The playhead and lit keys follow the audio. The reference has one tempo, so time
+        // maps linearly to quarter notes.
+        let clock = AuditionClock(startedAt: ProcessInfo.processInfo.systemUptime, leadIn: leadIn, speed: speed,
+                                  secondsPerQuarter: 60.0 / max(1, reference.initialTempoBPM),
+                                  firstQuarter: reference.notes.map(\.onsetBeats).min() ?? 0)
+        auditionClock = clock
+        playheadSteps = Array(Set(reference.notes.map(\.onsetBeats))).sorted()
+        publishPlayhead(clock.firstQuarter)
+        let timer = Timer(timeInterval: 1.0 / 60, repeats: true) { [weak self] _ in
+            guard let self, let clock = self.auditionClock else { return }
+            let t = (onAudioClock ? synth.sequencePosition : nil)
+                ?? ProcessInfo.processInfo.systemUptime - clock.startedAt
+            if onAudioClock {
+                var sounding = Set<Int>()
+                for n in notes where n.start <= t && t < n.end { sounding.insert(n.pitch) }
+                if sounding != self.auditionHeld { self.auditionHeld = sounding }
+            }
+            self.publishPlayhead(clock.quarter(atSeconds: t))
+            if t >= end + 0.1 {
+                self.stopAudition()
+                self.lessonObserver?.playerListenFinished()
+            }
         }
+        RunLoop.main.add(timer, forMode: .common)
+        auditionTimer = timer
+    }
+
+    /// Where the preview is now, in quarters, for drawing that moves smoothly (the tempo
+    /// line). Not published; nil when no preview is playing.
+    func auditionQuarter(atUptime uptime: TimeInterval) -> Double? {
+        guard isAuditioning, let clock = auditionClock else { return nil }
+        return clock.quarter(atSeconds: uptime - clock.startedAt)
+    }
+
+    /// Sets the playhead, publishing only when it moves to another note. On a book page the
+    /// playhead slides between notes, so it's set as is there.
+    private func publishPlayhead(_ quarter: Double) {
+        var shown = quarter
+        if passage == nil {
+            // The last onset at or before `quarter` (binary search); before the first, the beat.
+            var lo = 0, hi = playheadSteps.count
+            while lo < hi {
+                let mid = (lo + hi) / 2
+                if playheadSteps[mid] <= quarter + 1e-6 { lo = mid + 1 } else { hi = mid }
+            }
+            shown = lo > 0 ? playheadSteps[lo - 1] : quarter.rounded(.down)
+        }
+        if playheadQuarter != shown { playheadQuarter = shown }
     }
 
     func stopAudition() {
         auditionWork.forEach { $0.cancel() }
         auditionWork = []
         if isAuditioning {
+            synth?.stopSequence()
             for pitch in auditionHeld { synth?.noteOff(pitch: pitch) }
         }
+        auditionClock = nil
         auditionHeld = []
         auditionCount = [:]
         auditionTimer?.invalidate()
@@ -1670,6 +1727,7 @@ extension PlaySession {
             return
         }
         judge = PlayAlongJudge(chords: chords, clock: clock, settings: playAlongSettings.judgeSettings(input: currentJudgeInput))
+        playheadSteps = judge!.chordQuarters.sorted()
         playAlongBarCount = judge?.barCount ?? 0
     }
 
@@ -1746,10 +1804,10 @@ extension PlaySession {
             if playAlongState != .countIn { playAlongState = .countIn }
             // A lead-in bar moves the playhead through it; a count-in holds it on the bar.
             let shown = isLeadIn ? max(clock.barStart(max(0, judge!.startBar - 1)), q) : barStart
-            if playheadQuarter != shown { playheadQuarter = shown }
+            publishPlayhead(shown)
         } else {
             if playAlongState != .playing { playAlongState = .playing }
-            playheadQuarter = min(q, judge!.endQuarter)
+            publishPlayhead(min(q, judge!.endQuarter))
             let bar = clock.barIndex(containing: q)
             if playAlongBar != bar { playAlongBar = bar }
         }
