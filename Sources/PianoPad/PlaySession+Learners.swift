@@ -119,6 +119,7 @@ extension PlaySession {
     }
 
     private func stopForLearnerChange() {
+        lessonRunner.learnerWillChange()
         stopEarForLearnerChange()
         stopPlayAlong(discard: true)
         stopAudition()

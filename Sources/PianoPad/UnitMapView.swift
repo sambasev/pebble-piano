@@ -21,9 +21,14 @@ struct UnitMapView: View {
                 }
                 LazyVGrid(columns: columns, alignment: .leading, spacing: PP.Space.s4) {
                     ForEach(Array(unit.pages.filter { !$0.isGoalSongPage }.enumerated()), id: \.element.id) { index, page in
-                        PageCard(runner: runner, page: page, number: index + 1)
+                        VStack(spacing: PP.Space.s2) {
+                            PageCard(runner: runner, page: page, number: index + 1)
+                            if runner.course == .ear, let best = runner.previousEarBest(for: page) {
+                                Text("Previous best: \(best)/10").font(.ppCaption).foregroundColor(PP.inkMuted)
+                            }
+                        }
                     }
-                    GoalCard(runner: runner, unit: unit)
+                    if unit.pages.contains(where: \.isGoalSongPage) { GoalCard(runner: runner, unit: unit) }
                 }
             }
             .padding(.bottom, PP.Space.s6)
@@ -35,7 +40,7 @@ struct UnitMapView: View {
         let stars = runner.unitStars
         return HStack(alignment: .bottom, spacing: PP.Space.s6) {
             VStack(alignment: .leading, spacing: PP.Space.s1) {
-                Text("Book 1 · Unit 1").ppEyebrow()
+                Text(runner.course == .piano ? "Book 1 · Unit 1" : "Ear training · 8 levels").ppEyebrow()
                 Text(unit.title).font(.ppTitle)
                 HStack(spacing: PP.Space.s4) {
                     Text("\(done) of \(unit.pages.count) pages done").font(.ppCallout).foregroundColor(PP.inkMuted)

@@ -9,41 +9,40 @@ wrong, missed or extra, plus rhythm and tempo.
 - `grade`: a command-line tool that grades a recorded take, records one live from a
   MIDI keyboard, or re-grades your labelled fixtures.
 
-## Ear Training in PerfectPiano
+## Ear Training inside lessons
 
-Run `swift run PianoPad` and select **Ear Training** in the header. All eight levels
-and their three stages are open: natural notes, accidentals, triads, inversions and
-sevenths, intervals and melodies, functional harmony, jazz extensions, and advanced
-jazz voicings/substitutions/modulations. **Learn the sounds** gives labeled examples;
-**Start Quiz** gives ten questions with replay, reference audio, explanations, and
-first-answer scoring. Space plays/replays, 1–9 / 0 / - / = choose an answer, and
-Return advances after feedback. A score of 8/10 recommends the next stage.
+Run `swift run PianoPad` and open **Learn**. The course selector offers **Piano lessons**
+and **Ear training**; there is no separate Ear Training tab.
 
-The tab shares PerfectPiano's piano volume and output device. Microphone grading,
-MIDI performance input, and musical typing pause while it is open. Changing tabs
-stops playback and keeps the quiz in memory; switching learners discards an
-unfinished quiz. Each learner's `ear-training.json` stores completed quiz progress
-beside their existing lesson history. **Reset progress** also clears ear progress.
-The standalone prototype's global preferences are not imported into a learner.
+Piano lessons now include five-question listening checks after E, F, and G. Each
+check uses only notes introduced so far. Existing lesson block indices and completed
+page records are preserved by appending the new activities after the original steps.
+The ear-training course contains 24 lesson pages covering all eight levels, from
+natural notes to advanced jazz harmony. All pages remain available; previous full
+quiz scores are shown on the course map.
 
-Listening examples, references, and answering count as practice, even without a
-finished quiz. Background time and idle gaps over 60 seconds are excluded. Leaving
-the tab or reaching 20 minutes of inactivity ends the sitting. Practice checkpoints
-reuse one ID, so saves and retries do not duplicate credit. Learn and Ear Training
-have separate session summaries but share daily totals, weekly minutes, streaks,
-and the grown-up report. Lesson stars and page recommendations remain independent.
+Exercises include labeled examples, a tonic reference, unlimited replay, immediate
+explanations, and first-answer scoring. Press Space to play, numbered keys to answer,
+and Return for Next. A complete listen enables answers. Reach 80% to Continue, retry
+with new questions, or use the lesson's Skip action (which flags the step for review).
+Ear checks do not alter piano-performance stars.
 
-The pure engine is in `PianoGraderCore`; `EarTrainingUI` remains reusable and can
-still be launched with `swift run EarTrainer`. `EarTrainingIntegration` supplies
-the learner/storage/activity bridge. The app injects its design tokens and an
-exclusive playback adapter using the existing audio-clock sequencer. Both
-`Package.swift` and `App/project.yml` link the integration. Generate the packaged
-project with `xcodegen generate --spec App/project.yml --project App`.
+Both kinds of activity share the lesson's page progression, learner history, practice
+summary, and streak. Completed ten-question course quizzes also update the existing
+`ear-training.json` scores; shorter/custom note-pool checks never inflate those scores.
+Unfinished checks restart at the saved lesson step. Changing learners, leaving a page,
+or going Back stops playback. Microphone grading, MIDI note input, and musical typing
+are suspended only during listening exercises, then restored for piano activities.
 
-Checks: `swift test --filter 'Ear|PracticeSessions'` covers the curriculum,
-playback cancellation, learner separation, storage retries/reset, compatibility,
-and practice credit. Debug UI previews can set `PERFECTPIANO_PREVIEW_DATA` to an
-isolated learner-store directory; those previews do not start usage analytics.
+`PianoLessons.Block.earTraining` is a data-driven block: `level`, `stage`, optional
+`questions` (default 5), `passAccuracy` (default 0.8), and optional `notes` (pitch classes).
+The unit loader validates the stage and note pool. `EarTrainingUI.EarLessonQuizView`
+reuses the quiz engine without standalone navigation. `swift run EarTrainer` remains
+available as a development tool. Learner progress reset clears both lesson and ear scores.
+
+Checks: `swift test --filter 'Ear|LessonEngine|LessonModel|UnitLoader|PracticeSessions'`.
+Debug UI previews can set `PERFECTPIANO_PREVIEW_DATA` to an isolated learner directory;
+those previews do not start usage analytics.
 
 ## Build and test
 

@@ -3,6 +3,7 @@ import PianoGraderCore
 import PianoLessons
 import PianoPadState
 import SwiftUI
+import EarTrainingUI
 
 /// The Learn tab: the unit's pages, a page being played block by block, or a finished page.
 struct LearnView: View {
@@ -23,7 +24,12 @@ struct LearnView: View {
             } else if runner.page != nil {
                 PagePlayerView(runner: runner)
             } else if let unit = runner.unit {
-                UnitMapView(runner: runner, unit: unit.unit)
+                VStack(spacing: PP.Space.s4) {
+                    Picker("Course", selection: Binding(get: { runner.course }, set: { runner.selectCourse($0) })) {
+                        ForEach(LessonRunner.Course.allCases, id: \.self) { Text($0.rawValue).tag($0) }
+                    }.pickerStyle(.segmented).frame(maxWidth: 400)
+                    UnitMapView(runner: runner, unit: unit.unit)
+                }
             } else {
                 ProgressView()
             }
@@ -89,7 +95,10 @@ private struct PagePlayerView: View {
     /// The music, results or concept card: fills the flexible area.
     @ViewBuilder
     private func content(_ block: Block) -> some View {
-        if case .songChallenge = block, let result = runner.songResult {
+        if case .earTraining(let config) = block {
+            EarLessonQuizView(session: session.earTraining.session, passAccuracy: config.passAccuracy) { runner.finishEarExercise() }
+                .ppGlass(cornerRadius: PP.Radius.lg, padding: 0)
+        } else if case .songChallenge = block, let result = runner.songResult {
             ScrollView {
                 SongResultsCard(runner: runner, result: result)
             }
@@ -155,6 +164,7 @@ private struct PagePlayerView: View {
         switch block {
         case .explain(let b): return b.advanceOn == nil ? "Look" : "Find it"
         case .concept: return "Good to know"
+        case .earTraining: return "Train your ear"
         case .wait: return "Your turn: take your time"
         case .listen: return "Listen"
         case .timed: return "Play in time"
@@ -168,6 +178,7 @@ private struct PagePlayerView: View {
         switch block {
         case .explain(let b): return b.text
         case .concept(let b): return b.text
+        case .earTraining: return "Listen, then choose what you hear."
         case .wait(let b): return b.prompt ?? "Play the notes on the staff."
         case .listen(let b): return b.prompt ?? "Listen first."
         case .timed(let b): return b.prompt ?? "Play along with the clicks."
@@ -232,6 +243,8 @@ private struct PagePlayerView: View {
                                         height: PP.Size.targetPrimary) { runner.continueTapped() }
                         .id("concept-\(runner.shownIndex)")
                 }
+            case .earTraining:
+                Text("Use the reference and aim for 80% correct.").font(.ppCallout).foregroundColor(PP.inkMuted)
             case .wait:
                 Button(session.isAuditioning ? "Stop" : "Listen") { runner.listen() }
                     .buttonStyle(PPGlassButtonStyle(height: PP.Size.targetMin))
@@ -278,7 +291,7 @@ private struct PagePlayerView: View {
                 .buttonStyle(PPGlassButtonStyle())
                 .help("Go back to step \(runner.shownIndex)")
             }
-            if block.midi != nil || block.kind == .explain || block.kind == .concept {
+            if block.midi != nil || block.kind == .explain || block.kind == .concept || block.kind == .earTraining {
                 Button("Skip") { runner.skip() }
                     .buttonStyle(PPGlassButtonStyle())
                     .help("Move on without finishing this step")

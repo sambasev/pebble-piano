@@ -317,7 +317,7 @@ final class PlaySession: ObservableObject {
         }
     }
 
-    enum AppTab: Hashable { case learn, practice, books, earTraining, backingTracks }
+    enum AppTab: Hashable { case learn, practice, books, backingTracks }
 
     // PlaySession callbacks are main-thread-only. Keep the actor bridge at this boundary.
     private var earTrainingStorage: EarPracticeCoordinator?
@@ -329,7 +329,7 @@ final class PlaySession: ObservableObject {
                 position: { [weak self] in self?.earSequencePosition($0) },
                 stop: { [weak self] in self?.stopEarSequence($0) })
             let playback = EarSequencedPlayback(output: output, isAuthorized: { [weak self] in
-                self?.tab == .earTraining && self?.isChoosingLearner == false
+                self?.isEarTrainingActive == true && self?.isChoosingLearner == false
             })
             let coordinator = EarPracticeCoordinator(playback: playback)
             coordinator.bind(learnerID: learner?.id, history: learner.map { learnerStore.history(for: $0.id) })
@@ -340,7 +340,7 @@ final class PlaySession: ObservableObject {
     private var earSequenceLease: UUID?
 
     private func startEarSequence(_ notes: [NoteEvent]) -> UUID? {
-        guard tab == .earTraining, !isChoosingLearner else { return nil }
+        guard isEarTrainingActive, !isChoosingLearner else { return nil }
         if synth == nil { synth = PianoSynth(outputDeviceUID: outputDeviceUID); synth?.volume = pianoVolume }
         guard let synth else { return nil }
         let lease = UUID()
@@ -361,10 +361,23 @@ final class PlaySession: ObservableObject {
         synth?.stopSequence()
         earSequenceLease = nil
     }
+    func prepareEarLesson(_ active: Bool) {
+        if let lease = earSequenceLease { stopEarSequence(lease) }
+        MainActor.assumeIsolated { earTraining.session.stop() }
+        if active {
+            stopAudition(); stopPlayAlong(discard: false)
+            cancelAutoGrade(); settleWork?.cancel()
+            keyPitch.removeAll(); mousePitch = nil
+            held.removeAll(); wrong.removeAll()
+            synth?.allNotesOff()
+        }
+        audio?.setMuted(active || isAuditioning)
+    }
+
     func refreshEarLearner() {
         MainActor.assumeIsolated {
             earTraining.bind(learnerID: learner?.id, history: learner.map { learnerStore.history(for: $0.id) })
-            if tab == .earTraining { earTraining.arrive() }
+            if tab == .learn { lessonRunner.arrive() }
         }
     }
     func stopEarForLearnerChange() {
@@ -375,7 +388,8 @@ final class PlaySession: ObservableObject {
     }
 
     /// Tabs where the keys play notes (typing and the on-screen keyboard).
-    var tabPlaysNotes: Bool { tab == .practice || tab == .learn }
+    var isEarTrainingActive: Bool { tab == .learn && lessonRunner.shownBlock?.kind == .earTraining }
+    var tabPlaysNotes: Bool { (tab == .practice || tab == .learn) && !isEarTrainingActive }
 
     /// Saved backing tracks and their links to passages.
     let backingStore = BackingStore()
@@ -673,7 +687,7 @@ final class PlaySession: ObservableObject {
         )
         if audio == nil { input.profile = PlaySession.loadProfile() }
         input.preferredInputUID = inputDeviceUID
-        input.setMuted(tab == .earTraining || isAuditioning)
+        input.setMuted(isEarTrainingActive || isAuditioning)
         isCalibrated = input.profile != nil
         audio = input
         roomNoise = Self.newestRoomNoise(profile: input.profile)
@@ -1038,7 +1052,7 @@ final class PlaySession: ObservableObject {
 
     private func noteOff(_ pitch: Int, time: Double) {
         // Other sections still drain key releases; the ear sequencer owns the sampler here.
-        guard tab != .earTraining else { return }
+        guard !isEarTrainingActive else { return }
         if let i = openNote.removeValue(forKey: pitch) {
             notes[i].offset = max(notes[i].onset + 0.01, time)
             if mode == .playAlong {
@@ -1349,7 +1363,7 @@ final class PlaySession: ObservableObject {
         if let audio {
             // Let the speakers' sound die away before listening again.
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
-                if self?.isAuditioning == false && self?.tab != .earTraining { audio.setMuted(false) }
+                if self?.isAuditioning == false && self?.isEarTrainingActive == false { audio.setMuted(false) }
             }
         }
         updatePlayhead()
@@ -2176,22 +2190,13 @@ extension PlaySession {
         // Invalidate a lease before stopping other players. A disappearing ear view's late
         // Stop can then never silence the new tab's sequence.
         if let lease = earSequenceLease { stopEarSequence(lease) }
-        if tab != .earTraining { MainActor.assumeIsolated { earTraining.leave() } }
+        MainActor.assumeIsolated { earTraining.session.stop() }
         // Leaving a tab stops the music; coming back to practice picks up edits to the linked track.
         stopAudition()
         stopPlayAlong(discard: false)
         // Leaving Learn ends the lesson and puts the practice piece back.
         if tab != .learn { lessonRunner.leave() }
-        if tab == .earTraining {
-            cancelAutoGrade()
-            settleWork?.cancel(); settleWork = nil
-            keyPitch.removeAll(); mousePitch = nil
-            held.removeAll(); openNote.removeAll(); wrong.removeAll()
-            synth?.allNotesOff()
-            backingEditor.stopPreview()
-            cancelCalibration()
-        }
-        audio?.setMuted(tab == .earTraining || isAuditioning)
+        audio?.setMuted(isEarTrainingActive || isAuditioning)
         switch tab {
         case .practice:
             backingEditor.stopPreview()
@@ -2206,8 +2211,6 @@ extension PlaySession {
         case .learn:
             backingEditor.stopPreview()
             lessonRunner.arrive()
-        case .earTraining:
-            MainActor.assumeIsolated { earTraining.arrive() }
         }
     }
 

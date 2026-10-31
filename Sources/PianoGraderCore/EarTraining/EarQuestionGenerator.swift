@@ -23,8 +23,11 @@ struct EarRandom {
 }
 
 public enum EarQuestionGenerator {
-    public static func quiz(stage: EarStageID, seed: UInt64, count: Int = 10) -> [EarQuestion] {
-        let templates = EarCurriculum.templates(stage)
+    public static func quiz(stage: EarStageID, seed: UInt64, count: Int = 10, notes: [Int]? = nil) -> [EarQuestion] {
+        let templates = EarCurriculum.templates(stage).filter { template in
+            notes.map { $0.contains(Int(template.answer.id.replacingOccurrences(of: "note.", with: "")) ?? -1) } ?? true
+        }
+        if notes != nil && Set(templates.map(\.answer.id)).count < 2 { return [] }
         guard !templates.isEmpty, count > 0 else { return [] }
         var rng = EarRandom(state: seed)
         let answers = uniqueAnswers(templates)
