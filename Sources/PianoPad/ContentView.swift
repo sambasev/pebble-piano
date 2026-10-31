@@ -143,7 +143,7 @@ struct ContentView: View {
                         NotationView(score: score, scoreID: session.scoreID, overlay: notationOverlay,
                                      onTapMeasure: { session.playFrom(bar: $0) },
                                      // The tempo line, in play-along only (with or without a backing track).
-                                     tempoProgress: session.mode == .playAlong
+                                     tempoProgress: session.showsTempoDisplay
                                          ? { [session] uptime in session.tempoProgress(atUptime: uptime) } : nil,
                                      tempoAnimating: session.tempoDisplayMoves)
                             .ppPaper()

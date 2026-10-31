@@ -95,9 +95,10 @@ private struct PagePlayerView: View {
             }
         } else if block.midi != nil, let score = session.score {
             VStack(alignment: .leading, spacing: PP.Space.s2) {
-                TempoStrip()
+                if session.showsTempoDisplay { TempoStrip() }
                 NotationView(score: score, scoreID: session.scoreID, overlay: overlay(fingering: runner.fingering(for: block) ?? []),
-                             tempoProgress: { [session] uptime in session.tempoProgress(atUptime: uptime) },
+                             tempoProgress: session.showsTempoDisplay
+                                 ? { [session] uptime in session.tempoProgress(atUptime: uptime) } : nil,
                              tempoAnimating: session.tempoDisplayMoves)
                     .ppPaper()
             }
@@ -487,7 +488,7 @@ private struct TempoStrip: View {
         let meter = session.meter
         let beatQ = 4.0 / Double(max(1, meter.denominator))
         let barQ = beatQ * Double(max(1, meter.numerator))
-        var live = true
+        let live = true
         var countIn = false
         let q: Double
         if let now = session.liveQuarter(atUptime: uptime) {
@@ -495,12 +496,8 @@ private struct TempoStrip: View {
             countIn = session.playAlongState == .countIn
         } else if let playing = session.auditionQuarter(atUptime: uptime) {
             q = playing
-        } else if session.mode == .wait {
-            // Learning the notes: a preview pulse at the target tempo.
-            live = false
-            q = uptime * max(1, session.practiceBPM) / 60
         } else {
-            // Play-along not running: no beat lit.
+            // Nothing playing: no beat lit.
             return Position(beat: -1, inBeat: 0, inBar: 0, live: false, countIn: false)
         }
         var inBar = (q - session.firstBarQuarter).truncatingRemainder(dividingBy: barQ)

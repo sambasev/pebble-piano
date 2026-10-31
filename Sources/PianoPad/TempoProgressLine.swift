@@ -54,27 +54,21 @@ struct TempoProgressLine: View {
 }
 
 extension PlaySession {
-    /// Something on the tempo line or beat dots is moving: music playing, or the Wait-mode
-    /// preview sweep. Otherwise their frame-by-frame redraw pauses.
-    var tempoDisplayMoves: Bool {
-        isPlayingAlong || isAuditioning || (mode == .wait && phase != .graded)
-    }
+    /// The tempo line and beat dots are shown: play-along only (clicks, tempo or a backing
+    /// track). Wait mode follows the player, not a beat, so a tempo display would be out of sync.
+    var showsTempoDisplay: Bool { mode == .playAlong }
+
+    /// Something on the tempo line or beat dots is moving (music playing). Otherwise their
+    /// frame-by-frame redraw pauses.
+    var tempoDisplayMoves: Bool { isPlayingAlong || isAuditioning }
 
 
     /// The tempo line in the score: the music while it plays (play-along with or without a
-    /// backing track, count-in included, or Listen). In Wait mode, where there's no music to
-    /// follow, a faint sweep at the target tempo (through the piece and a bar's rest) gives a
-    /// feel for the speed. Otherwise, including once play-along has stopped, the line is empty.
+    /// backing track, count-in included, or Listen). Empty when nothing plays.
     func tempoProgress(atUptime uptime: TimeInterval) -> ScoreProgress? {
         if let q = liveQuarter(atUptime: uptime) { return ScoreProgress(quarter: q, live: true) }
         if let q = auditionQuarter(atUptime: uptime) { return ScoreProgress(quarter: q, live: true) }
-        guard mode == .wait, let score, let last = score.measures.last, phase != .graded else { return nil }
-        let start = firstBarQuarter
-        let end = Double(last.startSixteenth + last.length) / Double(Score.sixteenthsPerQuarter)
-        let bar = 4.0 / Double(max(1, meter.denominator)) * Double(max(1, meter.numerator))
-        let cycle = max(0.5, end - start) + bar
-        let into = (uptime * max(1, practiceBPM) / 60).truncatingRemainder(dividingBy: cycle)
-        return into < end - start ? ScoreProgress(quarter: start + into, live: false) : nil
+        return nil
     }
 }
 
