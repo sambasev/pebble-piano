@@ -33,6 +33,7 @@ extension PlaySession {
             try learnerStore.setActive(id)
         } catch {
             message = "Couldn't switch learner: \(error.localizedDescription)"
+            refreshEarLearner()
             return
         }
         applyActiveLearner()
@@ -75,6 +76,8 @@ extension PlaySession {
         if wasActive { stopForLearnerChange() }
         do {
             try learnerStore.delete(id)
+            // Drop pending ear saves too: a retry must never recreate a deleted learner folder.
+            resetEarProgress(for: id)
         } catch {
             message = "Couldn't delete the learner: \(error.localizedDescription)"
             return
@@ -112,9 +115,11 @@ extension PlaySession {
         configureJudge()
         rebuildPieces()
         applyInputChoice()
+        refreshEarLearner()
     }
 
     private func stopForLearnerChange() {
+        stopEarForLearnerChange()
         stopPlayAlong(discard: true)
         stopAudition()
         resetTake()
@@ -265,6 +270,7 @@ extension PlaySession {
     func resetProgress(for id: UUID) {
         do {
             try learnerStore.history(for: id).reset()
+            resetEarProgress(for: id)
         } catch {
             message = "Couldn't reset progress: \(error.localizedDescription)"
         }

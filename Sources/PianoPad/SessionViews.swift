@@ -2,15 +2,31 @@
 import PianoLessons
 import PianoPadState
 import SwiftUI
+import EarTrainingIntegration
+
+private enum PracticeSummaryPresentation: Identifiable {
+    case lesson(LessonRunner.SessionSummary)
+    case ear(PracticeSession)
+    var id: UUID {
+        switch self { case .lesson(let value): return value.id; case .ear(let value): return value.id }
+    }
+}
 
 /// Puts the session summary sheet on whatever the window shows (it can appear after leaving
 /// the Learn tab).
 struct SessionSummaryHost: ViewModifier {
     @ObservedObject var runner: LessonRunner
+    @ObservedObject var ear: EarPracticeCoordinator
 
     func body(content: Content) -> some View {
-        content.sheet(item: $runner.sessionSummary) { summary in
-            SessionSummaryView(runner: runner, summary: summary)
+        content.sheet(item: Binding<PracticeSummaryPresentation?>(
+            get: { runner.sessionSummary.map(PracticeSummaryPresentation.lesson) ?? ear.summary.map(PracticeSummaryPresentation.ear) },
+            set: { value in if value == nil { runner.sessionSummary = nil; ear.summary = nil } }
+        )) { summary in
+            switch summary {
+            case .lesson(let summary): SessionSummaryView(runner: runner, summary: summary)
+            case .ear(let summary): EarPracticeSummaryView(coordinator: ear, session: summary)
+            }
         }
     }
 }
@@ -26,6 +42,7 @@ struct SessionSummaryView: View {
             Text("Session done").ppEyebrow()
             Text(headline).font(.ppTitle).multilineTextAlignment(.center)
             Text(todayLine).font(.ppHeadline).foregroundColor(PP.inkMuted).multilineTextAlignment(.center)
+            PracticeDayStatistics(sessions: runner.todaySessions)
             if summary.session.stars > 0 {
                 Label("\(summary.session.stars) star\(summary.session.stars == 1 ? "" : "s") earned", systemImage: "star.fill")
                     .font(.ppCallout)
@@ -75,7 +92,7 @@ struct SessionSummaryView: View {
                                                   : "\(pages) page\(pages == 1 ? "" : "s") done")
         }
         parts.append("\(s.minutes) min")
-        return "Today: " + parts.joined(separator: " · ")
+        return "This session: " + parts.joined(separator: " · ")
     }
 
     /// "C", "C and D", "C, D and E"

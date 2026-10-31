@@ -228,6 +228,7 @@ final class LessonRunner: ObservableObject, PlayerObserver {
         var name: String
         var minutesThisWeek: Int
         var daysThisWeek: Int
+        var earQuizzesThisWeek: Int
         /// New notes from finished pages, in unit order ("C", "D", "E").
         var notesLearned: [String]
         var pagesDone: Int
@@ -245,6 +246,8 @@ final class LessonRunner: ObservableObject, PlayerObserver {
         if let current, notesThisSession > 0 { sessions.append(current) }
         let minutes = WeeklyStreak.minutesThisWeek(sessions)
         let days = WeeklyStreak.daysThisWeek(sessions)
+        let week = Calendar.current.dateInterval(of: .weekOfYear, for: Date())
+        let earQuizzes = sessions.filter { week?.contains($0.started) == true }.flatMap(\.earQuizzes).count
         let pages = unit?.unit.pages ?? []
         let done = pages.filter { progress[$0.id]?.isCompleted == true }
         var notes: [String] = []
@@ -263,7 +266,7 @@ final class LessonRunner: ObservableObject, PlayerObserver {
         let tip = GrownUpsTip.tip(.init(name: name, minutesThisWeek: minutes, daysThisWeek: days, stuckPage: stuck?.title,
                                         usesComputerKeyboard: player.chosenInput == .computerKeyboard,
                                         goalSong: goalSong?.title))
-        return GrownUpsReport(name: name, minutesThisWeek: minutes, daysThisWeek: days, notesLearned: notes,
+        return GrownUpsReport(name: name, minutesThisWeek: minutes, daysThisWeek: days, earQuizzesThisWeek: earQuizzes, notesLearned: notes,
                               pagesDone: done.count, pageCount: pages.count, stuckPage: stuck, stuckDetail: detail, tip: tip)
     }
 
@@ -883,6 +886,10 @@ final class LessonRunner: ObservableObject, PlayerObserver {
 
     private var history: LearnerHistory? {
         player.learner.map { player.learnerStore.history(for: $0.id) }
+    }
+
+    var todaySessions: [PracticeSession] {
+        PracticeTotals.today((history?.sessions() ?? []) + [current].compactMap { $0 })
     }
 
     private func loadUnit() {

@@ -122,6 +122,7 @@ public final class LearnerHistory {
         if fm.fileExists(atPath: progressURL.path) { try fm.removeItem(at: progressURL) }
         if fm.fileExists(atPath: lessonsURL.path) { try fm.removeItem(at: lessonsURL) }
         if fm.fileExists(atPath: sessionsURL.path) { try fm.removeItem(at: sessionsURL) }
+        if fm.fileExists(atPath: earTrainingURL.path) { try fm.removeItem(at: earTrainingURL) }
     }
 
     // MARK: Private

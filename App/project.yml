@@ -57,6 +57,10 @@ targets:
         product: PianoLessons
       - package: PianoGrader
         product: PianoAI
+      - package: PianoGrader
+        product: EarTrainingUI
+      - package: PianoGrader
+        product: EarTrainingIntegration
       - package: TelemetryDeck
     info:
       path: Generated/Info.plist

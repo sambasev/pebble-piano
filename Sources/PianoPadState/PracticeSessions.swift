@@ -17,8 +17,21 @@ public struct TimedBlockResult: Codable, Equatable, Sendable {
     }
 }
 
-/// One sitting in the Learn tab, from the first note to the last.
+/// A completed ear quiz, kept independently of lesson pages and stars.
+public struct EarQuizSummary: Codable, Equatable, Sendable, Identifiable {
+    public var id: String
+    public var level: Int
+    public var stage: Int
+    public var correct: Int
+    public var total: Int
+    public init(id: String, level: Int, stage: Int, correct: Int, total: Int) {
+        self.id = id; self.level = level; self.stage = stage; self.correct = correct; self.total = total
+    }
+}
+
+/// One sitting in Learn or Ear Training. Older records are lesson sessions.
 public struct PracticeSession: Codable, Equatable, Sendable, Identifiable {
+    public enum Kind: String, Codable, Sendable { case lesson, earTraining }
     public var id: UUID
     public var started: Date
     /// The last activity (idle time after it isn't counted).
@@ -33,9 +46,16 @@ public struct PracticeSession: Codable, Equatable, Sendable, Identifiable {
     public var stars: Int
     /// The last timed block graded.
     public var lastTimed: TimedBlockResult?
+    public var kind: Kind
+    /// Ear practice counts foreground activity, excluding idle gaps; older sessions use wall time.
+    public var activeSeconds: Double?
+    public var earQuestionsAnswered: Int
+    public var earQuizzes: [EarQuizSummary]
 
     public init(id: UUID = UUID(), started: Date, ended: Date? = nil, pages: [String] = [], completedPages: [String] = [],
-                notesLearned: [String] = [], stars: Int = 0, lastTimed: TimedBlockResult? = nil) {
+                notesLearned: [String] = [], stars: Int = 0, lastTimed: TimedBlockResult? = nil,
+                kind: Kind = .lesson, activeSeconds: Double? = nil,
+                earQuestionsAnswered: Int = 0, earQuizzes: [EarQuizSummary] = []) {
         self.id = id
         self.started = started
         self.ended = ended ?? started
@@ -44,13 +64,18 @@ public struct PracticeSession: Codable, Equatable, Sendable, Identifiable {
         self.notesLearned = notesLearned
         self.stars = stars
         self.lastTimed = lastTimed
+        self.kind = kind
+        self.activeSeconds = activeSeconds
+        self.earQuestionsAnswered = earQuestionsAnswered
+        self.earQuizzes = earQuizzes
     }
 
     /// Whole minutes, at least 1.
-    public var minutes: Int { max(1, Int((ended.timeIntervalSince(started) / 60).rounded())) }
+    public var minutes: Int { max(1, Int(((activeSeconds ?? ended.timeIntervalSince(started)) / 60).rounded())) }
 
     private enum CodingKeys: String, CodingKey {
         case id, started, ended, pages, completedPages, notesLearned, stars, lastTimed
+        case kind, activeSeconds, earQuestionsAnswered, earQuizzes
     }
 
     public init(from decoder: Decoder) throws {
@@ -63,6 +88,22 @@ public struct PracticeSession: Codable, Equatable, Sendable, Identifiable {
         notesLearned = try c.decodeIfPresent([String].self, forKey: .notesLearned) ?? []
         stars = try c.decodeIfPresent(Int.self, forKey: .stars) ?? 0
         lastTimed = try c.decodeIfPresent(TimedBlockResult.self, forKey: .lastTimed)
+        kind = try c.decodeIfPresent(Kind.self, forKey: .kind) ?? .lesson
+        activeSeconds = try c.decodeIfPresent(Double.self, forKey: .activeSeconds)
+        earQuestionsAnswered = try c.decodeIfPresent(Int.self, forKey: .earQuestionsAnswered) ?? 0
+        earQuizzes = try c.decodeIfPresent([EarQuizSummary].self, forKey: .earQuizzes) ?? []
+    }
+}
+
+/// Shared daily totals, including both lesson and ear sessions. Checkpoints replace by ID.
+public enum PracticeTotals {
+    public static func unique(_ sessions: [PracticeSession]) -> [PracticeSession] {
+        var unique: [UUID: PracticeSession] = [:]
+        for session in sessions { unique[session.id] = session }
+        return unique.values.sorted { $0.started < $1.started }
+    }
+    public static func today(_ sessions: [PracticeSession], now: Date = Date(), calendar: Calendar = .current) -> [PracticeSession] {
+        unique(sessions).filter { calendar.isDate($0.started, inSameDayAs: now) }
     }
 }
 
@@ -82,7 +123,7 @@ public enum WeeklyStreak {
     public static func minutesThisWeek(_ sessions: [PracticeSession], now: Date = Date(),
                                        calendar: Calendar = .current) -> Int {
         guard let week = calendar.dateInterval(of: .weekOfYear, for: now) else { return 0 }
-        return sessions.filter { week.contains($0.started) }.reduce(0) { $0 + $1.minutes }
+        return PracticeTotals.unique(sessions).filter { week.contains($0.started) }.reduce(0) { $0 + $1.minutes }
     }
 
     /// "3 days this week", "1 day this week".
