@@ -30,6 +30,8 @@ struct UnitMapView: View {
                     }
                     if unit.pages.contains(where: \.isGoalSongPage) { GoalCard(runner: runner, unit: unit) }
                 }
+                Divider().padding(.vertical, PP.Space.s3)
+                EarPathSection(runner: runner)
             }
             .padding(.bottom, PP.Space.s6)
         }
@@ -107,6 +109,74 @@ struct UnitMapView: View {
                 }
                 .buttonStyle(PPPrimaryButtonStyle())
                 .keyboardShortcut(.defaultAction)
+            }
+        }
+    }
+}
+
+/// The second path on the same lesson map. Opening a card selects its unit before routing.
+private struct EarPathSection: View {
+    @ObservedObject var runner: LessonRunner
+    private let columns = [GridItem(.adaptive(minimum: 200, maximum: 260), spacing: PP.Space.s4)]
+
+    var body: some View {
+        let unit = EarLessonCourse.unit
+        let progress = runner.earPathProgress
+        let states = progress.mapValues {
+            CoachPageState(completed: $0.isCompleted, inProgress: $0.currentBlock > 0,
+                           bestStars: $0.bestStars, flagged: !$0.flaggedBlocks.isEmpty)
+        }
+        let next = Coach.nextPage(in: unit, states: states)
+        let done = progress.values.filter(\.isCompleted).count
+        return VStack(alignment: .leading, spacing: PP.Space.s6) {
+            HStack(alignment: .bottom) {
+                VStack(alignment: .leading, spacing: PP.Space.s2) {
+                    Text("Ear training path · 8 levels").ppEyebrow()
+                    Label("Train your ear", systemImage: "ear").font(.ppTitle)
+                    Text("Listen and recognize notes, chords, and jazz harmony.")
+                        .font(.ppCallout).foregroundColor(PP.inkMuted)
+                    Text("\(done) of \(unit.pages.count) lessons done").font(.ppCallout).foregroundColor(PP.inkMuted)
+                    ProgressView(value: Double(done), total: Double(unit.pages.count))
+                        .tint(PP.accent).frame(maxWidth: 320)
+                }
+                Spacer()
+                if let next {
+                    Button(progress.isEmpty ? "Start ear training" : "Continue ear training") { runner.openEarPage(next.id) }
+                        .buttonStyle(PPPrimaryButtonStyle())
+                }
+            }
+            LazyVGrid(columns: columns, alignment: .leading, spacing: PP.Space.s4) {
+                ForEach(Array(unit.pages.enumerated()), id: \.element.id) { index, page in
+                    let saved = progress[page.id]
+                    Button { runner.openEarPage(page.id) } label: {
+                        VStack(alignment: .leading, spacing: PP.Space.s3) {
+                            HStack {
+                                Text("\(index + 1)").font(.ppHeadline)
+                                    .frame(width: 34, height: 34).background(Circle().fill(PP.surfaceRaised))
+                                Spacer()
+                                if saved?.isCompleted == true {
+                                    Image(systemName: saved?.flaggedBlocks.isEmpty == true ? "checkmark.circle.fill" : "arrow.counterclockwise")
+                                        .foregroundColor(saved?.flaggedBlocks.isEmpty == true ? PP.success : PP.warning)
+                                } else if next?.id == page.id {
+                                    Text("Next").font(.ppCaption).foregroundColor(PP.accent)
+                                }
+                            }
+                            Text(page.title).font(.ppHeadline).lineLimit(2)
+                            if let best = runner.previousEarBest(for: page) {
+                                Text("Previous best: \(best)/10").font(.ppCaption).foregroundColor(PP.inkMuted)
+                            }
+                            Spacer(minLength: 0)
+                            Text(saved?.isCompleted == true ? (saved?.flaggedBlocks.isEmpty == true ? "Play again" : "Revisit skipped step")
+                                 : (saved?.currentBlock ?? 0 > 0 ? "Continue · step \((saved?.currentBlock ?? 0) + 1)" : "\(page.blocks.count) steps"))
+                                .font(.ppCaption).foregroundColor(PP.inkMuted)
+                        }
+                        .foregroundColor(PP.ink).padding(PP.Space.s4)
+                        .frame(maxWidth: .infinity, minHeight: 170, alignment: .topLeading)
+                        .background(RoundedRectangle(cornerRadius: PP.Radius.lg).fill(PP.surfaceGlass))
+                        .overlay(RoundedRectangle(cornerRadius: PP.Radius.lg).strokeBorder(PP.surfaceGlassEdge))
+                        .contentShape(Rectangle())
+                    }.buttonStyle(.plain).help("Open \(page.title)")
+                }
             }
         }
     }
