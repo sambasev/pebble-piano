@@ -96,7 +96,8 @@ private struct PagePlayerView: View {
         } else if block.midi != nil, let score = session.score {
             VStack(alignment: .leading, spacing: PP.Space.s2) {
                 TempoStrip()
-                NotationView(score: score, scoreID: session.scoreID, overlay: overlay(fingering: runner.fingering(for: block) ?? []))
+                NotationView(score: score, scoreID: session.scoreID, overlay: overlay(fingering: runner.fingering(for: block) ?? []),
+                             tempoProgress: { [session] uptime in session.tempoProgress(atUptime: uptime) })
                     .ppPaper()
             }
         } else if case .concept(let card) = block, card.card == "fingerNumbers" {
@@ -458,12 +459,6 @@ private struct TempoStrip: View {
                             .frame(width: 12, height: 12)
                     }
                 }
-                ZStack(alignment: .leading) {
-                    Capsule().fill(PP.inkMuted.opacity(0.2))
-                    Capsule().fill(PP.accent.opacity(p.live ? 1 : 0.6))
-                        .frame(width: 140 * CGFloat(p.inBar))
-                }
-                .frame(width: 140, height: 4)
                 Spacer()
             }
             .opacity(p.live ? 1 : 0.6)
@@ -499,10 +494,13 @@ private struct TempoStrip: View {
             countIn = session.playAlongState == .countIn
         } else if session.isAuditioning, let playhead = session.playheadQuarter {
             q = playhead
-        } else {
-            // Nothing playing: a preview pulse at the target tempo.
+        } else if session.mode == .wait {
+            // Learning the notes: a preview pulse at the target tempo.
             live = false
             q = uptime * max(1, session.practiceBPM) / 60
+        } else {
+            // Play-along not running: no beat lit.
+            return Position(beat: -1, inBeat: 0, inBar: 0, live: false, countIn: false)
         }
         var inBar = (q - session.firstBarQuarter).truncatingRemainder(dividingBy: barQ)
         if inBar < 0 { inBar += barQ }

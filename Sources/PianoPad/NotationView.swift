@@ -13,6 +13,8 @@ struct NotationView: View {
     let overlay: ScoreOverlay
     /// A measure was clicked (index into the score's measures, from 0).
     var onTapMeasure: ((Int) -> Void)? = nil
+    /// The tempo line above the staff (lesson pages): asked every frame. Nil: no line.
+    var tempoProgress: ((TimeInterval) -> ScoreProgress?)? = nil
 
     @StateObject private var cache = NotationCache()
     @Environment(\.paper) private var paper
@@ -39,6 +41,12 @@ struct NotationView: View {
                             PulsingPlayhead(items: prepared.renderer.renderPlayhead(overlay), paper: paper)
                                 .frame(width: width, height: prepared.layout.height)
                                 .allowsHitTesting(false)
+                        }
+                        .overlay(alignment: .topLeading) {
+                            if let tempoProgress {
+                                TempoProgressLine(layout: prepared.layout, paper: paper, progress: tempoProgress)
+                                    .frame(width: width, height: prepared.layout.height)
+                            }
                         }
                         .contentShape(Rectangle())
                         .onTapGesture(coordinateSpace: .local) { point in

@@ -169,8 +169,15 @@ final class LessonRunner: ObservableObject, PlayerObserver {
         Set(progress.filter { $0.value.isCompleted }.map(\.key))
     }
 
+    /// Development: every page opens, in any order. Set false to lock pages until the one
+    /// before is finished (the unit's `unlocks` chain) before release. The coach still suggests
+    /// pages in the unit's order either way.
+    static let unlockAllPages = true
+
     func isUnlocked(_ pageID: String) -> Bool {
-        unit?.unit.isUnlocked(pageID, completed: completedPages) ?? false
+        guard let unit else { return false }
+        if Self.unlockAllPages { return unit.unit.page(pageID) != nil }
+        return unit.unit.isUnlocked(pageID, completed: completedPages)
     }
 
     /// The page to suggest, from the coach: an unfinished page (fewest stars first), else the

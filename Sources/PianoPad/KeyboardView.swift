@@ -32,6 +32,8 @@ struct KeyboardView: View {
 
     /// Space at each end for the out-of-range arrows (kept even when empty, so the keys don't move).
     private static let edgeWidth: CGFloat = 18
+    /// The next-key dot under the keyboard; sits in the panel's padding below the keys.
+    private static let dotSize: CGFloat = 10
 
     var body: some View {
         HStack(spacing: 4) {
@@ -74,6 +76,20 @@ struct KeyboardView: View {
                     blackKey(pitch)
                         .frame(width: whiteWidth * Self.blackWidth, height: height * Self.blackHeight)
                         .offset(x: CGFloat(index + 1) * whiteWidth - whiteWidth * Self.blackWidth / 2)
+                }
+                // A dot under each key to play next, in the gap below the keyboard.
+                ForEach(range.filter { isNext($0) }, id: \.self) { pitch in
+                    let center: CGFloat = {
+                        if isBlack(pitch) {
+                            return CGFloat((whites.firstIndex(of: pitch - 1) ?? 0) + 1) * whiteWidth
+                        }
+                        return (CGFloat(whites.firstIndex(of: pitch) ?? 0) + 0.5) * whiteWidth
+                    }()
+                    Circle()
+                        .fill(PP.accent)
+                        .frame(width: Self.dotSize, height: Self.dotSize)
+                        .offset(x: center - Self.dotSize / 2, y: height + 2)
+                        .allowsHitTesting(false)
                 }
                 if !highlight.isEmpty {
                     // A slow pulse on the keys to find, drawn above the keys so black keys show too.
@@ -161,15 +177,15 @@ struct KeyboardView: View {
         let shape = PPKeyShape(radius: PP.Radius.key)
         return shape
             .fill(fill(pitch, black: false))
-            .overlay(isNext(pitch) ? shape.fill(PP.accent.opacity(0.10)) : nil)
+            .overlay(isNext(pitch) ? shape.fill(PP.accent.opacity(0.30)) : nil)
             .overlay(alignment: .bottom) {
                 if isNext(pitch) {
-                    Rectangle().fill(PP.accent).frame(height: 8)
+                    Rectangle().fill(PP.accent).frame(height: 12)
                 }
             }
             .clipShape(shape) // keeps the next-key bar inside the key's rounded corners
-            .overlay(shape.stroke(wrong.contains(pitch) ? PP.mistake : PP.inkStaff.opacity(0.35),
-                                  lineWidth: wrong.contains(pitch) ? 2 : 1))
+            .overlay(shape.stroke(wrong.contains(pitch) ? PP.mistake : (isNext(pitch) ? PP.accent : PP.inkStaff.opacity(0.35)),
+                                  lineWidth: wrong.contains(pitch) || isNext(pitch) ? 3 : 1))
             .overlay(alignment: .bottom) {
                 VStack(spacing: 3) {
                     if let key = keyLabel(pitch) {
@@ -187,13 +203,15 @@ struct KeyboardView: View {
         let shape = PPKeyShape(radius: 9)
         return shape
             .fill(fill(pitch, black: true))
+            .overlay(isNext(pitch) ? shape.fill(PP.accent.opacity(0.65)) : nil)
             .overlay(alignment: .bottom) {
                 if isNext(pitch) {
-                    Rectangle().fill(PP.accent).frame(height: 6)
+                    Rectangle().fill(PP.accent).frame(height: 10)
                 }
             }
             .clipShape(shape)
-            .overlay(wrong.contains(pitch) ? shape.stroke(PP.mistake, lineWidth: 2) : nil)
+            .overlay(wrong.contains(pitch) ? shape.stroke(PP.mistake, lineWidth: 2)
+                     : (isNext(pitch) ? shape.stroke(PP.accent, lineWidth: 3) : nil))
             .overlay(alignment: .bottom) {
                 if let key = keyLabel(pitch) {
                     Text(key)
