@@ -61,10 +61,16 @@ if [ "$current" != "testflight-build" ]; then
     git checkout -B testflight-build
 fi
 # Latest main and the packaging branch, on top of the current work.
+before=$(shasum "$APP_DIR/ship.sh")
 for branch in main testflight; do
     git fetch origin "$branch"
     git merge --no-edit FETCH_HEAD
 done
+# The merge may bring a newer ship.sh: this run is still the old one, so start the new one.
+if [ "$(shasum "$APP_DIR/ship.sh")" != "$before" ] && [ -z "${SHIP_RESTARTED:-}" ]; then
+    echo "ship.sh was updated by the merge: restarting with the new version."
+    exec env SHIP_RESTARTED=1 "$APP_DIR/ship.sh" "$@"
+fi
 echo "Building from: $(git log --oneline -1)"
 
 # 2. Backing tracks: saved settings from the library plus the audio files.
