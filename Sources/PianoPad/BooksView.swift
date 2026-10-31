@@ -277,9 +277,9 @@ struct ReviewView: View {
                     Image(nsImage: r.image).resizable().frame(width: geo.size.width, height: CGFloat(r.gray.height) * scale)
                     if let g = r.geometry {
                         ForEach(model.bars(inSystem: r.id)) { b in
-                            if b.indexInSystem + 1 < g.barEdges.count {
-                                let x0 = CGFloat(g.barEdges[b.indexInSystem]) * scale
-                                let x1 = CGFloat(g.barEdges[b.indexInSystem + 1]) * scale
+                            if let j = b.bar.pageBar, j + 1 < g.barEdges.count {
+                                let x0 = CGFloat(g.barEdges[j]) * scale
+                                let x1 = CGFloat(g.barEdges[j + 1]) * scale
                                 Rectangle()
                                     .fill(b.needsReview ? Color.orange.opacity(0.22) : Color.clear)
                                     .overlay(Rectangle().stroke(selected == b.id ? PP.accent : Color.clear, lineWidth: 2))

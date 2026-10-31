@@ -476,7 +476,22 @@ public enum NoteheadGeometry {
         for x in 0..<ink.width where rows.filter({ ink[x, $0] }).count >= 4 { right = x }
         var edges = [start] + barLines(ink, upper, lower).filter { $0 > start + sp }
         if edges.last! < Double(right) - 1.5 * sp { edges.append(Double(right)) }
-        return edges
+        return foldNarrowBars(edges, spacing: sp)
+    }
+
+    /// A "bar" too narrow to hold a note is a repeat sign or a double bar line, not a bar:
+    /// fold it into its neighbour (the next bar, or the previous one at the end).
+    static func foldNarrowBars(_ edges: [Double], spacing sp: Double) -> [Double] {
+        var e = edges
+        var k = 0
+        while k + 1 < e.count && e.count > 2 {
+            if e[k + 1] - e[k] < 2.5 * sp {
+                e.remove(at: k + 1 == e.count - 1 ? k : k + 1)
+            } else {
+                k += 1
+            }
+        }
+        return e
     }
 }
 

@@ -28,6 +28,7 @@ public enum ScoreWriter {
             var longest = 0
             for (staffIndex, staffName) in SystemReading.StaffName.allCases.enumerated() {
                 var at = 0
+                var altered: Set<Int> = []  // letter steps given a sharp or flat earlier in this bar
                 let staffNotes = bar.notes(staffName)
                 for n in staffNotes {
                     let length = max(1, Int((n.note.quarters * 4).rounded()))
@@ -41,7 +42,14 @@ public enum ScoreWriter {
                         let step = StaffPitch.bottomLine(n.clef) + n.note.position
                         let octave = Int(floor(Double(step) / 7))
                         let alter = n.note.accidental == .sharp ? 1 : n.note.accidental == .flat ? -1 : 0
-                        let printed: Int? = n.note.accidental == .none ? nil : alter
+                        // C major: a natural is only worth printing to cancel an earlier sharp or flat.
+                        let printed: Int?
+                        switch n.note.accidental {
+                        case .none: printed = nil
+                        case .natural: printed = altered.contains(step) ? 0 : nil
+                        case .sharp, .flat: printed = alter
+                        }
+                        if alter != 0 { altered.insert(step) } else if n.note.accidental == .natural { altered.remove(step) }
                         let note = ScoreNote(midi: midi, spelled: SpelledPitch(step: step - octave * 7, alter: alter, octave: octave),
                                              accidental: printed)
                         events.append(ScoreEvent(staff: staffIndex, start: at, duration: length, type: type,
@@ -53,6 +61,11 @@ public enum ScoreWriter {
                         if staffIndex == 0 { fingering.append(n.note.finger ?? 0) }
                     }
                     at += length
+                }
+                if staffNotes.isEmpty {  // nothing read for this staff yet (a skipped bar): a bar's rest
+                    events.append(ScoreEvent(staff: staffIndex, start: 0, duration: barLength, type: .whole, dots: 0,
+                                             notes: [], isMeasureRest: true))
+                    at = barLength
                 }
                 longest = max(longest, at)
             }

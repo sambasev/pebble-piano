@@ -13,10 +13,16 @@ public struct SystemReader: Sendable {
         self.reasoningEffort = reasoningEffort
     }
 
-    /// One system image (PNG) → its reading.
-    public func read(png: Data) async throws -> SystemReading {
+    /// One system image (PNG) → its reading. `expectedMeasures`: how many bars were measured on
+    /// the image, so the model doesn't stop after the first few (it sometimes does).
+    public func read(png: Data, expectedMeasures: Int? = nil) async throws -> SystemReading {
+        var prompt = Self.prompt
+        if let n = expectedMeasures, n > 0 {
+            prompt += "\nThe bar lines measured in this image give \(n) measure\(n == 1 ? "" : "s"): read every one of them, "
+                + "left to right (check against the image if a bar line seems missing or extra)."
+        }
         let result = try await client.chat(
-            [.user([.text(Self.prompt), .image(png, mimeType: "image/png")])],
+            [.user([.text(prompt), .image(png, mimeType: "image/png")])],
             options: .init(model: model, schema: ("Systems", Self.schema), reasoningEffort: reasoningEffort,
                            stream: true))
         return try result.decode(SystemReading.self)

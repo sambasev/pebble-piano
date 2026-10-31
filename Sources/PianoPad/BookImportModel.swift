@@ -45,7 +45,6 @@ final class BookImportModel: ObservableObject {
         /// Bar number in the piece, from 1.
         let id: Int
         let system: Int
-        let indexInSystem: Int
         var bar: BarMerge.Bar
         var resolution: Resolution
         /// The bar cut from the page.
@@ -208,12 +207,13 @@ final class BookImportModel: ObservableObject {
     }
 
     private func readSystem(_ id: Int, png: Data, client: ModelClient, fresh: Bool) async {
-        await setStep(id, .reading)
+        await setStep(id, .measuring)
         do {
-            async let geometry = Task.detached(priority: .userInitiated) { try NoteheadGeometry.measure(png: png) }.value
-            let reading = try await Self.cachedReading(png: png, client: client, fresh: fresh)
-            await setStep(id, .measuring)
-            let measured = try await geometry
+            // Measure first (under a second): the bar count tells the model how many bars to read.
+            let measured = try await Task.detached(priority: .userInitiated) { try NoteheadGeometry.measure(png: png) }.value
+            await setStep(id, .reading)
+            let reading = try await Self.cachedReading(png: png, client: client, expectedMeasures: measured.barCount,
+                                                       fresh: fresh)
             await MainActor.run {
                 self.reads[id].reading = reading
                 self.reads[id].geometry = measured
@@ -237,16 +237,21 @@ final class BookImportModel: ObservableObject {
         for r in reads {
             guard let reading = r.reading, let geometry = r.geometry else { continue }
             let merged = BarMerge.merge(reading, geometry)
-            for (j, bar) in merged.enumerated() {
-                let trusted = bar.upperStatus.isTrusted && bar.lowerStatus.isTrusted
-                out.append(ReviewBar(id: out.count + 1, system: r.id, indexInSystem: j, bar: bar,
-                                     resolution: trusted ? .trusted : .needsReview,
-                                     image: barImage(r, j)))
+            for bar in merged {
+                out.append(ReviewBar(id: out.count + 1, system: r.id, bar: bar,
+                                     resolution: bar.isTrusted ? .trusted : .needsReview,
+                                     image: bar.pageBar.flatMap { barImage(r, $0) }))
             }
             engravingIDs[r.id] = UUID()
         }
         bars = out
         phase = .review
+        // Bars the reading skipped are read again one at a time, straight away.
+        let skipped = out.filter { $0.bar.upperStatus == .flagged(.skippedByReading) }.map(\.id)
+        if !skipped.isEmpty {
+            message = "The first reading skipped \(skipped.count) bar\(skipped.count == 1 ? "" : "s"): reading \(skipped.count == 1 ? "it" : "them") one at a time…"
+            for id in skipped { fix(id) }
+        }
     }
 
     /// The bar cut from its system image, with a little of its neighbours for context.
@@ -260,14 +265,15 @@ final class BookImportModel: ObservableObject {
     }
 
     /// Readings are cached by image, so reading the same piece again is instant (and free).
-    static func cachedReading(png: Data, client: ModelClient, reader: SystemReader? = nil,
+    static func cachedReading(png: Data, client: ModelClient, reader: SystemReader? = nil, expectedMeasures: Int? = nil,
                               fresh: Bool = false) async throws -> SystemReading {
-        let key = SHA256.hash(data: png).map { String(format: "%02x", $0) }.joined()
+        // The key covers the image and how it was asked (v2: with the measured bar count).
+        let key = SHA256.hash(data: png).map { String(format: "%02x", $0) }.joined() + "-v2-\(expectedMeasures ?? 0)"
         let url = cacheFolder.appendingPathComponent("\(key).json")
         if !fresh, let data = try? Data(contentsOf: url), let cached = try? JSONDecoder().decode(SystemReading.self, from: data) {
             return cached
         }
-        let reading = try await (reader ?? SystemReader(client: client)).read(png: png)
+        let reading = try await (reader ?? SystemReader(client: client)).read(png: png, expectedMeasures: expectedMeasures)
         try? FileManager.default.createDirectory(at: cacheFolder, withIntermediateDirectories: true)
         try? JSONEncoder().encode(reading).write(to: url)
         return reading
@@ -333,7 +339,11 @@ final class BookImportModel: ObservableObject {
     /// Asks Muse Wonder to read just this bar again (zoomed in), then measures and merges it.
     func fix(_ id: Int) {
         guard let b = bars.first(where: { $0.id == id }), let r = reads.first(where: { $0.id == b.system }),
-              let g = r.geometry, b.indexInSystem + 1 < g.barEdges.count else { return }
+              let g = r.geometry else { return }
+        guard let j = b.bar.pageBar, j + 1 < g.barEdges.count else {
+            message = "Bar \(id) couldn't be found on the page, so it can't be read again. Nudge its notes or tap That's right."
+            return
+        }
         let client: ModelClient
         do { client = try ModelClient.configured(.meta) } catch {
             message = (error as? LocalizedError)?.errorDescription ?? "\(error)"
@@ -341,27 +351,30 @@ final class BookImportModel: ObservableObject {
         }
         // The bar alone, with its clefs' context lost: zoom by cropping just this bar.
         let pad = Int(0.6 * g.upper.spacing)
-        let x0 = max(0, Int(g.barEdges[b.indexInSystem]) - pad)
-        let x1 = min(r.gray.width, Int(g.barEdges[b.indexInSystem + 1]) + pad)
+        let x0 = max(0, Int(g.barEdges[j]) - pad)
+        let x1 = min(r.gray.width, Int(g.barEdges[j + 1]) + pad)
         let crop = SystemFinder.crop(r.gray, FoundSystem(index: 0, left: x0, top: 0, right: x1, bottom: r.gray.height,
                                                          spacing: g.upper.spacing))
         guard let png = crop.pngData() else { return }
         fixing.insert(id)
         Task {
             do {
-                let reading = try await SystemReader(client: client, reasoningEffort: "high").read(png: png)
+                let reading = try await SystemReader(client: client, reasoningEffort: "high").read(png: png, expectedMeasures: 1)
                 // Use the measure with the most notes (a crop can catch a sliver of a neighbour).
                 guard let measure = reading.measures.max(by: {
                     $0.upper.notes.count + $0.lower.notes.count < $1.upper.notes.count + $1.lower.notes.count
                 }) else { throw ModelError.badResponse("no bar in the reply") }
                 var oneBar = g
-                oneBar.barEdges = [g.barEdges[b.indexInSystem], g.barEdges[b.indexInSystem + 1]]
-                let merged = BarMerge.merge(SystemReading(measureCount: 1, measures: [measure]), oneBar)[0]
+                oneBar.barEdges = [g.barEdges[j], g.barEdges[j + 1]]
+                var reread = BarMerge.merge(SystemReading(measureCount: 1, measures: [measure]), oneBar)[0]
+                reread.pageBar = j
+                let merged = reread
                 await MainActor.run {
                     self.fixing.remove(id)
+                    if self.fixing.isEmpty, self.message?.hasPrefix("The first reading skipped") == true { self.message = nil }
                     self.update(id) { rb in
                         rb.bar = merged
-                        rb.resolution = merged.upperStatus.isTrusted && merged.lowerStatus.isTrusted ? .fixed : .needsReview
+                        rb.resolution = merged.isTrusted ? .fixed : .needsReview
                     }
                     if self.bars.first(where: { $0.id == id })?.needsReview == true {
                         self.message = "Bar \(id) still needs a look: nudge any wrong note, then tap That's right."
