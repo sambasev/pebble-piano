@@ -11,8 +11,9 @@ wrong, missed or extra, plus rhythm and tempo.
 
 ## Ear Training inside lessons
 
-Run `swift run PianoPad` and open **Learn**. The course selector offers **Piano lessons**
-and **Ear training**; there is no separate Ear Training tab.
+Run `swift run PianoPad` and open **Learn**. One scrolling lesson map shows the piano
+lessons first, followed by a separate **Ear training path** with its own progress and
+Start/Continue action. Both paths return to this shared map; there is no course switcher.
 
 Piano lessons now include five-question listening checks after E, F, and G. Each
 check uses only notes introduced so far. Existing lesson block indices and completed

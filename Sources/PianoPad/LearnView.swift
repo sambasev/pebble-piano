@@ -24,12 +24,7 @@ struct LearnView: View {
             } else if runner.page != nil {
                 PagePlayerView(runner: runner)
             } else if let unit = runner.unit {
-                VStack(spacing: PP.Space.s4) {
-                    Picker("Course", selection: Binding(get: { runner.course }, set: { runner.selectCourse($0) })) {
-                        ForEach(LessonRunner.Course.allCases, id: \.self) { Text($0.rawValue).tag($0) }
-                    }.pickerStyle(.segmented).frame(maxWidth: 400)
-                    UnitMapView(runner: runner, unit: unit.unit)
-                }
+                UnitMapView(runner: runner, unit: unit.unit)
             } else {
                 ProgressView()
             }
@@ -124,7 +119,7 @@ private struct PagePlayerView: View {
             Button {
                 runner.backToUnit()
             } label: {
-                Label("Pages", systemImage: "chevron.left")
+                Label("Lessons", systemImage: "chevron.left")
             }
             .buttonStyle(PPGlassButtonStyle())
             VStack(alignment: .leading, spacing: 2) {

@@ -13,6 +13,19 @@ final class LessonRunner: ObservableObject, PlayerObserver {
     enum Course: String, CaseIterable { case piano = "Piano lessons", ear = "Ear training" }
     @Published private(set) var course: Course = .piano
     @Published private(set) var earResult: EarQuizResult?
+    /// Catalog data is read by path, independent of the lesson currently loaded in the player.
+    var earPathProgress: [String: PageProgress] {
+        guard let history else { return [:] }
+        let all = history.lessonProgress()
+        return Dictionary(uniqueKeysWithValues: EarLessonCourse.unit.pages.compactMap { page in
+            all[.lessonPage(unit: EarLessonCourse.unit.id, page: page.id)].map { (page.id, $0) }
+        })
+    }
+
+    func openEarPage(_ id: String) {
+        selectCourse(.ear)
+        open(id)
+    }
     func previousEarBest(for page: LessonPage) -> Int? {
         guard let config = page.blocks.compactMap({ block -> Block.EarTraining? in
             if case .earTraining(let b) = block { return b }; return nil
@@ -384,6 +397,7 @@ final class LessonRunner: ObservableObject, PlayerObserver {
 
     /// The Learn tab opened.
     func arrive() {
+        if page == nil && course != .piano { selectCourse(.piano) }
         if unit == nil { loadUnit() }
         loadPersona()
         refreshProgress()
@@ -424,6 +438,7 @@ final class LessonRunner: ObservableObject, PlayerObserver {
     func backToUnit() {
         if isWarmingUp { warmUp = nil }
         closePage()
+        if course != .piano { selectCourse(.piano) }
         refreshProgress()
     }
 
@@ -820,7 +835,12 @@ final class LessonRunner: ObservableObject, PlayerObserver {
     func keepGoing(with pageID: String) {
         sessionSummary = nil
         if player.tab != .learn { player.tab = .learn }
-        open(pageID)
+        if EarLessonCourse.unit.page(pageID) != nil {
+            openEarPage(pageID)
+        } else {
+            selectCourse(.piano)
+            open(pageID)
+        }
     }
 
     /// A key was played (or a page finished): starts the session if needed and keeps it alive.
@@ -878,6 +898,7 @@ final class LessonRunner: ObservableObject, PlayerObserver {
                 if self.isWarmingUp { self.warmUp = nil }
                 self.closePage()
                 self.endSession(showSummary: true)
+                if self.course != .piano { self.selectCourse(.piano) }
             }
         }
         RunLoop.main.add(timer, forMode: .common)
