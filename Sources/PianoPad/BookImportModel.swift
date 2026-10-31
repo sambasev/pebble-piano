@@ -78,13 +78,27 @@ final class BookImportModel: ObservableObject {
     /// Changes when a system's bars change, so its engraving is redrawn.
     @Published private(set) var engravingIDs: [Int: UUID] = [:]
     @Published var message: String?
+    /// The bundled books and the ones the learner opened.
+    @Published private(set) var library: [LibraryBook] = []
+    /// Pieces read and saved, newest first.
+    @Published private(set) var pieces: [SavedPiece] = []
+    /// Ask Muse Wonder again instead of using its saved readings of these lines.
+    @Published var freshRead = false
 
     private var document: PDFDocument?
+    /// Applied once the page has loaded ("Read again" on a saved piece).
+    private var pendingSelection: ClosedRange<Int>?
     private var pageGray: Gray?
     private weak var session: PlaySession?
 
     init(session: PlaySession) {
         self.session = session
+        refreshLibrary()
+    }
+
+    func refreshLibrary() {
+        library = BookLibrary.books()
+        pieces = BookLibrary.pieces()
     }
 
     // MARK: Choosing
@@ -96,7 +110,7 @@ final class BookImportModel: ObservableObject {
         if panel.runModal() == .OK, let url = panel.url { open(url) }
     }
 
-    func open(_ url: URL) {
+    func open(_ url: URL, page: Int = 0) {
         guard let doc = PDFDocument(url: url) else {
             message = "Couldn't open \(url.lastPathComponent)."
             return
@@ -105,17 +119,31 @@ final class BookImportModel: ObservableObject {
         documentURL = url
         pageCount = doc.pageCount
         phase = .choosing
-        show(page: 0)
+        if !library.contains(where: { $0.url.path == url.path }) {
+            BookLibrary.remember(url)
+            refreshLibrary()
+        }
+        show(page: page)
     }
 
-    func show(page index: Int) {
-        guard let doc = document, (0..<pageCount).contains(index) else { return }
+    /// Shows a page: from the page cache when it's been seen before, otherwise rendered and
+    /// scanned for lines of music (and cached). `rescan` redoes it on demand.
+    func show(page index: Int, rescan: Bool = false) {
+        guard let doc = document, let book = documentURL, (0..<pageCount).contains(index) else { return }
         pageIndex = index
         selection = nil
         systems = []
         isLoadingPage = true
         Task.detached(priority: .userInitiated) {
-            let result = BookImporter.page(doc, index: index)
+            let result: (image: Gray, systems: [FoundSystem])?
+            if !rescan, let cached = BookLibrary.cachedPage(book, index) {
+                result = (cached.0, cached.1)
+            } else if let fresh = BookImporter.page(doc, index: index) {
+                result = fresh
+                BookLibrary.storePage(book, index, fresh.image, fresh.systems)
+            } else {
+                result = nil
+            }
             await MainActor.run {
                 guard self.pageIndex == index else { return }
                 self.isLoadingPage = false
@@ -128,6 +156,10 @@ final class BookImportModel: ObservableObject {
                 self.pageSize = CGSize(width: result.image.width, height: result.image.height)
                 self.systems = result.systems
                 self.message = result.systems.isEmpty ? "No music staves found on this page." : nil
+                if let pending = self.pendingSelection, pending.upperBound < result.systems.count {
+                    self.selection = pending
+                }
+                self.pendingSelection = nil
             }
         }
     }
@@ -164,21 +196,22 @@ final class BookImportModel: ObservableObject {
         message = nil
         phase = .reading
         let jobs = reads.map { ($0.id, $0.png) }
+        let fresh = freshRead
         Task {
             await withTaskGroup(of: Void.self) { group in
                 for (id, png) in jobs {
-                    group.addTask { await self.readSystem(id, png: png, client: client) }
+                    group.addTask { await self.readSystem(id, png: png, client: client, fresh: fresh) }
                 }
             }
             await MainActor.run { self.finishReading() }
         }
     }
 
-    private func readSystem(_ id: Int, png: Data, client: ModelClient) async {
+    private func readSystem(_ id: Int, png: Data, client: ModelClient, fresh: Bool) async {
         await setStep(id, .reading)
         do {
             async let geometry = Task.detached(priority: .userInitiated) { try NoteheadGeometry.measure(png: png) }.value
-            let reading = try await Self.cachedReading(png: png, client: client)
+            let reading = try await Self.cachedReading(png: png, client: client, fresh: fresh)
             await setStep(id, .measuring)
             let measured = try await geometry
             await MainActor.run {
@@ -227,10 +260,11 @@ final class BookImportModel: ObservableObject {
     }
 
     /// Readings are cached by image, so reading the same piece again is instant (and free).
-    static func cachedReading(png: Data, client: ModelClient, reader: SystemReader? = nil) async throws -> SystemReading {
+    static func cachedReading(png: Data, client: ModelClient, reader: SystemReader? = nil,
+                              fresh: Bool = false) async throws -> SystemReading {
         let key = SHA256.hash(data: png).map { String(format: "%02x", $0) }.joined()
         let url = cacheFolder.appendingPathComponent("\(key).json")
-        if let data = try? Data(contentsOf: url), let cached = try? JSONDecoder().decode(SystemReading.self, from: data) {
+        if !fresh, let data = try? Data(contentsOf: url), let cached = try? JSONDecoder().decode(SystemReading.self, from: data) {
             return cached
         }
         let reading = try await (reader ?? SystemReader(client: client)).read(png: png)
@@ -361,25 +395,50 @@ final class BookImportModel: ObservableObject {
         guard canSave else { return }
         let name = title.trimmingCharacters(in: .whitespaces)
         let piece = ScoreWriter.write(bars.map(\.bar), title: name)
-        let folder = Self.importedFolder.appendingPathComponent(Self.slug(name))
+        let saved = SavedPiece(id: Self.slug(name), title: name, book: documentURL?.lastPathComponent ?? "",
+                               page: pageIndex, firstLine: reads.first?.found.index ?? 0,
+                               lastLine: reads.last?.found.index ?? 0, created: Date())
+        let folder = saved.folder
         do {
             try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
-            let midiURL = folder.appendingPathComponent("piece.mid")
-            try piece.midi.write(to: midiURL)
+            try piece.midi.write(to: folder.appendingPathComponent("piece.mid"))
             try Data(piece.musicXML.utf8).write(to: folder.appendingPathComponent("piece.musicxml"))
             try JSONEncoder().encode(piece.score).write(to: folder.appendingPathComponent("score.json"))
+            try BookLibrary.store(saved)
             message = nil
-            session?.tab = .practice
-            session?.loadReference(midiURL, remember: false, writtenScore: piece.score)
+            refreshLibrary()
+            practise(saved)
         } catch {
             message = "Couldn't save the piece: \(error.localizedDescription)"
         }
     }
 
-    static var importedFolder: URL {
-        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-            ?? FileManager.default.temporaryDirectory
-        return base.appendingPathComponent("PianoPad/Imported")
+    // MARK: Saved pieces
+
+    /// Opens a saved piece in Practice, as it was read and checked: no reading again.
+    func practise(_ piece: SavedPiece) {
+        do {
+            let score = try JSONDecoder().decode(Score.self, from: Data(contentsOf: piece.folder.appendingPathComponent("score.json")))
+            session?.tab = .practice
+            session?.loadReference(piece.folder.appendingPathComponent("piece.mid"), remember: false, writtenScore: score)
+        } catch {
+            message = "Couldn't open \(piece.title): \(error.localizedDescription)"
+        }
+    }
+
+    /// Goes back to the piece's page with its lines selected, ready to read again.
+    func readAgain(_ piece: SavedPiece) {
+        guard let book = library.first(where: { $0.url.lastPathComponent == piece.book }) else {
+            message = "Open \(piece.book) first: it isn't in your books."
+            return
+        }
+        title = piece.title
+        pendingSelection = piece.firstLine...piece.lastLine
+        open(book.url, page: piece.page)
+    }
+
+    func showInFinder(_ piece: SavedPiece) {
+        NSWorkspace.shared.activateFileViewerSelecting([piece.folder])
     }
 
     static func slug(_ s: String) -> String {

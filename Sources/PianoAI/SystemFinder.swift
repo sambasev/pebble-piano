@@ -8,7 +8,7 @@ import PDFKit
 #endif
 
 /// A system found on a page: an upper and a lower staff, in page pixels.
-public struct FoundSystem: Equatable, Sendable {
+public struct FoundSystem: Codable, Equatable, Sendable {
     /// From 0, top to bottom on the page.
     public var index: Int
     public var left: Int

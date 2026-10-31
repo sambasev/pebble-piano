@@ -9,21 +9,26 @@ struct BooksView: View {
     @ObservedObject var model: BookImportModel
 
     var body: some View {
-        VStack(alignment: .leading, spacing: PP.Space.s3) {
-            if let message = model.message {
-                Text(message).font(.ppCallout).foregroundColor(PP.warning)
-            }
-            if model.documentURL == nil {
-                emptyState
-            } else {
-                switch model.phase {
-                case .choosing: BookPagePicker(model: model)
-                case .reading: ReadingProgressView(model: model)
-                case .review: ReviewView(model: model)
+        HStack(alignment: .top, spacing: PP.Space.s4) {
+            LibrarySidebar(model: model)
+                .frame(width: 230)
+            VStack(alignment: .leading, spacing: PP.Space.s3) {
+                if let message = model.message {
+                    Text(message).font(.ppCallout).foregroundColor(PP.warning)
+                }
+                if model.documentURL == nil {
+                    emptyState
+                } else {
+                    switch model.phase {
+                    case .choosing: BookPagePicker(model: model)
+                    case .reading: ReadingProgressView(model: model)
+                    case .review: ReviewView(model: model)
+                    }
                 }
             }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .onAppear { model.refreshLibrary() }
     }
 
     private var emptyState: some View {
@@ -31,13 +36,74 @@ struct BooksView: View {
             Spacer()
             Image(systemName: "book.pages").font(.system(size: 44)).foregroundColor(PP.accent)
             Text("Learn a piece from your own music book").font(.ppTitle)
-            Text("Open a PDF, pick the piece, and PerfectPiano reads the music, checks it, and teaches it to you.")
+            Text("Choose a book on the left (or open a PDF), pick the piece, and PerfectPiano reads the music, checks it, and teaches it to you.")
                 .font(.ppBody).foregroundColor(PP.inkMuted).multilineTextAlignment(.center).frame(maxWidth: 520)
             Button("Open a book (PDF)…") { model.openBook() }
                 .buttonStyle(PPPrimaryButtonStyle())
             Spacer()
         }
         .frame(maxWidth: .infinity)
+    }
+}
+
+// MARK: - Library
+
+/// The bundled books, books you've opened, and pieces you've read and saved.
+struct LibrarySidebar: View {
+    @ObservedObject var model: BookImportModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: PP.Space.s2) {
+            Text("Books").font(.ppEyebrow).foregroundColor(PP.inkMuted)
+            ForEach(model.library) { book in
+                Button { model.open(book.url) } label: {
+                    HStack(spacing: PP.Space.s2) {
+                        Image(systemName: book.bundled ? "book.closed.fill" : "book.closed")
+                        Text(book.title).lineLimit(2).multilineTextAlignment(.leading)
+                        Spacer(minLength: 0)
+                    }
+                    .padding(.vertical, 6).padding(.horizontal, PP.Space.s2)
+                    .background(RoundedRectangle(cornerRadius: 8)
+                        .fill(model.documentURL?.path == book.url.path ? PP.accent.opacity(0.15) : Color.clear))
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+            Button { model.openBook() } label: { Label("Open a PDF…", systemImage: "plus") }
+                .buttonStyle(.plain).foregroundColor(PP.accent)
+
+            Divider().padding(.vertical, PP.Space.s2)
+            Text("Your pieces").font(.ppEyebrow).foregroundColor(PP.inkMuted)
+            if model.pieces.isEmpty {
+                Text("Pieces you read and check appear here, ready to practise.")
+                    .font(.ppCaption).foregroundColor(PP.inkMuted).fixedSize(horizontal: false, vertical: true)
+            }
+            ScrollView {
+                VStack(alignment: .leading, spacing: 2) {
+                    ForEach(model.pieces) { piece in
+                        Button { model.practise(piece) } label: {
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(piece.title).font(.ppCallout).lineLimit(1)
+                                Text("\(piece.book.replacingOccurrences(of: ".pdf", with: "")), p. \(piece.page + 1)")
+                                    .font(.ppCaption).foregroundColor(PP.inkMuted).lineLimit(1)
+                            }
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.vertical, 5).padding(.horizontal, PP.Space.s2)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .help("Practise it")
+                        .contextMenu {
+                            Button("Practise") { model.practise(piece) }
+                            Button("Read again…") { model.readAgain(piece) }
+                            Button("Show in Finder") { model.showInFinder(piece) }
+                        }
+                    }
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .ppGlass(cornerRadius: PP.Radius.lg, padding: PP.Space.s3)
     }
 }
 
@@ -57,7 +123,8 @@ struct BookPagePicker: View {
                         .disabled(model.pageIndex + 1 >= model.pageCount)
                     Spacer()
                     Text(model.documentURL?.lastPathComponent ?? "").font(.ppCaption).foregroundColor(PP.inkMuted)
-                    Button("Open another book…") { model.openBook() }
+                    Button("Re-scan page") { model.show(page: model.pageIndex, rescan: true) }
+                        .help("Find the lines of music on this page again (the result is saved, so pages open instantly)")
                 }
                 ZStack {
                     if let image = model.pageImage, !model.isLoadingPage {
@@ -118,6 +185,9 @@ struct BookPagePicker: View {
             Button("Read this piece") { model.read() }
                 .buttonStyle(PPPrimaryButtonStyle(height: PP.Size.targetMin))
                 .disabled(!model.canRead)
+            Toggle("Ask Muse Wonder again", isOn: $model.freshRead)
+                .font(.ppCallout)
+                .help("Lines read before are reused (instant and free). Turn this on to read them again.")
             Text("Muse Wonder reads each line; PerfectPiano measures every note's pitch on the page and flags any bar it isn't sure of.")
                 .font(.ppCaption).foregroundColor(PP.inkMuted).fixedSize(horizontal: false, vertical: true)
             Spacer()
