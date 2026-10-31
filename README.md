@@ -9,6 +9,42 @@ wrong, missed or extra, plus rhythm and tempo.
 - `grade`: a command-line tool that grades a recorded take, records one live from a
   MIDI keyboard, or re-grades your labelled fixtures.
 
+## Ear Training in PerfectPiano
+
+Run `swift run PianoPad` and select **Ear Training** in the header. All eight levels
+and their three stages are open: natural notes, accidentals, triads, inversions and
+sevenths, intervals and melodies, functional harmony, jazz extensions, and advanced
+jazz voicings/substitutions/modulations. **Learn the sounds** gives labeled examples;
+**Start Quiz** gives ten questions with replay, reference audio, explanations, and
+first-answer scoring. Space plays/replays, 1–9 / 0 / - / = choose an answer, and
+Return advances after feedback. A score of 8/10 recommends the next stage.
+
+The tab shares PerfectPiano's piano volume and output device. Microphone grading,
+MIDI performance input, and musical typing pause while it is open. Changing tabs
+stops playback and keeps the quiz in memory; switching learners discards an
+unfinished quiz. Each learner's `ear-training.json` stores completed quiz progress
+beside their existing lesson history. **Reset progress** also clears ear progress.
+The standalone prototype's global preferences are not imported into a learner.
+
+Listening examples, references, and answering count as practice, even without a
+finished quiz. Background time and idle gaps over 60 seconds are excluded. Leaving
+the tab or reaching 20 minutes of inactivity ends the sitting. Practice checkpoints
+reuse one ID, so saves and retries do not duplicate credit. Learn and Ear Training
+have separate session summaries but share daily totals, weekly minutes, streaks,
+and the grown-up report. Lesson stars and page recommendations remain independent.
+
+The pure engine is in `PianoGraderCore`; `EarTrainingUI` remains reusable and can
+still be launched with `swift run EarTrainer`. `EarTrainingIntegration` supplies
+the learner/storage/activity bridge. The app injects its design tokens and an
+exclusive playback adapter using the existing audio-clock sequencer. Both
+`Package.swift` and `App/project.yml` link the integration. Generate the packaged
+project with `xcodegen generate --spec App/project.yml --project App`.
+
+Checks: `swift test --filter 'Ear|PracticeSessions'` covers the curriculum,
+playback cancellation, learner separation, storage retries/reset, compatibility,
+and practice credit. Debug UI previews can set `PERFECTPIANO_PREVIEW_DATA` to an
+isolated learner-store directory; those previews do not start usage analytics.
+
 ## Build and test
 
 Requires Xcode 15+ (Swift 5.9) on macOS 13 or later.

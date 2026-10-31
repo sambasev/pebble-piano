@@ -24,10 +24,26 @@ struct ContentView: View {
             case .backingTracks:
                 BackingTracksView(model: session.backingEditor, store: session.backingStore)
                     .padding(PP.Space.s4)
+            case .earTraining:
+                EarTrainingHost(coordinator: session.earTraining)
             }
         }
+        .disabled(session.isChoosingLearner)
         .foregroundColor(PP.ink)
-        .modifier(SessionSummaryHost(runner: session.lessonRunner))
+        .modifier(SessionSummaryHost(runner: session.lessonRunner, ear: session.earTraining))
+        .onAppear { session.earTraining.setForeground(NSApp.isActive) }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+            session.earTraining.setForeground(true)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.willResignActiveNotification)) { _ in
+            session.earTraining.setForeground(false)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSApplication.willTerminateNotification)) { _ in
+            session.earTraining.close()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .openEarTraining)) { _ in
+            session.tab = .earTraining
+        }
         .overlay {
             // Who's playing: "Add learner" with none yet, "Who's playing?" with several.
             if session.isChoosingLearner {
@@ -57,14 +73,26 @@ struct ContentView: View {
                 Text("PerfectPiano").font(.ppHeadline)
             }
             Spacer()
-            Picker("Section", selection: $session.tab) {
+            Picker("Section", selection: Binding(
+                get: { session.tab },
+                set: { selected in
+                    if selected == .earTraining && session.phase == .recording {
+                        DispatchQueue.main.async {
+                            session.message = "Finish or reset your current take before opening Ear Training."
+                        }
+                    } else {
+                        session.tab = selected
+                    }
+                }
+            )) {
                 Text("Learn").tag(PlaySession.AppTab.learn)
                 Text("Practice").tag(PlaySession.AppTab.practice)
+                Text("Ear Training").tag(PlaySession.AppTab.earTraining)
                 Text("Backing tracks").tag(PlaySession.AppTab.backingTracks)
             }
             .pickerStyle(.segmented)
             .labelsHidden()
-            .frame(width: 340)
+            .frame(minWidth: 410, idealWidth: 440)
             Spacer()
             Button {
                 showInput.toggle()
@@ -72,7 +100,8 @@ struct ContentView: View {
                 HStack(spacing: PP.Space.s1) {
                     Image(systemName: session.midiSources.isEmpty && !session.micOn ? "keyboard" : "dot.radiowaves.left.and.right")
                         .foregroundColor(session.midiSources.isEmpty && !session.micOn ? PP.inkMuted : PP.success)
-                    Text(session.inputStatusText).font(.ppCaption).foregroundColor(PP.ink).lineLimit(1)
+                    Text(session.tab == .earTraining ? "Listening exercises" : session.inputStatusText)
+                        .font(.ppCaption).foregroundColor(PP.ink).lineLimit(1)
                     Image(systemName: "chevron.down").font(.system(size: 9, weight: .bold)).foregroundColor(PP.inkMuted)
                 }
                 .padding(.horizontal, PP.Space.s2).padding(.vertical, 5)

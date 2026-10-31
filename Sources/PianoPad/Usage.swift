@@ -139,6 +139,8 @@ final class ActivityTracker {
             if session.mode == .playAlong { p["backingTrack"] = session.hasBackingTrack ? "yes" : "no" }
         case .backingTracks:
             p["screen"] = "backingTracks"
+        case .earTraining:
+            p["screen"] = "earTraining"
         case .learn:
             let runner = session.lessonRunner
             guard let page = runner.page else {

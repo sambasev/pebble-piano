@@ -1,6 +1,7 @@
 #if os(macOS)
 import AppKit
 import SwiftUI
+import PianoPadState
 
 /// A Swift package executable has no Info.plist, so make it a regular foreground app
 /// with a Dock icon that receives key events.
@@ -16,10 +17,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 @main
 struct PianoPadApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
-    @StateObject private var session = PlaySession()
+    @StateObject private var session: PlaySession
     @AppStorage(Usage.defaultsKey) private var shareUsage = true
 
     init() {
+        #if DEBUG
+        // Isolated UI verification: never create test learners or practice records in real history.
+        if let path = ProcessInfo.processInfo.environment["PERFECTPIANO_PREVIEW_DATA"] {
+            let store = LearnerStore(baseURL: URL(fileURLWithPath: path),
+                                     defaults: UserDefaults(suiteName: "PerfectPiano.preview")!)
+            _session = StateObject(wrappedValue: PlaySession(learnerStore: store))
+            return
+        }
+        #endif
+        _session = StateObject(wrappedValue: PlaySession())
         // Before any window: the analytics session starts with the app.
         Usage.start()
     }

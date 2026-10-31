@@ -53,6 +53,7 @@ struct GrownUpsView: View {
                 }
                 row("music.note", "Notes learned",
                     r.notesLearned.isEmpty ? "None yet: the first page teaches Middle C." : r.notesLearned.joined(separator: ", "))
+                row("ear", "Ear training", "\(r.earQuizzesThisWeek) \(r.earQuizzesThisWeek == 1 ? "quiz" : "quizzes") this week. Listening practice counts toward the minutes and days above.")
                 row("exclamationmark.bubble", "Stuck on",
                     r.stuckPage.map { "\($0.title)" + (r.stuckDetail.map { ": \($0.lowercased())" } ?? "") } ?? "Nothing right now.")
                 row("lightbulb", "Tip", r.tip)

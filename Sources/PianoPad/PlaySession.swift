@@ -6,6 +6,8 @@ import PDFKit
 import PianoGraderCore
 import PianoGraderIO
 import PianoPadState
+import EarTrainingUI
+import EarTrainingIntegration
 import UniformTypeIdentifiers
 
 /// A book's PDF and its annotations, loaded together.
@@ -315,7 +317,62 @@ final class PlaySession: ObservableObject {
         }
     }
 
-    enum AppTab: Hashable { case learn, practice, backingTracks }
+    enum AppTab: Hashable { case learn, practice, earTraining, backingTracks }
+
+    // PlaySession callbacks are main-thread-only. Keep the actor bridge at this boundary.
+    private var earTrainingStorage: EarPracticeCoordinator?
+    var earTraining: EarPracticeCoordinator {
+        MainActor.assumeIsolated {
+            if let earTrainingStorage { return earTrainingStorage }
+            let output = AppEarSequenceOutput(
+                start: { [weak self] in self?.startEarSequence($0) },
+                position: { [weak self] in self?.earSequencePosition($0) },
+                stop: { [weak self] in self?.stopEarSequence($0) })
+            let playback = EarSequencedPlayback(output: output, isAuthorized: { [weak self] in
+                self?.tab == .earTraining && self?.isChoosingLearner == false
+            })
+            let coordinator = EarPracticeCoordinator(playback: playback)
+            coordinator.bind(learnerID: learner?.id, history: learner.map { learnerStore.history(for: $0.id) })
+            earTrainingStorage = coordinator
+            return coordinator
+        }
+    }
+    private var earSequenceLease: UUID?
+
+    private func startEarSequence(_ notes: [NoteEvent]) -> UUID? {
+        guard tab == .earTraining, !isChoosingLearner else { return nil }
+        if synth == nil { synth = PianoSynth(outputDeviceUID: outputDeviceUID); synth?.volume = pianoVolume }
+        guard let synth else { return nil }
+        let lease = UUID()
+        earSequenceLease = lease
+        guard synth.playSequence(notes.map { PianoSynth.SequenceNote(pitch: $0.pitch, velocity: $0.velocity,
+                                                                     start: $0.onset, end: $0.offset) }) else {
+            earSequenceLease = nil
+            return nil
+        }
+        return lease
+    }
+
+    private func earSequencePosition(_ lease: UUID) -> Double? {
+        earSequenceLease == lease ? synth?.sequencePosition : nil
+    }
+    private func stopEarSequence(_ lease: UUID) {
+        guard earSequenceLease == lease else { return }
+        synth?.stopSequence()
+        earSequenceLease = nil
+    }
+    func refreshEarLearner() {
+        MainActor.assumeIsolated {
+            earTraining.bind(learnerID: learner?.id, history: learner.map { learnerStore.history(for: $0.id) })
+            if tab == .earTraining { earTraining.arrive() }
+        }
+    }
+    func stopEarForLearnerChange() {
+        MainActor.assumeIsolated { earTraining.close() }
+    }
+    func resetEarProgress(for id: UUID) {
+        MainActor.assumeIsolated { earTraining.didReset(learnerID: id) }
+    }
 
     /// Tabs where the keys play notes (typing and the on-screen keyboard).
     var tabPlaysNotes: Bool { tab == .practice || tab == .learn }
@@ -419,7 +476,7 @@ final class PlaySession: ObservableObject {
 
     // MARK: Learners (state; behaviour is in PlaySession+Learners.swift)
 
-    let learnerStore = LearnerStore()
+    let learnerStore: LearnerStore
     /// The learner whose settings, recent pieces and (later) takes are in use; nil until one is added.
     @Published var learner: Learner?
     @Published var learners: [Learner] = []
@@ -437,7 +494,8 @@ final class PlaySession: ObservableObject {
     /// Active time per screen, for the anonymous usage stats (Usage.swift).
     private(set) var activity: ActivityTracker?
 
-    init() {
+    init(learnerStore: LearnerStore = LearnerStore()) {
+        self.learnerStore = learnerStore
         // Assigned directly (not through applyLearner), so no observers run during init.
         learners = learnerStore.learners
         learner = learnerStore.activeLearner
@@ -598,6 +656,7 @@ final class PlaySession: ObservableObject {
         )
         if audio == nil { input.profile = PlaySession.loadProfile() }
         input.preferredInputUID = inputDeviceUID
+        input.setMuted(tab == .earTraining || isAuditioning)
         isCalibrated = input.profile != nil
         audio = input
         roomNoise = Self.newestRoomNoise(profile: input.profile)
@@ -933,6 +992,7 @@ final class PlaySession: ObservableObject {
     ///   extra lateness, so it's reconfigured (before judging this note) when the source changes.
     private func noteOn(_ pitch: Int, velocity: Int, time: Double, playSound: Bool, strict: Bool = true,
                         source: InputSource) {
+        guard tabPlaysNotes, !isChoosingLearner else { return }
         if source != judgeInput {
             judgeInput = source
             configureJudge()
@@ -960,6 +1020,8 @@ final class PlaySession: ObservableObject {
     }
 
     private func noteOff(_ pitch: Int, time: Double) {
+        // Other sections still drain key releases; the ear sequencer owns the sampler here.
+        guard tab != .earTraining else { return }
         if let i = openNote.removeValue(forKey: pitch) {
             notes[i].offset = max(notes[i].onset + 0.01, time)
             if mode == .playAlong {
@@ -1270,7 +1332,7 @@ final class PlaySession: ObservableObject {
         if let audio {
             // Let the speakers' sound die away before listening again.
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
-                if self?.isAuditioning == false { audio.setMuted(false) }
+                if self?.isAuditioning == false && self?.tab != .earTraining { audio.setMuted(false) }
             }
         }
         updatePlayhead()
@@ -2092,11 +2154,25 @@ extension PlaySession {
     }
 
     func tabChanged() {
+        // Invalidate a lease before stopping other players. A disappearing ear view's late
+        // Stop can then never silence the new tab's sequence.
+        if let lease = earSequenceLease { stopEarSequence(lease) }
+        if tab != .earTraining { MainActor.assumeIsolated { earTraining.leave() } }
         // Leaving a tab stops the music; coming back to practice picks up edits to the linked track.
         stopAudition()
         stopPlayAlong(discard: false)
         // Leaving Learn ends the lesson and puts the practice piece back.
         if tab != .learn { lessonRunner.leave() }
+        if tab == .earTraining {
+            cancelAutoGrade()
+            settleWork?.cancel(); settleWork = nil
+            keyPitch.removeAll(); mousePitch = nil
+            held.removeAll(); openNote.removeAll(); wrong.removeAll()
+            synth?.allNotesOff()
+            backingEditor.stopPreview()
+            cancelCalibration()
+        }
+        audio?.setMuted(tab == .earTraining || isAuditioning)
         switch tab {
         case .practice:
             backingEditor.stopPreview()
@@ -2109,6 +2185,8 @@ extension PlaySession {
         case .learn:
             backingEditor.stopPreview()
             lessonRunner.arrive()
+        case .earTraining:
+            MainActor.assumeIsolated { earTraining.arrive() }
         }
     }
 

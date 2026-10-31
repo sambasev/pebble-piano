@@ -12,6 +12,9 @@ let package = Package(
         .library(name: "PianoAI", targets: ["PianoAI"]),
         .executable(name: "grade", targets: ["grade"]),
         .executable(name: "PianoPad", targets: ["PianoPad"]),
+        .library(name: "EarTrainingUI", targets: ["EarTrainingUI"]),
+        .library(name: "EarTrainingIntegration", targets: ["EarTrainingIntegration"]),
+        .executable(name: "EarTrainer", targets: ["EarTrainer"]),
     ],
     dependencies: [
         .package(url: "https://github.com/apple/swift-argument-parser", from: "1.3.0"),
@@ -60,7 +63,7 @@ let package = Package(
         // Mac app for quick testing: on-screen keyboard, musical typing, MIDI input, grading.
         .executableTarget(
             name: "PianoPad",
-            dependencies: ["PianoGraderCore", "PianoGraderIO", "PianoPadState", "PianoLessons", "PianoAI"]
+            dependencies: ["PianoGraderCore", "PianoGraderIO", "PianoPadState", "PianoLessons", "PianoAI", "EarTrainingUI", "EarTrainingIntegration"]
         ),
         .testTarget(
             name: "PianoGraderCoreTests",
@@ -78,5 +81,9 @@ let package = Package(
             name: "PianoLessonsTests",
             dependencies: ["PianoLessons", "PianoGraderCore"]
         ),
+        .target(name: "EarTrainingUI", dependencies: ["PianoGraderCore", "PianoGraderIO"]),
+        .target(name: "EarTrainingIntegration", dependencies: ["EarTrainingUI", "PianoPadState", "PianoGraderCore"]),
+        .executableTarget(name: "EarTrainer", dependencies: ["EarTrainingUI"]),
+        .testTarget(name: "EarTrainingUITests", dependencies: ["EarTrainingUI", "EarTrainingIntegration", "PianoGraderCore", "PianoPadState"]),
     ]
 )
