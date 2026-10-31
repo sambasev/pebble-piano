@@ -47,7 +47,11 @@ let package = Package(
         ),
         // Meta Model API (Muse Spark, SAM 3.1, Muse Voice Transcribe) and OpenAI-compatible
         // open-weight hosts (Fireworks, Modal). Foundation only; unit-tested with canned responses.
-        .target(name: "PianoAI"),
+        .target(
+            name: "PianoAI",
+            // Always optimised: measuring noteheads walks every pixel of each system image.
+            swiftSettings: [.unsafeFlags(["-O"], .when(configuration: .debug))]
+        ),
         // Command-line tool: grade a recorded take, record one live, or check fixtures.
         .executableTarget(
             name: "grade",

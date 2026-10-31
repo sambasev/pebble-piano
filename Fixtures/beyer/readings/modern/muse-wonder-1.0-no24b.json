@@ -1,0 +1,389 @@
+{
+ "measureCount": 6,
+ "measures": [
+  {
+   "lower": {
+    "clef": "treble",
+    "notes": [
+     {
+      "accidental": "none",
+      "dotted": false,
+      "duration": "quarter",
+      "finger": null,
+      "position": -2,
+      "rest": false
+     },
+     {
+      "accidental": "none",
+      "dotted": false,
+      "duration": "quarter",
+      "finger": null,
+      "position": -1,
+      "rest": false
+     },
+     {
+      "accidental": "none",
+      "dotted": false,
+      "duration": "quarter",
+      "finger": null,
+      "position": 0,
+      "rest": false
+     },
+     {
+      "accidental": "none",
+      "dotted": false,
+      "duration": "quarter",
+      "finger": null,
+      "position": 2,
+      "rest": false
+     }
+    ]
+   },
+   "upper": {
+    "clef": "treble",
+    "notes": [
+     {
+      "accidental": "none",
+      "dotted": false,
+      "duration": "quarter",
+      "finger": null,
+      "position": 7,
+      "rest": false
+     },
+     {
+      "accidental": "none",
+      "dotted": false,
+      "duration": "quarter",
+      "finger": null,
+      "position": 8,
+      "rest": false
+     },
+     {
+      "accidental": "none",
+      "dotted": false,
+      "duration": "quarter",
+      "finger": null,
+      "position": 9,
+      "rest": false
+     },
+     {
+      "accidental": "none",
+      "dotted": false,
+      "duration": "quarter",
+      "finger": null,
+      "position": 7,
+      "rest": false
+     }
+    ]
+   }
+  },
+  {
+   "lower": {
+    "clef": "treble",
+    "notes": [
+     {
+      "accidental": "none",
+      "dotted": false,
+      "duration": "quarter",
+      "finger": null,
+      "position": 1,
+      "rest": false
+     },
+     {
+      "accidental": "none",
+      "dotted": false,
+      "duration": "quarter",
+      "finger": null,
+      "position": 0,
+      "rest": false
+     },
+     {
+      "accidental": "none",
+      "dotted": false,
+      "duration": "quarter",
+      "finger": null,
+      "position": -1,
+      "rest": false
+     },
+     {
+      "accidental": "none",
+      "dotted": false,
+      "duration": "quarter",
+      "finger": null,
+      "position": 1,
+      "rest": false
+     }
+    ]
+   },
+   "upper": {
+    "clef": "treble",
+    "notes": [
+     {
+      "accidental": "none",
+      "dotted": false,
+      "duration": "quarter",
+      "finger": null,
+      "position": 6,
+      "rest": false
+     },
+     {
+      "accidental": "none",
+      "dotted": false,
+      "duration": "quarter",
+      "finger": null,
+      "position": 7,
+      "rest": false
+     },
+     {
+      "accidental": "none",
+      "dotted": false,
+      "duration": "quarter",
+      "finger": null,
+      "position": 8,
+      "rest": false
+     },
+     {
+      "accidental": "none",
+      "dotted": false,
+      "duration": "quarter",
+      "finger": null,
+      "position": 6,
+      "rest": false
+     }
+    ]
+   }
+  },
+  {
+   "lower": {
+    "clef": "treble",
+    "notes": [
+     {
+      "accidental": "none",
+      "dotted": false,
+      "duration": "quarter",
+      "finger": null,
+      "position": 0,
+      "rest": false
+     },
+     {
+      "accidental": "none",
+      "dotted": false,
+      "duration": "quarter",
+      "finger": null,
+      "position": -2,
+      "rest": false
+     },
+     {
+      "accidental": "none",
+      "dotted": false,
+      "duration": "quarter",
+      "finger": null,
+      "position": -1,
+      "rest": false
+     },
+     {
+      "accidental": "none",
+      "dotted": false,
+      "duration": "quarter",
+      "finger": null,
+      "position": 2,
+      "rest": false
+     }
+    ]
+   },
+   "upper": {
+    "clef": "treble",
+    "notes": [
+     {
+      "accidental": "none",
+      "dotted": false,
+      "duration": "half",
+      "finger": null,
+      "position": 9,
+      "rest": false
+     },
+     {
+      "accidental": "none",
+      "dotted": false,
+      "duration": "half",
+      "finger": null,
+      "position": 7,
+      "rest": false
+     }
+    ]
+   }
+  },
+  {
+   "lower": {
+    "clef": "treble",
+    "notes": [
+     {
+      "accidental": "none",
+      "dotted": false,
+      "duration": "quarter",
+      "finger": null,
+      "position": -2,
+      "rest": false
+     },
+     {
+      "accidental": "none",
+      "dotted": false,
+      "duration": "quarter",
+      "finger": null,
+      "position": -1,
+      "rest": false
+     },
+     {
+      "accidental": "none",
+      "dotted": false,
+      "duration": "quarter",
+      "finger": null,
+      "position": 0,
+      "rest": false
+     },
+     {
+      "accidental": "none",
+      "dotted": false,
+      "duration": "quarter",
+      "finger": null,
+      "position": -2,
+      "rest": false
+     }
+    ]
+   },
+   "upper": {
+    "clef": "treble",
+    "notes": [
+     {
+      "accidental": "none",
+      "dotted": false,
+      "duration": "whole",
+      "finger": null,
+      "position": 5,
+      "rest": false
+     }
+    ]
+   }
+  },
+  {
+   "lower": {
+    "clef": "treble",
+    "notes": [
+     {
+      "accidental": "none",
+      "dotted": false,
+      "duration": "quarter",
+      "finger": null,
+      "position": 1,
+      "rest": false
+     },
+     {
+      "accidental": "none",
+      "dotted": false,
+      "duration": "quarter",
+      "finger": null,
+      "position": 0,
+      "rest": false
+     },
+     {
+      "accidental": "none",
+      "dotted": false,
+      "duration": "quarter",
+      "finger": null,
+      "position": -1,
+      "rest": false
+     },
+     {
+      "accidental": "none",
+      "dotted": false,
+      "duration": "quarter",
+      "finger": null,
+      "position": 1,
+      "rest": false
+     }
+    ]
+   },
+   "upper": {
+    "clef": "treble",
+    "notes": [
+     {
+      "accidental": "none",
+      "dotted": false,
+      "duration": "quarter",
+      "finger": null,
+      "position": 6,
+      "rest": false
+     },
+     {
+      "accidental": "none",
+      "dotted": false,
+      "duration": "quarter",
+      "finger": null,
+      "position": 7,
+      "rest": false
+     },
+     {
+      "accidental": "none",
+      "dotted": false,
+      "duration": "quarter",
+      "finger": null,
+      "position": 8,
+      "rest": false
+     },
+     {
+      "accidental": "none",
+      "dotted": false,
+      "duration": "quarter",
+      "finger": null,
+      "position": 6,
+      "rest": false
+     }
+    ]
+   }
+  },
+  {
+   "lower": {
+    "clef": "treble",
+    "notes": [
+     {
+      "accidental": "none",
+      "dotted": false,
+      "duration": "quarter",
+      "finger": null,
+      "position": 0,
+      "rest": false
+     },
+     {
+      "accidental": "none",
+      "dotted": false,
+      "duration": "quarter",
+      "finger": null,
+      "position": -1,
+      "rest": false
+     },
+     {
+      "accidental": "none",
+      "dotted": false,
+      "duration": "half",
+      "finger": null,
+      "position": -2,
+      "rest": false
+     }
+    ]
+   },
+   "upper": {
+    "clef": "treble",
+    "notes": [
+     {
+      "accidental": "none",
+      "dotted": false,
+      "duration": "whole",
+      "finger": null,
+      "position": 5,
+      "rest": false
+     }
+    ]
+   }
+  }
+ ]
+}
