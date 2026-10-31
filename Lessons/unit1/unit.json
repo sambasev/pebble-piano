@@ -226,6 +226,18 @@
             3
           ],
           "hand": "R"
+        },
+        {
+          "type": "earTraining",
+          "level": 1,
+          "stage": 1,
+          "questions": 5,
+          "passAccuracy": 0.8,
+          "notes": [
+            0,
+            2,
+            4
+          ]
         }
       ],
       "unlocks": "c1"
@@ -309,6 +321,19 @@
             1
           ],
           "hand": "R"
+        },
+        {
+          "type": "earTraining",
+          "level": 1,
+          "stage": 2,
+          "questions": 5,
+          "passAccuracy": 0.8,
+          "notes": [
+            0,
+            2,
+            4,
+            5
+          ]
         }
       ]
     },
@@ -380,6 +405,20 @@
             1
           ],
           "hand": "R"
+        },
+        {
+          "type": "earTraining",
+          "level": 1,
+          "stage": 2,
+          "questions": 5,
+          "passAccuracy": 0.8,
+          "notes": [
+            0,
+            2,
+            4,
+            5,
+            7
+          ]
         }
       ]
     },

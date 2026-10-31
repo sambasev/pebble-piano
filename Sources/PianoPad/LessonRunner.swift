@@ -4,11 +4,67 @@ import Foundation
 import PianoGraderCore
 import PianoLessons
 import PianoPadState
+import EarTrainingUI
 
 /// Plays lesson pages in the Learn tab. Owns the page's `LessonEngine`, drives the player
 /// through `PlayerControl`, turns player events into engine events, and saves progress.
 /// Everything runs on the main thread.
 final class LessonRunner: ObservableObject, PlayerObserver {
+    enum Course: String, CaseIterable { case piano = "Piano lessons", ear = "Ear training" }
+    @Published private(set) var course: Course = .piano
+    @Published private(set) var earResult: EarQuizResult?
+    func previousEarBest(for page: LessonPage) -> Int? {
+        guard let config = page.blocks.compactMap({ block -> Block.EarTraining? in
+            if case .earTraining(let b) = block { return b }; return nil
+        }).first else { return nil }
+        return MainActor.assumeIsolated { player.earTraining.session.progress.stages[config.stageID.id]?.bestCorrect }
+    }
+    func selectCourse(_ value: Course) {
+        guard value != course else { return }
+        closePage()
+        course = value
+        warmUp = nil
+        unit = nil
+        loadUnit(); refreshProgress()
+    }
+
+    func finishEarExercise() {
+        guard case .earTraining(let b) = shownBlock, let earResult,
+              Double(earResult.correct) / Double(max(1, earResult.total)) >= b.passAccuracy else { return }
+        send(.graded(BlockResult(passed: true)))
+    }
+
+    func learnerWillChange() {
+        closePage(); endSession(showSummary: false); sessionSummary = nil
+    }
+
+    private func startEarExercise(_ config: Block.EarTraining) {
+        earResult = nil
+        player.prepareEarLesson(true)
+        MainActor.assumeIsolated {
+            let session = player.earTraining.session
+            session.onActivity = { [weak self] activity in
+                guard let self, self.shownBlock?.kind == .earTraining else { return }
+                self.noteActivity()
+                if activity != .listening { self.current?.earQuestionsAnswered += 1 }
+                self.saveSession()
+            }
+            session.onQuizCompleted = { [weak self] result, id in
+                guard let self, self.shownBlock?.kind == .earTraining else { return }
+                self.earResult = result
+                self.noteActivity()
+                if self.current?.earQuizzes.contains(where: { $0.id == id }) == false {
+                    self.current?.earQuizzes.append(EarQuizSummary(id: id, level: result.stage.level,
+                        stage: result.stage.stage, correct: result.correct, total: result.total))
+                }
+                self.saveSession()
+                if Double(result.correct) / Double(max(1, result.total)) < config.passAccuracy {
+                    self.send(.graded(BlockResult(passed: false)))
+                }
+            }
+            session.startLessonQuiz(stage: config.stageID, questions: config.questions, notes: config.notes)
+        }
+    }
     /// One line about what just happened, shown above the keyboard.
     struct Feedback: Equatable {
         enum Kind { case success, mistake, hint }
@@ -156,6 +212,8 @@ final class LessonRunner: ObservableObject, PlayerObserver {
             return page?.hint(forBlock: shownIndex) ?? "The next key to play is marked on the keyboard."
         case .teacher:
             switch shownBlock {
+            case .earTraining:
+                return "Replay the reference, then compare it with the example. You can listen as often as you need."
             case .timed, .songChallenge:
                 return "No rush. Press Listen to hear it again, then play along, counting the clicks."
             default:
@@ -209,7 +267,7 @@ final class LessonRunner: ObservableObject, PlayerObserver {
         return drill != nil || song.current != .listen
     }
 
-    var showsKeyboard: Bool { !autoHidesKeyboard || keyboardPinned || keyboardRevealed }
+    var showsKeyboard: Bool { shownBlock?.kind != .earTraining && (!autoHidesKeyboard || keyboardPinned || keyboardRevealed) }
 
     // MARK: Child
 
@@ -893,6 +951,11 @@ final class LessonRunner: ObservableObject, PlayerObserver {
     }
 
     private func loadUnit() {
+        if course == .ear {
+            unit = LoadedUnit(unit: EarLessonCourse.unit, folder: FileManager.default.temporaryDirectory)
+            loadError = nil
+            return
+        }
         guard let folder = PlaySession.bundledResource("Lessons/unit1") else {
             loadError = "Lessons/unit1 wasn't found in the app or next to it."
             return
@@ -918,6 +981,8 @@ final class LessonRunner: ObservableObject, PlayerObserver {
     }
 
     private func closePage() {
+        player.prepareEarLesson(false)
+        earResult = nil
         pendingWork?.cancel()
         pendingWork = nil
         if page != nil { player.endLesson() }
@@ -952,6 +1017,7 @@ final class LessonRunner: ObservableObject, PlayerObserver {
                 record(r)
                 after(pause ? Self.successPause : 0) { [weak self] in
                     guard let self else { return }
+                    self.player.prepareEarLesson(false)
                     self.player.showNothing()
                     self.result = r
                 }
@@ -1002,6 +1068,8 @@ final class LessonRunner: ObservableObject, PlayerObserver {
 
     /// Loads (or reloads) the player for the shown block.
     private func reloadBlock() {
+        player.prepareEarLesson(false)
+        earResult = nil
         resetKeyboard()
         guard let unit, let page, let block = shownBlock else { return }
         let piece = PieceID.lesson(unit: unit.unit.id, page: page.id, block: shownIndex)
@@ -1011,6 +1079,9 @@ final class LessonRunner: ObservableObject, PlayerObserver {
                                    countInBeats: countIn, measures: measures)
         }
         switch block {
+        case .earTraining(let b):
+            player.showNothing()
+            startEarExercise(b)
         case .explain, .concept:
             player.showNothing()
         case .wait(let b):

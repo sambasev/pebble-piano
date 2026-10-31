@@ -35,6 +35,14 @@ import PianoGraderCore
     private let playback: any EarPlayback
     private let store: any EarProgressStore
     private var playToken: UInt64 = 0
+    private var lessonCount = 10
+    private var lessonNotes: [Int]?
+
+    public func startLessonQuiz(stage: EarStageID, questions: Int, notes: [Int]? = nil) {
+        select(stage)
+        lessonCount = questions; lessonNotes = notes
+        startQuiz()
+    }
 
     public convenience init() {
         self.init(playback: EarPlaybackController(), store: EarLocalProgressStore())
@@ -51,12 +59,22 @@ import PianoGraderCore
     public var question: EarQuestion? { quiz?.question }
     public var canAnswer: Bool { screen == .quiz && heardQuestion && !isPlaying && quiz?.response == nil }
     public var result: EarQuizResult? { quiz?.result }
-    public var examples: [EarQuestion] { EarQuestionGenerator.examples(stage: selectedStage) }
+    public var examples: [EarQuestion] {
+        EarQuestionGenerator.examples(stage: selectedStage).filter { example in
+            lessonNotes.map { $0.contains(Int(example.correctAnswer.id.replacingOccurrences(of: "note.", with: "")) ?? -1) } ?? true
+        }
+    }
+
+    public func playLessonExample(_ example: EarQuestion) {
+        guard screen == .quiz, examples.contains(where: { $0.id == example.id }) else { return }
+        play(example.solution)
+    }
 
     public func select(_ stage: EarStageID) {
         guard EarCurriculum.stage(stage) != nil else { return }
         stop()
         selectedStage = stage
+        lessonCount = 10; lessonNotes = nil
         screen = .overview
         quiz = nil
         heardQuestion = false
@@ -67,7 +85,7 @@ import PianoGraderCore
 
     public func startQuiz(seed: UInt64 = UInt64.random(in: .min ... .max)) {
         stop()
-        quiz = EarQuiz(questions: EarQuestionGenerator.quiz(stage: selectedStage, seed: seed))
+        quiz = EarQuiz(questions: EarQuestionGenerator.quiz(stage: selectedStage, seed: seed, count: lessonCount, notes: lessonNotes))
         heardQuestion = false
         screen = .quiz
     }
@@ -109,8 +127,10 @@ import PianoGraderCore
         quiz?.next()
         heardQuestion = false
         if let result = quiz?.result {
-            progress.record(result)
-            retrySave()
+            if lessonCount == 10 && lessonNotes == nil {
+                progress.record(result)
+                retrySave()
+            }
             screen = .results
             onQuizCompleted?(result, quiz?.questions.first?.id ?? UUID().uuidString)
         }

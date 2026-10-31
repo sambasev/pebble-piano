@@ -1,4 +1,5 @@
 import Foundation
+import PianoGraderCore
 
 /// What's wrong with a unit folder. Every problem is reported, not just the first.
 public enum UnitError: Error, Equatable, CustomStringConvertible {
@@ -10,6 +11,7 @@ public enum UnitError: Error, Equatable, CustomStringConvertible {
     case missingMIDI(page: String, block: Int, path: String)
     case badFingering(page: String, block: Int, finger: Int)
     case badTempo(page: String, block: Int)
+    case badEarTraining(page: String, block: Int)
 
     public var description: String {
         switch self {
@@ -21,6 +23,7 @@ public enum UnitError: Error, Equatable, CustomStringConvertible {
         case .missingMIDI(let page, let block, let path): return "Page \"\(page)\" block \(block + 1): \(path) not found."
         case .badFingering(let page, let block, let finger): return "Page \"\(page)\" block \(block + 1): finger \(finger) (use 1–5)."
         case .badTempo(let page, let block): return "Page \"\(page)\" block \(block + 1): tempo must be above 0."
+        case .badEarTraining(let page, let block): return "Page \"\(page)\" block \(block + 1): invalid ear-training stage, question count, threshold, or note pool."
         }
     }
 }
@@ -80,6 +83,16 @@ public struct LoadedUnit: Sendable {
                 errors.append(.unknownUnlock(page: page.id, target: target))
             }
             for (i, block) in page.blocks.enumerated() {
+                if case .earTraining(let b) = block {
+                    let pool = b.notes
+                    let validNotes = pool.map { b.level <= 2 && Set($0).count >= 2 && $0.allSatisfy { (0...11).contains($0) } } ?? true
+                    let available = EarQuestionGenerator.examples(stage: b.stageID).map { Int($0.correctAnswer.id.replacingOccurrences(of: "note.", with: "")) }.compactMap { $0 }
+                    if EarCurriculum.stage(b.stageID) == nil || !(1...20).contains(b.questions)
+                        || !b.passAccuracy.isFinite || !(0...1).contains(b.passAccuracy) || !validNotes
+                        || pool.map({ !Set($0).isSubset(of: Set(available)) }) == true {
+                        errors.append(.badEarTraining(page: page.id, block: i))
+                    }
+                }
                 if let path = block.midi, !fileExists(url(for: path)) {
                     errors.append(.missingMIDI(page: page.id, block: i, path: path))
                 }
