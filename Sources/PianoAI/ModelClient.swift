@@ -41,14 +41,19 @@ public struct ChatOptions: Sendable {
     public var reasoningEffort: String?
     public var maxTokens: Int?
     public var temperature: Double?
+    /// Stream the reply. Needed for long reasoning (reading music): a non-streamed request
+    /// that takes too long to start answering fails with HTTP 504.
+    public var stream: Bool
 
     public init(model: String = MetaModels.spark, schema: (name: String, schema: JSONValue)? = nil,
-                reasoningEffort: String? = nil, maxTokens: Int? = nil, temperature: Double? = nil) {
+                reasoningEffort: String? = nil, maxTokens: Int? = nil, temperature: Double? = nil,
+                stream: Bool = false) {
         self.model = model
         self.schema = schema
         self.reasoningEffort = reasoningEffort
         self.maxTokens = maxTokens
         self.temperature = temperature
+        self.stream = stream
     }
 }
 
@@ -110,18 +115,20 @@ public struct ModelClient: Sendable {
         if let e = options.reasoningEffort { body["reasoning_effort"] = .string(e) }
         if let m = options.maxTokens { body["max_tokens"] = .number(Double(m)) }
         if let t = options.temperature { body["temperature"] = .number(t) }
+        if options.stream {
+            body["stream"] = true
+            body["stream_options"] = ["include_usage": true]
+        }
 
         let started = Date()
         do {
-            let (data, _) = try await send(try request("chat/completions", json: .object(body)))
-            let json = try JSONValue(parsing: data)
-            guard let text = json["choices"]?[0]?["message"]?["content"]?.stringValue else {
-                throw ModelError.badResponse("no choices[0].message.content")
-            }
+            var req = try request("chat/completions", json: .object(body))
+            if options.stream { req.setValue("text/event-stream", forHTTPHeaderField: "Accept") }
+            let (data, _) = try await send(req)
+            let parsed = options.stream ? try Self.parseChatStream(data) : try Self.parseChat(data)
             let result = ChatResult(
-                text: text, model: json["model"]?.stringValue ?? options.model,
-                inputTokens: json["usage"]?["prompt_tokens"]?.intValue,
-                outputTokens: json["usage"]?["completion_tokens"]?.intValue,
+                text: parsed.text, model: parsed.model ?? options.model,
+                inputTokens: parsed.inputTokens, outputTokens: parsed.outputTokens,
                 seconds: Date().timeIntervalSince(started))
             await record(options.model, "chat", started, input: result.inputTokens, output: result.outputTokens)
             return result
@@ -129,6 +136,44 @@ public struct ModelClient: Sendable {
             await record(options.model, "chat", started, error: error)
             throw error
         }
+    }
+
+    struct ParsedChat {
+        var text: String
+        var model: String?
+        var inputTokens: Int?
+        var outputTokens: Int?
+    }
+
+    static func parseChat(_ data: Data) throws -> ParsedChat {
+        let json = try JSONValue(parsing: data)
+        guard let text = json["choices"]?[0]?["message"]?["content"]?.stringValue else {
+            throw ModelError.badResponse("no choices[0].message.content")
+        }
+        return ParsedChat(text: text, model: json["model"]?.stringValue,
+                          inputTokens: json["usage"]?["prompt_tokens"]?.intValue,
+                          outputTokens: json["usage"]?["completion_tokens"]?.intValue)
+    }
+
+    /// A streamed chat completion: the content deltas joined, and the usage from the last chunk.
+    static func parseChatStream(_ data: Data) throws -> ParsedChat {
+        var out = ParsedChat(text: "")
+        for payload in ServerSentEvents.dataPayloads(data) {
+            guard let event = try? JSONValue(parsing: Data(payload.utf8)) else { continue }
+            if let error = event["error"] {
+                throw ModelError.streamError(error["message"]?.stringValue ?? "unknown")
+            }
+            if out.model == nil { out.model = event["model"]?.stringValue }
+            for choice in event["choices"]?.arrayValue ?? [] {
+                if let piece = choice["delta"]?["content"]?.stringValue { out.text += piece }
+            }
+            if let usage = event["usage"], usage != .null {
+                out.inputTokens = usage["prompt_tokens"]?.intValue ?? out.inputTokens
+                out.outputTokens = usage["completion_tokens"]?.intValue ?? out.outputTokens
+            }
+        }
+        guard !out.text.isEmpty else { throw ModelError.badResponse("stream had no content") }
+        return out
     }
 
     // MARK: Segmentation (SAM 3.1)

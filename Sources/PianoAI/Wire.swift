@@ -3,12 +3,15 @@ import Foundation
 /// Server-sent events: the `data:` payloads of a complete event-stream body, in order.
 enum ServerSentEvents {
     static func dataPayloads(_ body: Data) -> [String] {
+        // In Swift "\r\n" is one Character, so splitting on "\n" alone would miss CRLF line ends.
         let text = String(decoding: body, as: UTF8.self)
+            .replacingOccurrences(of: "\r\n", with: "\n")
+            .replacingOccurrences(of: "\r", with: "\n")
         var payloads: [String] = []
         var current: [String] = []
         // An event ends at a blank line; its data lines join with newlines.
         for raw in text.split(separator: "\n", omittingEmptySubsequences: false) {
-            let line = raw.hasSuffix("\r") ? String(raw.dropLast()) : String(raw)
+            let line = String(raw)
             if line.isEmpty {
                 if !current.isEmpty { payloads.append(current.joined(separator: "\n")); current = [] }
             } else if line.hasPrefix("data:") {

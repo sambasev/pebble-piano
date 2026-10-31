@@ -1,0 +1,397 @@
+{
+ "measureCount": 6,
+ "measures": [
+  {
+   "lower": {
+    "clef": "treble",
+    "notes": [
+     {
+      "accidental": "natural",
+      "dotted": false,
+      "duration": "quarter",
+      "finger": 3,
+      "position": 0,
+      "rest": false
+     },
+     {
+      "accidental": "natural",
+      "dotted": false,
+      "duration": "quarter",
+      "finger": 5,
+      "position": -2,
+      "rest": false
+     },
+     {
+      "accidental": "natural",
+      "dotted": false,
+      "duration": "quarter",
+      "finger": null,
+      "position": 0,
+      "rest": false
+     },
+     {
+      "accidental": "natural",
+      "dotted": false,
+      "duration": "quarter",
+      "finger": null,
+      "position": 2,
+      "rest": false
+     }
+    ]
+   },
+   "upper": {
+    "clef": "treble",
+    "notes": [
+     {
+      "accidental": "natural",
+      "dotted": false,
+      "duration": "half",
+      "finger": 5,
+      "position": 9,
+      "rest": false
+     },
+     {
+      "accidental": "natural",
+      "dotted": false,
+      "duration": "half",
+      "finger": null,
+      "position": 9,
+      "rest": false
+     }
+    ]
+   }
+  },
+  {
+   "lower": {
+    "clef": "treble",
+    "notes": [
+     {
+      "accidental": "natural",
+      "dotted": false,
+      "duration": "quarter",
+      "finger": null,
+      "position": -2,
+      "rest": false
+     },
+     {
+      "accidental": "natural",
+      "dotted": false,
+      "duration": "quarter",
+      "finger": null,
+      "position": -1,
+      "rest": false
+     },
+     {
+      "accidental": "natural",
+      "dotted": false,
+      "duration": "quarter",
+      "finger": null,
+      "position": 0,
+      "rest": false
+     },
+     {
+      "accidental": "natural",
+      "dotted": false,
+      "duration": "quarter",
+      "finger": null,
+      "position": -2,
+      "rest": false
+     }
+    ]
+   },
+   "upper": {
+    "clef": "treble",
+    "notes": [
+     {
+      "accidental": "natural",
+      "dotted": false,
+      "duration": "whole",
+      "finger": null,
+      "position": 7,
+      "rest": false
+     }
+    ]
+   }
+  },
+  {
+   "lower": {
+    "clef": "treble",
+    "notes": [
+     {
+      "accidental": "natural",
+      "dotted": false,
+      "duration": "quarter",
+      "finger": null,
+      "position": 2,
+      "rest": false
+     },
+     {
+      "accidental": "natural",
+      "dotted": false,
+      "duration": "quarter",
+      "finger": null,
+      "position": 0,
+      "rest": false
+     },
+     {
+      "accidental": "natural",
+      "dotted": false,
+      "duration": "quarter",
+      "finger": null,
+      "position": 2,
+      "rest": false
+     },
+     {
+      "accidental": "natural",
+      "dotted": false,
+      "duration": "quarter",
+      "finger": null,
+      "position": 1,
+      "rest": false
+     }
+    ]
+   },
+   "upper": {
+    "clef": "treble",
+    "notes": [
+     {
+      "accidental": "natural",
+      "dotted": false,
+      "duration": "quarter",
+      "finger": null,
+      "position": 7,
+      "rest": false
+     },
+     {
+      "accidental": "natural",
+      "dotted": false,
+      "duration": "quarter",
+      "finger": null,
+      "position": 8,
+      "rest": false
+     },
+     {
+      "accidental": "natural",
+      "dotted": false,
+      "duration": "quarter",
+      "finger": null,
+      "position": 9,
+      "rest": false
+     },
+     {
+      "accidental": "natural",
+      "dotted": false,
+      "duration": "quarter",
+      "finger": null,
+      "position": 8,
+      "rest": false
+     }
+    ]
+   }
+  },
+  {
+   "lower": {
+    "clef": "treble",
+    "notes": [
+     {
+      "accidental": "natural",
+      "dotted": false,
+      "duration": "quarter",
+      "finger": null,
+      "position": 0,
+      "rest": false
+     },
+     {
+      "accidental": "natural",
+      "dotted": false,
+      "duration": "quarter",
+      "finger": null,
+      "position": -1,
+      "rest": false
+     },
+     {
+      "accidental": "natural",
+      "dotted": false,
+      "duration": "quarter",
+      "finger": null,
+      "position": 0,
+      "rest": false
+     },
+     {
+      "accidental": "natural",
+      "dotted": false,
+      "duration": "quarter",
+      "finger": null,
+      "position": -1,
+      "rest": false
+     }
+    ]
+   },
+   "upper": {
+    "clef": "treble",
+    "notes": [
+     {
+      "accidental": "natural",
+      "dotted": false,
+      "duration": "whole",
+      "finger": null,
+      "position": 7,
+      "rest": false
+     }
+    ]
+   }
+  },
+  {
+   "lower": {
+    "clef": "treble",
+    "notes": [
+     {
+      "accidental": "natural",
+      "dotted": false,
+      "duration": "quarter",
+      "finger": null,
+      "position": -2,
+      "rest": false
+     },
+     {
+      "accidental": "natural",
+      "dotted": false,
+      "duration": "quarter",
+      "finger": null,
+      "position": -1,
+      "rest": false
+     },
+     {
+      "accidental": "natural",
+      "dotted": false,
+      "duration": "quarter",
+      "finger": null,
+      "position": 0,
+      "rest": false
+     },
+     {
+      "accidental": "natural",
+      "dotted": false,
+      "duration": "quarter",
+      "finger": null,
+      "position": 2,
+      "rest": false
+     }
+    ]
+   },
+   "upper": {
+    "clef": "treble",
+    "notes": [
+     {
+      "accidental": "natural",
+      "dotted": false,
+      "duration": "quarter",
+      "finger": null,
+      "position": 9,
+      "rest": false
+     },
+     {
+      "accidental": "natural",
+      "dotted": false,
+      "duration": "quarter",
+      "finger": null,
+      "position": 9,
+      "rest": false
+     },
+     {
+      "accidental": "natural",
+      "dotted": false,
+      "duration": "quarter",
+      "finger": null,
+      "position": 9,
+      "rest": false
+     },
+     {
+      "accidental": "natural",
+      "dotted": false,
+      "duration": "quarter",
+      "finger": null,
+      "position": 7,
+      "rest": false
+     }
+    ]
+   }
+  },
+  {
+   "lower": {
+    "clef": "treble",
+    "notes": [
+     {
+      "accidental": "natural",
+      "dotted": false,
+      "duration": "quarter",
+      "finger": null,
+      "position": 1,
+      "rest": false
+     },
+     {
+      "accidental": "natural",
+      "dotted": false,
+      "duration": "quarter",
+      "finger": null,
+      "position": 0,
+      "rest": false
+     },
+     {
+      "accidental": "natural",
+      "dotted": false,
+      "duration": "quarter",
+      "finger": null,
+      "position": -1,
+      "rest": false
+     },
+     {
+      "accidental": "natural",
+      "dotted": false,
+      "duration": "quarter",
+      "finger": null,
+      "position": 0,
+      "rest": false
+     }
+    ]
+   },
+   "upper": {
+    "clef": "treble",
+    "notes": [
+     {
+      "accidental": "natural",
+      "dotted": false,
+      "duration": "quarter",
+      "finger": null,
+      "position": 8,
+      "rest": false
+     },
+     {
+      "accidental": "natural",
+      "dotted": false,
+      "duration": "quarter",
+      "finger": null,
+      "position": 8,
+      "rest": false
+     },
+     {
+      "accidental": "natural",
+      "dotted": false,
+      "duration": "quarter",
+      "finger": null,
+      "position": 9,
+      "rest": false
+     },
+     {
+      "accidental": "natural",
+      "dotted": false,
+      "duration": "quarter",
+      "finger": null,
+      "position": 7,
+      "rest": false
+     }
+    ]
+   }
+  }
+ ]
+}

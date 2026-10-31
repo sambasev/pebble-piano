@@ -41,8 +41,10 @@ public enum ModelProvider: String, CaseIterable, Codable, Sendable, Identifiable
 
 /// Meta's model IDs, in one place so a version bump is one line.
 public enum MetaModels {
-    /// Reading sheet music, planning lessons and the tutor.
+    /// Planning lessons and the tutor.
     public static let spark = "muse-spark-1.3"
+    /// Reading sheet music (the probes: far better than Spark at it, but slower).
+    public static let wonder = "muse-wonder-1.0"
     /// Finding systems and bars on a page.
     public static let sam = "sam-3.1"
     /// Voice questions.
