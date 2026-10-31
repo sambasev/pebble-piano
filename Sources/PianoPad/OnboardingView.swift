@@ -73,6 +73,9 @@ struct OnboardingView: View {
     private var noPiano: Bool { atPiano == false }
     /// The input step's choice was made (microphone or Bluetooth MIDI).
     @State private var inputChosen = false
+    /// A teacher or goal song was tapped on this step: Continue counts down so the pick
+    /// carries on by itself (with a moment to change your mind).
+    @State private var picked = false
 
     private var trimmedName: String { answers.name.trimmingCharacters(in: .whitespacesAndNewlines) }
     private var isChild: Bool { answers.kind == .child }
@@ -103,6 +106,7 @@ struct OnboardingView: View {
         .frame(width: 560)
         .animation(.easeInOut(duration: 0.18), value: step)
         .onAppear { session.setupStartedAt = Date() }
+        .onChange(of: step) { _ in picked = false }
         .onDisappear { if session.calibrationPrompt != nil { session.cancelCalibration() } }
     }
 
@@ -364,7 +368,10 @@ struct OnboardingView: View {
                 .font(.ppBody).foregroundColor(PP.inkMuted)
             VStack(spacing: PP.Space.s2) {
                 ForEach(GoalSongs.all) { song in
-                    Button { answers.goalSong = song.id } label: {
+                    Button {
+                        answers.goalSong = song.id
+                        picked = true
+                    } label: {
                         HStack(spacing: PP.Space.s3) {
                             Image(systemName: answers.goalSong == song.id ? "largecircle.fill.circle" : "circle")
                                 .foregroundColor(answers.goalSong == song.id ? PP.accent : PP.inkMuted)
@@ -434,12 +441,49 @@ struct OnboardingView: View {
             }
             Spacer()
             if step != .piano {
-                Button(primaryTitle, action: next)
-                    .buttonStyle(PPPrimaryButtonStyle(height: PP.Size.targetMin))
-                    .keyboardShortcut(.defaultAction)
-                    .disabled(!canContinue)
+                if let seconds = autoSeconds, canContinue {
+                    TimedContinueButton(title: primaryTitle, seconds: seconds, action: next)
+                        .id(autoKey)
+                } else {
+                    Button(primaryTitle, action: next)
+                        .buttonStyle(PPPrimaryButtonStyle(height: PP.Size.targetMin))
+                        .keyboardShortcut(.defaultAction)
+                        .disabled(!canContinue)
+                }
             }
         }
+    }
+
+    /// Steps whose Continue counts down: information to read, a check that passed, or a
+    /// pick just made. Typing a name, choosing an input and a failed check stay manual.
+    private var autoSeconds: Double? {
+        switch step {
+        case .welcome:
+            // Also when adding another learner: Cancel still works, and hovering pauses.
+            return AutoAdvance.seconds(.setupInfo)
+        case .input:
+            guard inputChosen, session.calibrationPrompt == nil else { return nil }
+            switch answers.input {
+            case .microphone:
+                if case .set = session.noiseOutcome { return AutoAdvance.seconds(.checkPassed) }
+                return nil
+            case .midi:
+                return session.midiSources.isEmpty ? nil : AutoAdvance.seconds(.checkPassed)
+            case .computerKeyboard:
+                return nil
+            }
+        case .teacher, .goal:
+            return picked ? AutoAdvance.seconds(.choiceMade) : nil
+        case .ready:
+            return AutoAdvance.seconds(.setupInfo, child: isChild)
+        case .learner, .piano:
+            return nil
+        }
+    }
+
+    /// A new pick, input or check result starts a fresh count.
+    private var autoKey: String {
+        "\(step.rawValue)-\(answers.persona)-\(answers.goalSong)-\(answers.input.rawValue)-\(session.midiSources.count)-\(String(describing: session.noiseOutcome))"
     }
 
     private var primaryTitle: String {
@@ -498,7 +542,10 @@ struct OnboardingView: View {
 
     private func teacherCard(id: String, name: String, tag: String, lines: [String]) -> some View {
         let selected = answers.persona == id
-        return Button { answers.persona = id } label: {
+        return Button {
+            answers.persona = id
+            picked = true
+        } label: {
             VStack(alignment: .leading, spacing: PP.Space.s2) {
                 HStack {
                     Text(name).font(.ppHeadline)

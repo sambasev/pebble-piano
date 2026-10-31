@@ -249,3 +249,9 @@ Tell friends: "install, follow setup, do Unit 1". Collect locally, then ask them
 - where they quit
 - stars
 - "I played it right" flags
+
+### Timed Continue (`feature/timed-continue`)
+- `PianoLessons/AutoAdvance.swift`: the wait per moment (pure, tested in `AutoAdvanceTests`).
+- `PianoPad/TimedContinueButton.swift`: the button, its `Countdown` (own main-run-loop timer, so redraws from the mic level or playhead don't disturb it) and `PPTimedButtonStyle`.
+- `LessonRunner`: `listenDone` (a listen block no longer moves on the instant it ends), `autoNextStage` (set when Listen, Learn or a ★-worthy Practise finishes; cleared by Listen again, Restart or changing stage), `drillAutoStart` (replaces Kriti's hidden 4 s timer with a visible one), `nextPageAfterDone` / `openNextPage()`.
+- Wired into `LearnView` (explain, concept, listen, song stages, Fix bar, page done), `WarmUpCard` and `OnboardingView` (`autoSeconds`, `picked`). Where the places are listed: [beginner-journeys.md](beginner-journeys.md#auto-progress-the-timed-continue).

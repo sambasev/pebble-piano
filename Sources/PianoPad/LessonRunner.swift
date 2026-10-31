@@ -54,6 +54,13 @@ final class LessonRunner: ObservableObject, PlayerObserver {
     @Published var sessionSummary: SessionSummary?
     /// Coming back: the warm-up offered, running, or its result.
     @Published private(set) var warmUp: WarmUp?
+    /// A listen block played through: its Continue counts down instead of moving on at once,
+    /// so there's a moment to press Listen again.
+    @Published private(set) var listenDone = false
+    /// A song stage just finished well: the next stage's button counts down to it.
+    @Published private(set) var autoNextStage: SongStage?
+    /// The teacher opens the drill herself (Kriti): the Fix bar button counts down to it.
+    @Published private(set) var drillAutoStart = false
 
     /// What the summary sheet shows.
     struct SessionSummary: Identifiable, Equatable {
@@ -351,6 +358,18 @@ final class LessonRunner: ObservableObject, PlayerObserver {
         refreshProgress()
     }
 
+    /// From the finished screen: the page to go on to (the coach's pick), when it's another page.
+    var nextPageAfterDone: LessonPage? {
+        guard result != nil, let unit, let id = nextPageID, id != page?.id, isUnlocked(id) else { return nil }
+        return unit.unit.page(id)
+    }
+
+    /// From the finished screen: on to the next page.
+    func openNextPage() {
+        guard let next = nextPageAfterDone else { return }
+        open(next.id)
+    }
+
     /// From the finished screen: the same page again from the top.
     func playAgain() {
         guard let id = page?.id else { return }
@@ -369,9 +388,23 @@ final class LessonRunner: ObservableObject, PlayerObserver {
         send(.skip)
     }
 
+    /// Back to the previous step (the page's position is saved there).
+    func back() {
+        guard canGoBack else { return }
+        pendingWork?.cancel()
+        pendingWork = nil
+        player.stopPlayAlong(discard: true)
+        if player.isAuditioning { player.stopListening() }
+        send(.back)
+    }
+
+    /// Back is offered from the second step on, but not in the one-step warm-up.
+    var canGoBack: Bool { page != nil && result == nil && shownIndex > 0 && !isWarmingUp }
+
     /// Starts the current block over (attempts so far still count toward hints).
     func restart() {
         feedback = nil
+        autoNextStage = nil
         reloadBlock()
         send(.restart)
     }
@@ -386,6 +419,8 @@ final class LessonRunner: ObservableObject, PlayerObserver {
         drill = nil
         songResult = nil
         feedback = nil
+        autoNextStage = nil
+        drillAutoStart = false
         song.go(to: stage)
         reloadBlock()
     }
@@ -438,6 +473,8 @@ final class LessonRunner: ObservableObject, PlayerObserver {
         drill = RemediationPlanner.drill(measure: bar, measureCount: songMeasureCount, persona: persona)
         songResult = nil
         drillOffer = nil
+        drillAutoStart = false
+        autoNextStage = nil
         failedPerforms = []
         feedback = Feedback(kind: .hint, text: persona.say(.drillIntro, bar: bar))
         reloadBlock()
@@ -507,11 +544,14 @@ final class LessonRunner: ObservableObject, PlayerObserver {
             break
         case .learn:
             song.finish(.learn)
+            autoNextStage = .practise
             feedback = Feedback(kind: .success, text: "You've learned it. Next: Practise with the clicks.")
         case .practise:
             let s = Stars.summary(report: report, rubric: rubric, helpUsed: true)
             let timing = s.timing.map { " · timing \(Int(($0 * 100).rounded()))%" } ?? ""
             song.finish(.practise)
+            // On to Perform by itself only when the practice run went well enough for a star.
+            autoNextStage = Stars.compute(s) >= 1 ? .perform : nil
             feedback = Feedback(kind: .success,
                                 text: isChild ? "Good practice! Next: play it all the way through."
                                     : "Practice run: notes \(Int((s.notes * 100).rounded()))%\(timing). Next: Perform at full speed.")
@@ -530,8 +570,9 @@ final class LessonRunner: ObservableObject, PlayerObserver {
                 if failedPerforms.count >= persona.drill.afterFailedPerforms {
                     drillOffer = RemediationPlanner.worstMeasure(in: failedPerforms)
                     if drillOffer != nil && persona.drill.startsAutomatically {
-                        // This teacher starts the drill herself, once the results have been seen.
-                        after(4) { [weak self] in self?.startDrill() }
+                        // This teacher starts the drill herself, once the results have been
+                        // seen: the Fix bar button counts down (hovering pauses it).
+                        drillAutoStart = true
                     }
                 }
             }
@@ -540,7 +581,14 @@ final class LessonRunner: ObservableObject, PlayerObserver {
     }
 
     func listen() {
-        player.isAuditioning ? player.stopListening() : player.startListening()
+        if player.isAuditioning {
+            player.stopListening()
+        } else {
+            // Listening again: no counting down to the next thing meanwhile.
+            listenDone = false
+            autoNextStage = nil
+            player.startListening()
+        }
     }
 
     /// Timed blocks: start the count-in, or stop.
@@ -636,9 +684,12 @@ final class LessonRunner: ObservableObject, PlayerObserver {
     func playerListenFinished() {
         switch shownBlock {
         case .listen:
-            send(.listenFinished)
-        case .songChallenge where song.current == .listen:
+            // Continue counts down now (it used to move on at once); the engine moves on
+            // when it's pressed, by the learner or the countdown.
+            listenDone = true
+        case .songChallenge where song.current == .listen && drill == nil:
             song.finish(.listen)
+            autoNextStage = .learn
             feedback = Feedback(kind: .success, text: "That's the song. Next: Learn it at your own pace.")
         default:
             break
@@ -854,6 +905,7 @@ final class LessonRunner: ObservableObject, PlayerObserver {
         resetDrill()
         hint = .none
         micCandidate = nil
+        listenDone = false
         shownIndex = 0
     }
 
@@ -901,6 +953,7 @@ final class LessonRunner: ObservableObject, PlayerObserver {
     private func enterBlock() {
         guard let engine, !engine.isComplete else { return }
         shownIndex = engine.blockIndex
+        listenDone = false
         feedback = nil
         hint = engine.hintLevel
         song = SongProgress()
@@ -915,6 +968,8 @@ final class LessonRunner: ObservableObject, PlayerObserver {
         resetKeyboard()
         drill = nil
         drillOffer = nil
+        drillAutoStart = false
+        autoNextStage = nil
         explanations = []
         failedPerforms = []
         failedPerformCount = 0

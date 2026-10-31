@@ -70,6 +70,9 @@ public enum LessonEvent: Equatable, Sendable {
     case skip
     /// The persona escape: the learner asks to move on. Flagged like a skip.
     case askToMoveOn
+    /// Go back to the previous block (a fresh start there: no misses, no hint). Stars already
+    /// earned and skip flags stay. Nothing happens on the first block.
+    case back
 }
 
 /// What the app should do in response.
@@ -192,6 +195,15 @@ public struct LessonEngine: Sendable {
         case .skip, .askToMoveOn:
             flagged.insert(blockIndex)
             return advance()
+
+        case .back:
+            guard blockIndex > 0 else { return [] }
+            failedAttempts = 0
+            missesOnChord = 0
+            missChord = nil
+            hintLevel = .none
+            blockIndex -= 1
+            return [.advanced(to: blockIndex)]
         }
     }
 

@@ -1489,6 +1489,21 @@ extension PlaySession {
     /// The piece's tempo: the linked backing track's, else the MIDI file's.
     var originalBPM: Double? { clock?.bpm ?? reference?.initialTempoBPM }
 
+    /// Where the music is right now, in quarters, while the play-along runs (the count-in
+    /// included, before bar 1). Nil otherwise. For the tempo strip, read from the main thread.
+    func liveQuarter(atUptime time: TimeInterval) -> Double? {
+        guard playAlongState == .countIn || playAlongState == .playing, let anchor else { return nil }
+        return anchor.quarter(atUptime: time)
+    }
+
+    /// The piece's meter, for the tempo strip (4/4 before anything is loaded).
+    var meter: TimeSignature {
+        clock?.timeSignature ?? reference?.timeSignature ?? TimeSignature(numerator: 4, denominator: 4)
+    }
+
+    /// Where the first bar starts, in quarters, so beat 1 lands on the downbeat.
+    var firstBarQuarter: Double { clock?.barStart(0) ?? 0 }
+
     /// The practice tempo in bpm; setting it sets `tempoPercent`.
     var practiceBPM: Double {
         get { (originalBPM ?? 120) * tempoPercent / 100 }

@@ -122,6 +122,21 @@ final class LessonEngineTests: XCTestCase {
         XCTAssertEqual(effects, [.pageComplete(PageResult(stars: 0, blockStars: [:], flaggedBlocks: [2, 4]))])
     }
 
+    func testBackGoesToThePreviousBlockAndStopsAtTheFirst() {
+        var e = atWaitBlock()
+        e.handle(.wrongNote(chord: 0))
+        e.handle(.wrongNote(chord: 0))
+        XCTAssertEqual(e.hintLevel, .hint)
+        XCTAssertEqual(e.handle(.back), [.advanced(to: 1)])
+        XCTAssertEqual(e.blockIndex, 1)
+        XCTAssertEqual(e.hintLevel, .none, "a fresh start on the earlier block")
+        XCTAssertEqual(e.failedAttempts, 0)
+        e.handle(.back)
+        XCTAssertEqual(e.blockIndex, 0)
+        XCTAssertEqual(e.handle(.back), [], "nothing before the first block")
+        XCTAssertEqual(e.blockIndex, 0)
+    }
+
     func testPageWithoutStarredBlocks() {
         let card = LessonPage(id: "p3", title: "Finger numbers", blocks: [
             .concept(.init(card: "fingerNumbers", text: "1 is your thumb", check: NoteName(pitch: 64))),

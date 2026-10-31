@@ -94,8 +94,11 @@ private struct PagePlayerView: View {
                 SongResultsCard(runner: runner, result: result)
             }
         } else if block.midi != nil, let score = session.score {
-            NotationView(score: score, scoreID: session.scoreID, overlay: overlay(fingering: runner.fingering(for: block) ?? []))
-                .ppPaper()
+            VStack(alignment: .leading, spacing: PP.Space.s2) {
+                TempoStrip()
+                NotationView(score: score, scoreID: session.scoreID, overlay: overlay(fingering: runner.fingering(for: block) ?? []))
+                    .ppPaper()
+            }
         } else if case .concept(let card) = block, card.card == "fingerNumbers" {
             FingerNumbersCard()
                 .ppGlass(cornerRadius: PP.Radius.lg, padding: PP.Space.s4)
@@ -208,9 +211,11 @@ private struct PagePlayerView: View {
             switch block {
             case .explain(let b):
                 if b.advanceOn == nil {
-                    Button("Continue") { runner.continueTapped() }
-                        .buttonStyle(PPPrimaryButtonStyle())
-                        .keyboardShortcut(.defaultAction)
+                    // Nothing to play: Continue counts down for about as long as the card takes to read.
+                    TimedContinueButton(title: "Continue",
+                                        seconds: AutoAdvance.seconds(.reading(words: AutoAdvance.wordCount(b.text)), child: runner.isChild),
+                                        height: PP.Size.targetPrimary) { runner.continueTapped() }
+                        .id("explain-\(runner.shownIndex)")
                 } else {
                     Text("Play \(b.advanceOn!.name) to continue").font(.ppCallout).foregroundColor(PP.inkMuted)
                 }
@@ -218,8 +223,11 @@ private struct PagePlayerView: View {
                 if let check = b.check {
                     Text("Play \(check.name) to continue").font(.ppCallout).foregroundColor(PP.inkMuted)
                 } else {
-                    Button("Continue") { runner.continueTapped() }
-                        .buttonStyle(PPPrimaryButtonStyle())
+                    // The hand animation takes about 2 s; then time to read.
+                    TimedContinueButton(title: "Continue",
+                                        seconds: 2 + AutoAdvance.seconds(.reading(words: AutoAdvance.wordCount(b.text)), child: runner.isChild),
+                                        height: PP.Size.targetPrimary) { runner.continueTapped() }
+                        .id("concept-\(runner.shownIndex)")
                 }
             case .wait:
                 Button(session.isAuditioning ? "Stop" : "Listen") { runner.listen() }
@@ -229,8 +237,14 @@ private struct PagePlayerView: View {
             case .listen:
                 Button(session.isAuditioning ? "Stop" : "Listen again") { runner.listen() }
                     .buttonStyle(PPGlassButtonStyle(height: PP.Size.targetMin))
-                Button("Continue") { runner.continueTapped() }
-                    .buttonStyle(PPPrimaryButtonStyle())
+                if runner.listenDone && !session.isAuditioning {
+                    TimedContinueButton(title: "Continue", seconds: AutoAdvance.seconds(.stageDone, child: runner.isChild),
+                                        height: PP.Size.targetPrimary) { runner.continueTapped() }
+                        .id("listen-\(runner.shownIndex)")
+                } else {
+                    Button("Continue") { runner.continueTapped() }
+                        .buttonStyle(PPPrimaryButtonStyle())
+                }
             case .timed:
                 Button(session.isPlayingAlong ? "Stop" : (session.phase == .graded ? "Try again" : "Start")) {
                     runner.startOrStop()
@@ -251,6 +265,15 @@ private struct PagePlayerView: View {
                 }
                 .buttonStyle(PPGlassButtonStyle())
                 .help("The keyboard comes up by itself after a few mistakes in a row and goes again once you're playing it right. Show keys keeps it up.")
+            }
+            if runner.canGoBack {
+                Button {
+                    runner.back()
+                } label: {
+                    Label("Back", systemImage: "chevron.left")
+                }
+                .buttonStyle(PPGlassButtonStyle())
+                .help("Go back to step \(runner.shownIndex)")
             }
             if block.midi != nil || block.kind == .explain || block.kind == .concept {
                 Button("Skip") { runner.skip() }
@@ -370,7 +393,11 @@ private struct PagePlayerView: View {
                 .disabled(session.isPlayingAlong)
         }
         if let next, !session.isPlayingAlong {
-            if finishedHere {
+            if finishedHere && runner.autoNextStage == next && !session.isAuditioning {
+                TimedContinueButton(title: "Next: \(next.title)", seconds: AutoAdvance.seconds(.stageDone, child: runner.isChild),
+                                    height: PP.Size.targetPrimary) { runner.goToStage(next) }
+                    .id("stage-\(next.rawValue)")
+            } else if finishedHere {
                 Button("Next: \(next.title)") { runner.goToStage(next) }
                     .buttonStyle(PPPrimaryButtonStyle())
             } else {
@@ -390,6 +417,98 @@ private struct PagePlayerView: View {
             mistakeMeasures: session.phase == .graded && session.report != nil ? session.mistakeMeasures : nil,
             fingering: fingering
         )
+    }
+}
+
+// MARK: - Tempo
+
+/// A slim row above the music: the tempo, a dot per beat lighting on the beat (beat 1 a
+/// little bigger) and a thin bar filling across each bar. While the music plays (play-along,
+/// count-in included, or Listen) it follows the clicks; otherwise it pulses softly at the
+/// target tempo, so the speed is there to feel while learning the notes.
+private struct TempoStrip: View {
+    @EnvironmentObject var session: PlaySession
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    private struct Position {
+        var beat: Int
+        /// 0–1 through the current beat, and through the bar.
+        var inBeat: Double
+        var inBar: Double
+        var live: Bool
+        var countIn: Bool
+    }
+
+    var body: some View {
+        TimelineView(.animation) { _ in
+            let p = position(uptime: ProcessInfo.processInfo.systemUptime)
+            let beats = max(1, session.meter.numerator)
+            HStack(spacing: PP.Space.s3) {
+                Text(label(p))
+                    .font(.ppCaption).monospacedDigit()
+                    .foregroundColor(p.live ? PP.ink : PP.inkMuted)
+                    .frame(minWidth: 96, alignment: .leading)
+                HStack(spacing: 6) {
+                    ForEach(0..<beats, id: \.self) { i in
+                        let size: CGFloat = i == 0 ? 11 : 8
+                        Circle()
+                            .fill(i == p.beat ? PP.accent : PP.inkMuted.opacity(0.3))
+                            .frame(width: size, height: size)
+                            .opacity(i == p.beat ? flash(p) : 1)
+                            .frame(width: 12, height: 12)
+                    }
+                }
+                ZStack(alignment: .leading) {
+                    Capsule().fill(PP.inkMuted.opacity(0.2))
+                    Capsule().fill(PP.accent.opacity(p.live ? 1 : 0.6))
+                        .frame(width: 140 * CGFloat(p.inBar))
+                }
+                .frame(width: 140, height: 4)
+                Spacer()
+            }
+            .opacity(p.live ? 1 : 0.6)
+        }
+        .frame(height: 16)
+        .padding(.horizontal, PP.Space.s2)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Tempo \(bpm) beats per minute, \(session.meter.numerator) beats in a bar")
+    }
+
+    private var bpm: Int { Int(session.practiceBPM.rounded()) }
+
+    private func label(_ p: Position) -> String {
+        if p.countIn { return "Count-in · \(p.beat + 1)" }
+        let slowed = session.tempoPercent < 99.5 ? " (\(Int(session.tempoPercent.rounded()))%)" : ""
+        return "♩ = \(bpm)\(slowed)"
+    }
+
+    /// Bright on the beat, fading through it (steady with Reduce Motion).
+    private func flash(_ p: Position) -> Double {
+        reduceMotion ? 1 : 1 - 0.65 * p.inBeat
+    }
+
+    private func position(uptime: TimeInterval) -> Position {
+        let meter = session.meter
+        let beatQ = 4.0 / Double(max(1, meter.denominator))
+        let barQ = beatQ * Double(max(1, meter.numerator))
+        var live = true
+        var countIn = false
+        let q: Double
+        if let now = session.liveQuarter(atUptime: uptime) {
+            q = now
+            countIn = session.playAlongState == .countIn
+        } else if session.isAuditioning, let playhead = session.playheadQuarter {
+            q = playhead
+        } else {
+            // Nothing playing: a preview pulse at the target tempo.
+            live = false
+            q = uptime * max(1, session.practiceBPM) / 60
+        }
+        var inBar = (q - session.firstBarQuarter).truncatingRemainder(dividingBy: barQ)
+        if inBar < 0 { inBar += barQ }
+        let beat = min(max(1, meter.numerator) - 1, Int(inBar / beatQ))
+        let inBeat = (inBar - Double(beat) * beatQ) / beatQ
+        return Position(beat: beat, inBeat: inBeat, inBar: inBar / barQ, live: live, countIn: countIn)
     }
 }
 
@@ -424,9 +543,17 @@ private struct PageDoneView: View {
             HStack(spacing: PP.Space.s3) {
                 Button("Play again") { runner.playAgain() }
                     .buttonStyle(PPGlassButtonStyle(height: PP.Size.targetPrimary))
-                Button("Back to pages") { runner.backToUnit() }
-                    .buttonStyle(PPPrimaryButtonStyle())
-                    .keyboardShortcut(.defaultAction)
+                if let next = runner.nextPageAfterDone {
+                    Button("Back to pages") { runner.backToUnit() }
+                        .buttonStyle(PPGlassButtonStyle(height: PP.Size.targetPrimary))
+                    TimedContinueButton(title: "Next: \(next.title)", seconds: AutoAdvance.seconds(.pageDone, child: runner.isChild),
+                                        height: PP.Size.targetPrimary) { runner.openNextPage() }
+                        .id("next-\(next.id)")
+                } else {
+                    Button("Back to pages") { runner.backToUnit() }
+                        .buttonStyle(PPPrimaryButtonStyle())
+                        .keyboardShortcut(.defaultAction)
+                }
             }
             .padding(.top, PP.Space.s4)
             Spacer()
@@ -534,9 +661,17 @@ private struct SongResultsCard: View {
                 }
                 HStack(spacing: PP.Space.s3) {
                     if let bar = runner.drillOffer {
-                        Button("Fix bar \(bar)") { runner.startDrill() }
-                            .buttonStyle(PPPrimaryButtonStyle(height: PP.Size.targetMin))
-                            .keyboardShortcut(.defaultAction)
+                        if runner.drillAutoStart {
+                            // The teacher opens the drill herself; hovering pauses, other buttons still work.
+                            TimedContinueButton(title: "Fix bar \(bar)", seconds: AutoAdvance.seconds(.drillStarts)) {
+                                runner.startDrill()
+                            }
+                            .id("drill-\(bar)")
+                        } else {
+                            Button("Fix bar \(bar)") { runner.startDrill() }
+                                .buttonStyle(PPPrimaryButtonStyle(height: PP.Size.targetMin))
+                                .keyboardShortcut(.defaultAction)
+                        }
                     }
                     Button("Try again") { runner.performAgain() }
                         .buttonStyle(PPGlassButtonStyle(height: PP.Size.targetMin))

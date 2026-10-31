@@ -284,3 +284,22 @@ The v1 block types are `explain`, `concept`, `wait`, `listen`, `timed` and `song
 - [x] Songs: public domain only for now.
 - [x] Computer-keyboard mode gets a looser timing window (see Decisions).
 - [x] Spoken narration is later and optional. v1 is text and visuals only. Later, add a per-learner setting that uses the built-in `AVSpeechSynthesizer` (offline, free) to read `explain` text aloud, with a replay button and word highlighting. Route the speech through PianoPad's audio engine (`write(_:toBufferCallback:)`) so the mic is muted during narration, the same way it is during playback. Playing a note or tapping skips the speech. Prefer an Enhanced or Premium voice when one is installed.
+
+## Auto-progress: the timed Continue
+
+Where the learner has just succeeded and there's one sensible next step, Continue fills up and presses itself (`TimedContinueButton`; times in `AutoAdvance`). Children get 1.5× longer. Hovering pauses it; clicking or Return goes at once. Reduce Motion shows a seconds count instead of the fill; with VoiceOver on it never presses itself.
+
+| Where | Waits |
+|---|---|
+| Setup: welcome, "All set" | 4 s |
+| Setup: room noise measured, or Bluetooth piano connected | 2.5 s |
+| Setup: after tapping a teacher or goal song | 1.5 s |
+| `explain` card with no note to play | 3–8 s, by word count |
+| `concept` card with no check | 2 s + reading time |
+| `listen` block played through (Listen again stays) | 3 s |
+| Song stage done: Listen → Learn → Practise (Practise only with ★ or better) → Perform | 3 s |
+| Kriti opens the drill herself (Fix bar N) | 4 s |
+| Warm-up fine (no big drop) | 3 s |
+| Page done → the coach's next page | 5 s |
+
+**Stays manual:** typing the name, choosing an input, a failed or warned check, any below-threshold result, Perform results (even with stars), Move on anyway, a warm-up drop, the session summary and For grown-ups. `wait` and passed `timed` blocks already move on by themselves after a second.

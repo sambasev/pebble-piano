@@ -149,8 +149,11 @@ struct WarmUpCard: View {
             } else {
                 Button("Close") { runner.dismissWarmUp() }
                     .buttonStyle(PPGlassButtonStyle(height: PP.Size.targetMin))
-                Button("Continue") { runner.continueAfterWarmUp() }
-                    .buttonStyle(PPPrimaryButtonStyle(height: PP.Size.targetMin))
+                // Warmed up fine: on to the coach's page by itself. A big drop stays a choice.
+                TimedContinueButton(title: "Continue", seconds: AutoAdvance.seconds(.warmUpDone, child: runner.isChild)) {
+                    runner.continueAfterWarmUp()
+                }
+                .id("warmup-done")
             }
         }
     }
