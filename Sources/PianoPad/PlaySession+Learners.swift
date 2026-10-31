@@ -242,6 +242,11 @@ extension PlaySession {
     /// Without a learner (or a piece) nothing is saved.
     func recordGradedTake() {
         guard let learner, let piece = currentPieceID, let report, !lastTake.isEmpty else { return }
+        if !isInLesson {
+            Usage.event("Practice.graded", ["mode": mode.rawValue,
+                                            "piece": passage != nil ? "book" : "midi",
+                                            "backingTrack": hasBackingTrack ? "yes" : "no"])
+        }
         do {
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]

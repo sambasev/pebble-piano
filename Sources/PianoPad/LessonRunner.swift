@@ -354,6 +354,7 @@ final class LessonRunner: ObservableObject, PlayerObserver {
         loadPersona()
         engine = LessonEngine(page: page, rules: persona.rules, startAt: resume)
         self.page = page
+        Usage.event("Lesson.pageOpened", ["page": pageID, "step": String(resume + 1), "warmUp": atBlock != nil ? "yes" : "no"])
         player.beginLesson(piece: .lessonPage(unit: unit.unit.id, page: pageID), observer: self)
         enterBlock()
     }
@@ -392,17 +393,24 @@ final class LessonRunner: ObservableObject, PlayerObserver {
             backToUnit()
             return
         }
+        Usage.event("Lesson.stepSkipped", stepParameters)
         send(.skip)
     }
 
     /// Back to the previous step (the page's position is saved there).
     func back() {
         guard canGoBack else { return }
+        Usage.event("Lesson.stepBack", stepParameters)
         pendingWork?.cancel()
         pendingWork = nil
         player.stopPlayAlong(discard: true)
         if player.isAuditioning { player.stopListening() }
         send(.back)
+    }
+
+    /// The page and step, for usage events.
+    private var stepParameters: [String: String] {
+        ["page": page?.id ?? "", "step": String(shownIndex + 1), "stepKind": shownBlock?.kind.rawValue ?? ""]
     }
 
     /// Back is offered from the second step on, but not in the one-step warm-up.
@@ -478,6 +486,7 @@ final class LessonRunner: ObservableObject, PlayerObserver {
         pendingWork = nil
         player.stopPlayAlong(discard: true)
         drill = RemediationPlanner.drill(measure: bar, measureCount: songMeasureCount, persona: persona)
+        Usage.event("Lesson.drillStarted", ["page": page?.id ?? "", "teacher": persona.id])
         songResult = nil
         drillOffer = nil
         drillAutoStart = false
@@ -584,6 +593,8 @@ final class LessonRunner: ObservableObject, PlayerObserver {
                 }
             }
             songResult = result
+            Usage.event("Lesson.performed", ["page": page?.id ?? "", "passed": result.passed ? "yes" : "no",
+                                             "teacher": persona.id], value: Double(result.stars))
         }
     }
 
@@ -1050,6 +1061,9 @@ final class LessonRunner: ObservableObject, PlayerObserver {
             current = s
             saveSession()
         }
+        Usage.event("Lesson.pageCompleted", ["page": page.id, "firstTime": firstTime ? "yes" : "no",
+                                             "skippedSteps": String(r.flaggedBlocks.count)],
+                    value: r.stars.map(Double.init))
         do {
             try history.recordPageComplete(unit: unit.unit.id, page: page.id, stars: r.stars, flaggedBlocks: r.flaggedBlocks)
         } catch {

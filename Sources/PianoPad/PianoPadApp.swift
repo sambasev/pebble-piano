@@ -17,6 +17,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 struct PianoPadApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @StateObject private var session = PlaySession()
+    @AppStorage(Usage.defaultsKey) private var shareUsage = true
+
+    init() {
+        // Before any window: the analytics session starts with the app.
+        Usage.start()
+    }
 
     var body: some Scene {
         WindowGroup("PerfectPiano") {
@@ -28,6 +34,14 @@ struct PianoPadApp: App {
                 .background(PPBackdrop())
         }
         .windowResizability(.contentMinSize)
+        .commands {
+            CommandGroup(after: .appSettings) {
+                Toggle("Share Anonymous Usage Data", isOn: Binding(
+                    get: { shareUsage },
+                    set: { shareUsage = $0; Usage.setEnabled($0) }
+                ))
+            }
+        }
     }
 }
 #else

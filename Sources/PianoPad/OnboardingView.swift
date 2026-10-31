@@ -34,6 +34,9 @@ extension PlaySession {
         if let learner {
             try? learnerStore.history(for: learner.id).recordSetup(started: setupStartedAt ?? Date(), finished: Date())
         }
+        Usage.event("Setup.finished", ["learner": answers.kind.rawValue, "input": answers.input.rawValue,
+                                       "teacher": learnerSettings.persona, "goalSong": answers.goalSong],
+                    value: Date().timeIntervalSince(setupStartedAt ?? Date()))
         setupStartedAt = nil
         if answers.input == .microphone {
             if !micOn { micOn = true }
@@ -119,6 +122,9 @@ struct OnboardingView: View {
                 .fixedSize(horizontal: false, vertical: true)
             Text("A few quick questions first. Then you'll find Middle C and play your first notes, and PerfectPiano will listen and help as you go.")
                 .font(.ppBody).foregroundColor(PP.inkMuted)
+                .fixedSize(horizontal: false, vertical: true)
+            Text("This beta sends anonymous usage stats (which screens are used, and for how long) to help improve it. Never audio or names. Turn it off under PerfectPiano ▸ Share Anonymous Usage Data.")
+                .font(.ppCaption).foregroundColor(PP.inkMuted)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }

@@ -33,6 +33,7 @@ final class BackingStore: ObservableObject {
 
     func save(_ track: BackingTrack) throws {
         try library.save(track)
+        Usage.event("BackingTrack.saved")
         reload()
         onTrackChanged?(track.id)
     }

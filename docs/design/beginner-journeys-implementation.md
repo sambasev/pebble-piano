@@ -255,3 +255,10 @@ Tell friends: "install, follow setup, do Unit 1". Collect locally, then ask them
 - `PianoPad/TimedContinueButton.swift`: the button, its `Countdown` (own main-run-loop timer, so redraws from the mic level or playhead don't disturb it) and `PPTimedButtonStyle`.
 - `LessonRunner`: `listenDone` (a listen block no longer moves on the instant it ends), `autoNextStage` (set when Listen, Learn or a ★-worthy Practise finishes; cleared by Listen again, Restart or changing stage), `drillAutoStart` (replaces Kriti's hidden 4 s timer with a visible one), `nextPageAfterDone` / `openNextPage()`.
 - Wired into `LearnView` (explain, concept, listen, song stages, Fix bar, page done), `WarmUpCard` and `OnboardingView` (`autoSeconds`, `picked`). Where the places are listed: [beginner-journeys.md](beginner-journeys.md#auto-progress-the-timed-continue).
+
+### Usage analytics for the beta (v0.4)
+- TelemetryDeck (app ID in `Sources/PianoPad/Usage.swift`), linked only by the packaged app (`App/project.yml`, plus `com.apple.security.network.client`). `swift run` builds send nothing; Debug builds' signals are test signals.
+- Sessions: TelemetryDeck's automatic `TelemetryDeck.Session.started`, one per launch. TestFlight's own per-tester session counts are in App Store Connect.
+- `Usage.activeTime` (floatValue = seconds): active time per place (`screen`: setup, practice, backingTracks, learn.unitMap, learn.step, learn.pageDone, learn.warmUp; plus `page`, `step`, `stepKind`, `songStage`, `mode`, `learner`, `input`). Active = app frontmost and a click, key or note in the last 60 s, or music playing. Sent on place change, background, quit and every 5 min.
+- Milestones: `Setup.finished` (seconds), `Lesson.pageOpened`, `Lesson.pageCompleted` (stars), `Lesson.stepSkipped`, `Lesson.stepBack`, `Lesson.performed` (stars), `Lesson.drillStarted`, `Practice.graded`, `BackingTrack.saved`.
+- Never audio, names or file names. Opt-out: PerfectPiano ▸ Share Anonymous Usage Data; the welcome screen says so.

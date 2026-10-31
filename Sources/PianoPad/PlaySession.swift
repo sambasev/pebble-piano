@@ -434,6 +434,8 @@ final class PlaySession: ObservableObject {
     var applyingLearnerSettings = false
     /// Recent files this session holds security-scoped access to, by standardized path.
     var accessedRecentFiles: [String: URL] = [:]
+    /// Active time per screen, for the anonymous usage stats (Usage.swift).
+    private(set) var activity: ActivityTracker?
 
     init() {
         // Assigned directly (not through applyLearner), so no observers run during init.
@@ -458,6 +460,10 @@ final class PlaySession: ObservableObject {
         // SwiftUI creates the session while building the window, so publishing now would be
         // a change during a view update: load on the next turn of the run loop instead.
         DispatchQueue.main.async { [weak self] in self?.loadDefaults() }
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.activity = ActivityTracker(session: self)
+        }
     }
 
     // MARK: Pieces (MIDI files in the passage picker)
@@ -932,6 +938,7 @@ final class PlaySession: ObservableObject {
             configureJudge()
         }
         lessonObserver?.playerNotePlayed(pitch, source: source)
+        activity?.interacted()
         cancelAutoGrade()
         if isAuditioning { stopAudition() }
         if mode == .playAlong {
