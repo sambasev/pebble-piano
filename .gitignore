@@ -8,3 +8,5 @@ takes/
 App/Generated/
 App/build/
 __pycache__/
+Fixtures/lilypond/
+Fixtures/benchmark_expanded/

@@ -126,18 +126,34 @@ def to_notes(staff):
 
 def score(read, truth):
     """Notes right in the right measure, per staff, by position in the measure."""
-    right = total = bars_right = 0
+    right = pitch_right = rhythm_right = total = bars_right = 0
     for i, t in enumerate(truth):
         r = read[i] if i < len(read) else {"upper": [], "lower": []}
         bar_ok = True
         for s in ("upper", "lower"):
             total += len(t[s])
             for j, note in enumerate(t[s]):
-                if j < len(r[s]) and r[s][j] == note:
-                    right += 1
+                if j < len(r[s]):
+                    if r[s][j] == note:
+                        right += 1
+                    if r[s][j][0] == note[0]:
+                        pitch_right += 1
+                    if r[s][j][1] == note[1]:
+                        rhythm_right += 1
             bar_ok &= r[s] == t[s]
         bars_right += bar_ok
-    return right, total, bars_right
+    return {
+        "note_right": right,
+        "pitch_right": pitch_right,
+        "rhythm_right": rhythm_right,
+        "total": total,
+        "bars_right": bars_right,
+        "bars_total": len(truth),
+        "note_acc": 100.0 * right / max(1, total),
+        "pitch_acc": 100.0 * pitch_right / max(1, total),
+        "rhythm_acc": 100.0 * rhythm_right / max(1, total),
+        "bem": 100.0 * bars_right / max(1, len(truth)),
+    }
 
 
 def main():
@@ -147,34 +163,45 @@ def main():
     ap.add_argument("--no-sam", action="store_true")
     ap.add_argument("--effort", default="medium", help="reasoning effort: minimal, low, medium, high")
     ap.add_argument("--images", default="crops", help="folder under Fixtures/beyer: crops (1895 scan) or modern")
+    ap.add_argument("--use-cached", action="store_true", help="reuse existing readings from disk without API calls")
     a = ap.parse_args()
     global CROPS_DIR, OUT
     CROPS_DIR = a.images
     if a.images != "crops":
         OUT = os.path.join(OUT, a.images)
     os.makedirs(OUT, exist_ok=True)
-    key = api_key()
+    key = api_key() if not a.use_cached else None
     truth = json.load(open(os.path.join(FIX, "truth", "pieces.json")))
     report = []
+    fallback_folder = "scan" if a.images == "crops" else "modern"
     for model in a.models.split(","):
         for piece in a.pieces.split(","):
             t = truth[piece]
             measures, secs, ok, toks = [], 0.0, True, 0
             for crop in t["crops"]:
-                try:
-                    r, s, u = read_crop(key, model, crop, a.effort)
-                except Exception as e:
-                    print(f"{model} {crop}: ERROR {e}"); ok = False; break
+                cached_p = os.path.join(OUT, f"{model}-{crop}.json")
+                fb_p = os.path.join(FIX, "readings", fallback_folder, f"{model}-{crop}.json")
+                if a.use_cached and (os.path.exists(cached_p) or os.path.exists(fb_p)):
+                    use_p = cached_p if os.path.exists(cached_p) else fb_p
+                    r = json.load(open(use_p))
+                    s, u = 0.0, {}
+                else:
+                    try:
+                        r, s, u = read_crop(key, model, crop, a.effort)
+                    except Exception as e:
+                        print(f"{model} {crop}: ERROR {e}"); ok = False; break
+                    json.dump(r, open(os.path.join(OUT, f"{model}-{crop}.json"), "w"), indent=1)
                 secs += s
                 toks += u.get("completion_tokens") or 0
-                json.dump(r, open(os.path.join(OUT, f"{model}-{crop}.json"), "w"), indent=1)
                 measures += [{"upper": to_notes(m["upper"]), "lower": to_notes(m["lower"]),
                               "clefs": [m["upper"]["clef"], m["lower"]["clef"]]} for m in r["measures"]]
             if not ok:
                 continue
-            right, total, bars = score(measures, t["measures"])
-            line = (f"{model:18} {piece}: notes {right}/{total} ({100 * right / total:.0f}%), "
-                    f"bars exact {bars}/{len(t['measures'])}, measures read {len(measures)}, {secs:.0f}s, out={toks}")
+            res = score(measures, t["measures"])
+            line = (f"{model:18} {piece}: notes {res['note_right']}/{res['total']} ({res['note_acc']:.1f}%), "
+                    f"pitch {res['pitch_acc']:.1f}%, rhythm {res['rhythm_acc']:.1f}%, "
+                    f"bars exact {res['bars_right']}/{res['bars_total']} ({res['bem']:.1f}%), "
+                    f"measures read {len(measures)}, {secs:.0f}s, out={toks}")
             print(line); report.append(line)
             with open(os.path.join(OUT, f"{model}-{piece}.txt"), "w") as f:
                 for i, m in enumerate(measures):

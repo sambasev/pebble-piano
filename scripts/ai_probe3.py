@@ -22,6 +22,8 @@ FIX = os.path.join(ROOT, "Fixtures", "beyer")
 CROPS = {"no12": ["no12"], "no13": ["no13"], "no24": ["no24a", "no24b"]}
 SOURCES = {"scan": (os.path.join(FIX, "crops"), os.path.join(ROOT, ".build", "ai-probe2")),
            "modern": (os.path.join(FIX, "modern"), os.path.join(ROOT, ".build", "ai-probe2", "modern"))}
+READINGS_FALLBACK = {"scan": os.path.join(FIX, "readings", "scan"),
+                     "modern": os.path.join(FIX, "readings", "modern")}
 OUT = os.path.join(ROOT, ".build", "ai-probe3")
 
 
@@ -87,7 +89,11 @@ def main():
             for c in crops:
                 rp = os.path.join(read_dir, f"{a.model}-{c}.json")
                 if not os.path.exists(rp):
-                    print(f"skip {src} {c}: no reading at {rp} (run ai_probe2.py first)"); break
+                    fb = os.path.join(READINGS_FALLBACK.get(src, ""), f"{a.model}-{c}.json")
+                    if os.path.exists(fb):
+                        rp = fb
+                    else:
+                        print(f"skip {src} {c}: no reading at {rp} (run ai_probe2.py first)"); break
                 reading = json.load(open(rp))
                 geo = read_system(os.path.join(img_dir, c + ".png"))
                 if a.draw:
