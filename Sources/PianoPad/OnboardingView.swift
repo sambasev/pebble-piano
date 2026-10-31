@@ -35,7 +35,7 @@ extension PlaySession {
             try? learnerStore.history(for: learner.id).recordSetup(started: setupStartedAt ?? Date(), finished: Date())
         }
         Usage.event("Setup.finished", ["learner": answers.kind.rawValue, "input": answers.input.rawValue,
-                                       "teacher": learnerSettings.persona, "goalSong": answers.goalSong],
+                                       "teacher": learnerSettings.persona ?? "alex", "goalSong": answers.goalSong],
                     value: Date().timeIntervalSince(setupStartedAt ?? Date()))
         setupStartedAt = nil
         if answers.input == .microphone {
