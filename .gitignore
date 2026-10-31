@@ -7,3 +7,4 @@ DerivedData/
 takes/
 App/Generated/
 App/build/
+__pycache__/

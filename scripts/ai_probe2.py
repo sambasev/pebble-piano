@@ -84,8 +84,11 @@ def post(path, body, key, accept="application/json"):
         raise RuntimeError(f"HTTP {e.code}: {e.read()[:400].decode(errors='replace')}")
 
 
+CROPS_DIR = "crops"
+
+
 def image(name):
-    with open(os.path.join(FIX, "crops", name + ".png"), "rb") as f:
+    with open(os.path.join(FIX, CROPS_DIR, name + ".png"), "rb") as f:
         return "data:image/png;base64," + base64.b64encode(f.read()).decode()
 
 
@@ -143,7 +146,12 @@ def main():
     ap.add_argument("--pieces", default="no12,no13,no24")
     ap.add_argument("--no-sam", action="store_true")
     ap.add_argument("--effort", default="medium", help="reasoning effort: minimal, low, medium, high")
+    ap.add_argument("--images", default="crops", help="folder under Fixtures/beyer: crops (1895 scan) or modern")
     a = ap.parse_args()
+    global CROPS_DIR, OUT
+    CROPS_DIR = a.images
+    if a.images != "crops":
+        OUT = os.path.join(OUT, a.images)
     os.makedirs(OUT, exist_ok=True)
     key = api_key()
     truth = json.load(open(os.path.join(FIX, "truth", "pieces.json")))
