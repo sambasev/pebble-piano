@@ -1,0 +1,251 @@
+{
+  "benchmark_metadata": {
+    "date": "2026-11-01",
+    "test_audio": "Fixtures/transcription/take1.wav",
+    "ground_truth_midi": "Fixtures/transcription/take1.truth.mid",
+    "model": "ByteDance High-Resolution Piano Transcription (Note_pedal CRNN)",
+    "checkpoint": "CRNN_note_F1=0.9677_pedal_F1=0.9186.pth",
+    "checkpoint_zenodo_id": "4034264",
+    "modal_endpoint": "https://sambasevam--perfectpiano-bytedance-bytedancepianotranscr-ae20ab.us-east.modal.run",
+    "gpu_accelerator": "NVIDIA T4 (Modal Serverless)",
+    "tempo_mode": "120 BPM Fallback (2.0s per measure)"
+  },
+  "comparative_summary": [
+    {
+      "architecture": "Score-Informed NMF",
+      "mode": "Real-time on-device causal",
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1": 1.0,
+      "latency_p50_ms": 59.0,
+      "latency_p95_ms": 92.0,
+      "false_alarms": 0,
+      "compute_source": "Apple Silicon CPU (Swift)"
+    },
+    {
+      "architecture": "Streaming Spotify Basic Pitch (4 frames lookahead)",
+      "mode": "Real-time FIFO sliding window",
+      "precision": 0.833,
+      "recall": 0.938,
+      "f1": 0.882,
+      "latency_p50_ms": 86.8,
+      "latency_p95_ms": 121.8,
+      "false_alarms": 3,
+      "compute_source": "CPU / ONNX (CoreML candidate)"
+    },
+    {
+      "architecture": "ByteDance CRNN (Full File Baseline)",
+      "mode": "Offline batch (32.1s whole take)",
+      "precision": 0.892,
+      "recall": 0.965,
+      "f1": 0.927,
+      "latency_p50_ms": 3500.0,
+      "latency_p95_ms": 3800.0,
+      "false_alarms": 11,
+      "compute_source": "Modal GPU (NVIDIA T4)"
+    },
+    {
+      "architecture": "ByteDance CRNN (1-Bar Chunks)",
+      "mode": "Retrospective semi-real-time (2.0s slice + 150ms padding)",
+      "precision": 0.185,
+      "recall": 0.940,
+      "f1": 0.309,
+      "latency_p50_ms": 936.0,
+      "latency_p95_ms": 1050.0,
+      "false_alarms": 52,
+      "compute_source": "Modal GPU (NVIDIA T4)"
+    }
+  ],
+  "modal_gpu_measure_scorecard": [
+    {
+      "measure": 1,
+      "status": "MISTAKE",
+      "pitch_accuracy": 1.0,
+      "matched_notes": 2,
+      "expected_notes": 2,
+      "average_velocity": 62,
+      "articulation_score": 1.0,
+      "pedal_events": 1,
+      "extra_notes": ["F#3", "A3", "C4", "C5"]
+    },
+    {
+      "measure": 2,
+      "status": "MISTAKE",
+      "pitch_accuracy": 1.0,
+      "matched_notes": 1,
+      "expected_notes": 1,
+      "average_velocity": 76,
+      "articulation_score": 1.0,
+      "pedal_events": 1,
+      "extra_notes": ["F#3", "G3", "D4", "A6"]
+    },
+    {
+      "measure": 3,
+      "status": "MISTAKE",
+      "pitch_accuracy": 1.0,
+      "matched_notes": 1,
+      "expected_notes": 1,
+      "average_velocity": 61,
+      "articulation_score": 1.0,
+      "pedal_events": 0,
+      "extra_notes": ["A3", "E4", "E4"]
+    },
+    {
+      "measure": 4,
+      "status": "MISTAKE",
+      "pitch_accuracy": 1.0,
+      "matched_notes": 1,
+      "expected_notes": 1,
+      "average_velocity": 65,
+      "articulation_score": 1.0,
+      "pedal_events": 2,
+      "extra_notes": ["F4", "C5", "F5"]
+    },
+    {
+      "measure": 5,
+      "status": "MISTAKE",
+      "pitch_accuracy": 1.0,
+      "matched_notes": 1,
+      "expected_notes": 1,
+      "average_velocity": 84,
+      "articulation_score": 1.0,
+      "pedal_events": 2,
+      "extra_notes": ["G3", "G4"]
+    },
+    {
+      "measure": 6,
+      "status": "MISTAKE",
+      "pitch_accuracy": 1.0,
+      "matched_notes": 0,
+      "expected_notes": 0,
+      "average_velocity": 80,
+      "articulation_score": 1.0,
+      "pedal_events": 1,
+      "extra_notes": ["G3", "A4", "B4"]
+    },
+    {
+      "measure": 7,
+      "status": "MISTAKE",
+      "pitch_accuracy": 1.0,
+      "matched_notes": 1,
+      "expected_notes": 1,
+      "average_velocity": 77,
+      "articulation_score": 1.0,
+      "pedal_events": 1,
+      "extra_notes": ["G3", "C5", "C5", "D#5"]
+    },
+    {
+      "measure": 8,
+      "status": "MISTAKE",
+      "pitch_accuracy": 1.0,
+      "matched_notes": 1,
+      "expected_notes": 1,
+      "average_velocity": 65,
+      "articulation_score": 1.0,
+      "pedal_events": 1,
+      "extra_notes": ["F#3", "C4"]
+    },
+    {
+      "measure": 9,
+      "status": "MISTAKE",
+      "pitch_accuracy": 1.0,
+      "matched_notes": 2,
+      "expected_notes": 2,
+      "average_velocity": 58,
+      "articulation_score": 0.75,
+      "pedal_events": 2,
+      "extra_notes": ["D2", "F#3", "C5"],
+      "feedback": "Notes cut short in measure 9 (staccato clip)"
+    },
+    {
+      "measure": 10,
+      "status": "MISTAKE",
+      "pitch_accuracy": 1.0,
+      "matched_notes": 1,
+      "expected_notes": 1,
+      "average_velocity": 74,
+      "articulation_score": 0.5,
+      "pedal_events": 2,
+      "extra_notes": ["B3"],
+      "feedback": "Notes cut short in measure 10 (staccato clip)"
+    },
+    {
+      "measure": 11,
+      "status": "MISTAKE",
+      "pitch_accuracy": 1.0,
+      "matched_notes": 0,
+      "expected_notes": 0,
+      "average_velocity": 80,
+      "articulation_score": 1.0,
+      "pedal_events": 1,
+      "extra_notes": ["G3", "A3", "A4"]
+    },
+    {
+      "measure": 12,
+      "status": "MISTAKE",
+      "pitch_accuracy": 1.0,
+      "matched_notes": 1,
+      "expected_notes": 1,
+      "average_velocity": 74,
+      "articulation_score": 1.0,
+      "pedal_events": 0,
+      "extra_notes": ["F3", "D5"]
+    },
+    {
+      "measure": 13,
+      "status": "MISTAKE",
+      "pitch_accuracy": 1.0,
+      "matched_notes": 2,
+      "expected_notes": 2,
+      "average_velocity": 66,
+      "articulation_score": 0.75,
+      "pedal_events": 1,
+      "extra_notes": ["C5"],
+      "feedback": "Notes cut short in measure 13 (staccato clip)"
+    },
+    {
+      "measure": 14,
+      "status": "MISTAKE",
+      "pitch_accuracy": 1.0,
+      "matched_notes": 0,
+      "expected_notes": 0,
+      "average_velocity": 80,
+      "articulation_score": 1.0,
+      "pedal_events": 0,
+      "extra_notes": ["D3", "E3"]
+    },
+    {
+      "measure": 15,
+      "status": "MISTAKE",
+      "pitch_accuracy": 1.0,
+      "matched_notes": 2,
+      "expected_notes": 2,
+      "average_velocity": 65,
+      "articulation_score": 1.0,
+      "pedal_events": 1,
+      "extra_notes": ["C4"]
+    },
+    {
+      "measure": 16,
+      "status": "MISTAKE",
+      "pitch_accuracy": 1.0,
+      "matched_notes": 0,
+      "expected_notes": 0,
+      "average_velocity": 80,
+      "articulation_score": 1.0,
+      "pedal_events": 1,
+      "extra_notes": ["C3", "C4", "C4", "D4", "G4"]
+    },
+    {
+      "measure": 17,
+      "status": "CLEAN",
+      "pitch_accuracy": 1.0,
+      "matched_notes": 0,
+      "expected_notes": 0,
+      "average_velocity": 80,
+      "articulation_score": 1.0,
+      "pedal_events": 0,
+      "extra_notes": []
+    }
+  ]
+}

@@ -37,3 +37,15 @@ To evaluate custom directories elsewhere on your system:
 ```sh
 swift run grade eval --fixtures /path/to/my/audio_takes
 ```
+
+## Retrospective Bar-by-Bar Evaluation (ByteDance CRNN via Modal GPU)
+
+See detailed benchmark findings, quantitative scorecard, and proofs in `docs/bytedance_retrospective_eval.md` and `docs/bytedance_retrospective_eval.json`.
+
+To run or test the ByteDance GPU transcription service on Modal:
+```sh
+modal run scripts/bytedance_modal.py
+```
+
+Live deployed endpoint:
+`https://sambasevam--perfectpiano-bytedance-bytedancepianotranscr-ae20ab.us-east.modal.run`
