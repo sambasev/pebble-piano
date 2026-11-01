@@ -1,10 +1,13 @@
 #if os(macOS)
 import SwiftUI
 import PianoLessons
+import PianoPadState
 
 struct TutorPanel: View {
     @EnvironmentObject var session: PlaySession
     @State private var settings = false
+    /// Start the tutor's next step by itself after a short countdown (hover pauses it).
+    @AppStorage("PianoPad.tutor.autoContinue") private var autoContinue = true
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack { Text("Piece tutor").font(.headline); Spacer(); Button("AI settings") { settings = true } }
@@ -45,15 +48,25 @@ struct TutorPanel: View {
         if session.tutorAttempt == nil {
             Text(readyText(e)).font(.callout)
         }
-        Button {
-            session.startTutorExercise()
-        } label: {
-            Label(startLabel(e), systemImage: e.kind == .listen ? "speaker.wave.2.fill" : "play.fill")
+        if autoStarts(engine) {
+            // Long enough to read what's on screen; a new step or a new comment starts a new count.
+            TimedContinueButton(title: startLabel(e), seconds: countdownSeconds) { session.startTutorExercise() }
                 .frame(maxWidth: .infinity)
-                .padding(.vertical, 6)
+                .id(countdownID(engine))
+        } else {
+            Button {
+                session.startTutorExercise()
+            } label: {
+                Label(startLabel(e), systemImage: e.kind == .listen ? "speaker.wave.2.fill" : "play.fill")
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 6)
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(session.phase == .recording)
         }
-        .buttonStyle(.borderedProminent)
-        .disabled(session.phase == .recording)
+        Toggle("Start the next step by itself", isOn: $autoContinue)
+            .font(.caption)
+            .help("After each step, the next one starts after a short countdown. Hover over the button to pause it.")
         HStack {
             Button("Hear it first") { session.startListening() }
             Button("Try again") { session.retryTutorExercise() }
@@ -83,6 +96,22 @@ struct TutorPanel: View {
         if let note = session.tutorPlanNote {
             Text(note).font(.caption).foregroundColor(.secondary)
         }
+    }
+
+    /// Between steps (before the first try, or once a try is graded), not while the piece is
+    /// playing or the tutor is still writing its comment, and not once the piece is passed.
+    private func autoStarts(_ engine: PiecePracticeEngine) -> Bool {
+        autoContinue && !engine.mastered && !session.isAuditioning && !session.tutorBusy && !session.tutorPlanning
+            && session.phase != .recording && (session.tutorAttempt == nil || session.phase == .graded)
+    }
+
+    private var countdownSeconds: Double {
+        let text = session.tutorAI.isEmpty ? session.tutorText : session.tutorAI
+        return max(4, AutoAdvance.seconds(.reading(words: AutoAdvance.wordCount(text)), child: session.learner?.kind == .child))
+    }
+
+    private func countdownID(_ engine: PiecePracticeEngine) -> String {
+        "\(engine.stepIndex ?? -1)|\(engine.exercise.title)|\(engine.exercise.measures)|\(session.tutorText)|\(session.tutorAI)"
     }
 
     private func startLabel(_ e: PracticeExercise) -> String {
