@@ -168,15 +168,55 @@ final class BookImportModel: ObservableObject {
     }
 
     /// Click: start a new selection at this system. Shift-click: extend to it.
+    /// The name fills in from the page (the heading above the first line) unless the learner
+    /// typed their own.
     func tapSystem(_ index: Int, extend: Bool) {
         if extend, let s = selection {
             selection = min(s.lowerBound, index)...max(s.upperBound, index)
         } else {
             selection = selection == index...index ? nil : index...index
         }
+        let typed = title.trimmingCharacters(in: .whitespaces)
+        guard typed.isEmpty || title == autoTitle else { return }
+        autoTitle = selection.map { suggestedTitle(forLine: $0.lowerBound) } ?? ""
+        title = autoTitle
     }
 
-    var canRead: Bool { selection != nil && !title.trimmingCharacters(in: .whitespaces).isEmpty }
+    /// The name filled in from the page, so typing over it is noticed.
+    private var autoTitle = ""
+
+    /// The piece's name: the largest text in the line's top margin (a heading like
+    /// "Exercise No. 12"; the composer, beside it, is smaller), else "<book>, page N, line M"
+    /// for a scan with no text.
+    func suggestedTitle(forLine index: Int) -> String {
+        let fallback = "\(documentURL?.deletingPathExtension().lastPathComponent ?? "Piece"), page \(pageIndex + 1), line \(index + 1)"
+        guard systems.indices.contains(index), let page = document?.page(at: pageIndex) else { return fallback }
+        let s = systems[index]
+        let box = page.bounds(for: .mediaBox)
+        let k = 72 / BookImporter.dpi
+        // Headings sit just above the top staff, around the top of the line's crop (which reaches
+        // a few spaces above the staff): look from just above the crop down to the staff, so a book
+        // title higher up, and lyrics or text under the music, don't count.
+        let staffTop = Double(s.top) + 3.5 * s.spacing
+        let from = max(0, Double(s.top) - 0.5 * s.spacing)
+        let topY = box.maxY - CGFloat(from) * k
+        let height = CGFloat(staffTop - from) * k
+        let rect = CGRect(x: box.minX + CGFloat(s.left) * k, y: topY - height, width: CGFloat(s.width) * k, height: height)
+        guard let text = page.selection(for: rect)?.attributedString, text.length > 0 else { return fallback }
+        var best: (size: CGFloat, text: String) = (0, "")
+        text.enumerateAttribute(.font, in: NSRange(location: 0, length: text.length)) { value, range, _ in
+            guard let font = value as? NSFont else { return }
+            let run = text.attributedSubstring(from: range).string.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !run.isEmpty else { return }
+            if font.pointSize > best.size + 0.5 { best = (font.pointSize, run) }
+            else if abs(font.pointSize - best.size) <= 0.5, !best.text.contains(run) { best.text += " " + run }
+        }
+        let name = best.text.split(whereSeparator: \.isWhitespace).joined(separator: " ")
+        // Too short to be a name (a dynamic, a bar number) or a whole paragraph: use the fallback.
+        return (3...80).contains(name.count) && best.size >= 11 ? name : fallback
+    }
+
+    var canRead: Bool { selection != nil }
 
     // MARK: Reading
 
@@ -426,7 +466,9 @@ final class BookImportModel: ObservableObject {
     /// Writes the piece (MIDI, MusicXML, score) and opens it in Practice.
     func save() {
         guard canSave else { return }
-        let name = title.trimmingCharacters(in: .whitespaces)
+        let name = title.trimmingCharacters(in: .whitespaces).isEmpty
+            ? (reads.first.map { suggestedTitle(forLine: $0.found.index) } ?? "Piece")
+            : title.trimmingCharacters(in: .whitespaces)
         let piece = ScoreWriter.write(bars.map(\.bar), title: name)
         let saved = SavedPiece(id: Self.slug(name), title: name, book: documentURL?.lastPathComponent ?? "",
                                page: pageIndex, firstLine: reads.first?.found.index ?? 0,

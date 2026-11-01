@@ -195,7 +195,7 @@ struct BookPagePicker: View {
                 Text(s.count == 1 ? "Line \(s.lowerBound + 1) selected" : "Lines \(s.lowerBound + 1)–\(s.upperBound + 1) selected")
                     .font(.ppCallout)
             }
-            TextField("Name of the piece", text: $model.title)
+            TextField("Name (filled in from the page)", text: $model.title)
                 .textFieldStyle(.roundedBorder)
             Button("Read this piece") { model.read() }
                 .buttonStyle(PPPrimaryButtonStyle(height: PP.Size.targetMin))
