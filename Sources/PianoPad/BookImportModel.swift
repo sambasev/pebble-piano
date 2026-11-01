@@ -178,8 +178,18 @@ final class BookImportModel: ObservableObject {
         }
         let typed = title.trimmingCharacters(in: .whitespaces)
         guard typed.isEmpty || title == autoTitle else { return }
-        autoTitle = selection.map { suggestedTitle(forLine: $0.lowerBound) } ?? ""
+        autoTitle = savedForSelection?.title ?? selection.map { suggestedTitle(forLine: $0.lowerBound) } ?? ""
         title = autoTitle
+    }
+
+    /// The saved piece read from exactly these lines, if there is one: Read opens it instead
+    /// of reading again (unless "Ask Muse Wonder again" is on).
+    var savedForSelection: SavedPiece? {
+        guard let selection, let book = documentURL?.lastPathComponent else { return nil }
+        return pieces.first {
+            $0.book == book && $0.page == pageIndex && $0.firstLine == selection.lowerBound && $0.lastLine == selection.upperBound
+                && FileManager.default.fileExists(atPath: $0.folder.appendingPathComponent("score.json").path)
+        }
     }
 
     /// The name filled in from the page, so typing over it is noticed.
@@ -221,6 +231,10 @@ final class BookImportModel: ObservableObject {
     // MARK: Reading
 
     func read() {
+        if !freshRead, let saved = savedForSelection {
+            practise(saved)
+            return
+        }
         guard let selection, let page = pageGray else { return }
         // No key is fine as long as every line has a saved reading (see `finishReading`).
         let client = try? ModelClient.configured(.meta)

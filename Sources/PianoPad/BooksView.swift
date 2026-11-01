@@ -197,7 +197,10 @@ struct BookPagePicker: View {
             }
             TextField("Name (filled in from the page)", text: $model.title)
                 .textFieldStyle(.roundedBorder)
-            Button("Read this piece") { model.read() }
+            if let saved = model.savedForSelection, !model.freshRead {
+                Text("Already read and saved as \(saved.title).").font(.ppCallout).foregroundColor(PP.inkMuted)
+            }
+            Button(model.savedForSelection != nil && !model.freshRead ? "Open saved piece" : "Read this piece") { model.read() }
                 .buttonStyle(PPPrimaryButtonStyle(height: PP.Size.targetMin))
                 .disabled(!model.canRead)
             Toggle("Ask Muse Wonder again", isOn: $model.freshRead)
