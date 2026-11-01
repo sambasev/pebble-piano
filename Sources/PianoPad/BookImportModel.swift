@@ -510,6 +510,10 @@ final class BookImportModel: ObservableObject {
             let score = try JSONDecoder().decode(Score.self, from: Data(contentsOf: piece.folder.appendingPathComponent("score.json")))
             session?.tab = .practice
             session?.loadReference(piece.folder.appendingPathComponent("piece.mid"), remember: false, writtenScore: score)
+            // A tutor lesson under way on this piece carries on where it was left.
+            if let progress = session?.savedTutorProgress, !progress.mastered {
+                session?.beginTutoring(planLesson: true)
+            }
         } catch {
             message = "Couldn't open \(piece.title): \(error.localizedDescription)"
         }

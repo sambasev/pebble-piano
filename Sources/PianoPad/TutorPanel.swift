@@ -25,8 +25,26 @@ struct TutorPanel: View {
                 }
                 Button("End tutoring") { session.endTutoring() }
             } else if session.reference?.notes.isEmpty == false {
-                Button("Teach me this piece") { session.beginTutoring(planLesson: true) }
-                    .help("Plan a lesson for this piece: listen, new notes, phrase by phrase, then perform")
+                if let saved = session.savedTutorProgress {
+                    // A lesson under way: carry on from where it was left.
+                    let done = saved.completedSteps.count
+                    let total = saved.stepCount.map { " of \($0)" } ?? ""
+                    Text(saved.mastered ? "You've passed this piece with the tutor\(saved.lastStars.map { " (\($0) ★)" } ?? "")."
+                         : "Your lesson on this piece is under way: \(done)\(total) steps done.")
+                        .font(.callout)
+                    Button {
+                        session.beginTutoring(planLesson: true)
+                    } label: {
+                        Label(saved.mastered ? "Open the lesson" : "Continue the lesson", systemImage: "play.fill")
+                            .frame(maxWidth: .infinity).padding(.vertical, 6)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    Button("Start the lesson over") { session.beginTutoring(planLesson: true, startOver: true) }
+                        .help("Same plan, from the first step; your progress on it is forgotten")
+                } else {
+                    Button("Teach me this piece") { session.beginTutoring(planLesson: true) }
+                        .help("Plan a lesson for this piece: listen, new notes, phrase by phrase, then perform")
+                }
             }
         }.sheet(isPresented: $settings) { AISettingsView { settings = false } }
     }

@@ -449,6 +449,8 @@ final class PlaySession: ObservableObject {
     /// The planned lesson's progress is saved on every change once it has been restored
     /// (so starting up never overwrites what was saved).
     var tutorSavesProgress = false
+    /// Teach me this piece was asked to start the plan again from the beginning.
+    var tutorStartOver = false
     @Published var tutorText = ""
     @Published var tutorAI = ""
     @Published var tutorBusy = false
@@ -2438,8 +2440,10 @@ extension PlaySession {
 
     /// Teach me this piece. `planLesson`: plan a lesson (Muse Spark, checked, else in code) and
     /// follow it; otherwise start straight away with the adaptive loop (assess, then drill).
-    func beginTutoring(planLesson: Bool = false) {
+    /// `startOver`: keep the plan but begin it again, forgetting the saved progress.
+    func beginTutoring(planLesson: Bool = false, startOver: Bool = false) {
         guard tutor == nil, let reference, !reference.notes.isEmpty else { return }
+        tutorStartOver = startOver
         resetAll()
         let full = sourceReference ?? reference
         tutorFullReference = full
@@ -2495,10 +2499,12 @@ extension PlaySession {
         tutorSavesProgress = false
         engine.follow(plan)
         var resumed = false
+        let resumeWanted = !tutorStartOver && resume
+        tutorStartOver = false
         if let key = tutorPieceKey {
-            if resume, let saved = PieceLessonStore.progress(key, learner: tutorLearnerKey) {
+            if resumeWanted, let saved = PieceLessonStore.progress(key, learner: tutorLearnerKey) {
                 resumed = engine.restore(saved)
-            } else if !resume {
+            } else if !resumeWanted {
                 PieceLessonStore.clearProgress(key, learner: tutorLearnerKey)
             }
         }
@@ -2544,6 +2550,12 @@ extension PlaySession {
 
     /// Whose progress: the learner's ID, or "default" when there's none.
     var tutorLearnerKey: String { learner?.id.uuidString ?? "default" }
+
+    /// The saved lesson progress for the piece open in Practice (before tutoring starts).
+    var savedTutorProgress: PiecePracticeEngine.Progress? {
+        guard let url = referenceURL else { return nil }
+        return PieceLessonStore.progress(PieceLessonStore.key(for: url), learner: tutorLearnerKey)
+    }
 
     func saveTutorProgress() {
         guard tutorSavesProgress, let key = tutorPieceKey, let progress = tutor?.progress else { return }

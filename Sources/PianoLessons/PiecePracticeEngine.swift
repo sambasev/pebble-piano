@@ -108,11 +108,14 @@ public struct PiecePracticeEngine: Sendable {
         public var lastStars: Int?
         public var mastered: Bool
         public var saved: Date
+        /// Steps in the plan (nil in progress saved before this was kept).
+        public var stepCount: Int?
     }
 
     public var progress: Progress? {
         plan.map { Progress(planSignature: Self.signature($0), stepIndex: stepIndex, completedSteps: completedSteps.sorted(),
-                            exercise: exercise, lastStars: lastStars, mastered: mastered, saved: Date()) }
+                            exercise: exercise, lastStars: lastStars, mastered: mastered, saved: Date(),
+                            stepCount: steps.count) }
     }
 
     /// Picks up where `saved` left off, if it's for this plan. Returns whether it did.
