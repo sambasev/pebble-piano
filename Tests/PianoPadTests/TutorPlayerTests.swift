@@ -35,6 +35,73 @@ final class TutorPlayerTests: XCTestCase {
         XCTAssertGreaterThan(session.guideProgress.done, 0)
         session.endTutoring()
     }
+
+    /// Plays the loaded passage, leaving the last key down: its release never arrives.
+    private func playWithLastKeyStuck(_ session: PlaySession) {
+        for _ in 0..<200 where !session.passageComplete {
+            guard let pitch = session.expected.first else { break }
+            session.mouseDown(on: pitch)
+            RunLoop.main.run(until: Date().addingTimeInterval(0.08))
+            if !session.passageComplete { session.mouseUp() }
+        }
+    }
+
+    private func shortPassage() -> PlaySession {
+        let session = player()
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        // The file opens with five empty bars, so its first notes are in bar 6.
+        session.loadReference(root.appendingPathComponent("Examples/ode-to-joy-c.mid"), remember: false, measures: 6...6)
+        session.mode = .wait
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+        return session
+    }
+
+    func testFinishedPassageGradesEvenIfAKeyNeverReleases() {
+        let session = shortPassage()
+        session.autoGradeHeldLimit = 2.0
+        playWithLastKeyStuck(session)
+        XCTAssertTrue(session.passageComplete)
+        XCTAssertFalse(session.held.isEmpty, "the last key is still down")
+        RunLoop.main.run(until: Date().addingTimeInterval(1.6))
+        XCTAssertEqual(session.phase, .recording, "a held key gets more time than the usual delay")
+        RunLoop.main.run(until: Date().addingTimeInterval(0.9))
+        XCTAssertEqual(session.phase, .graded)
+        XCTAssertTrue(session.held.isEmpty)
+    }
+
+    func testReleasedKeysStillGradeAfterTheUsualDelay() {
+        let session = shortPassage()
+        playWithLastKeyStuck(session)
+        session.mouseUp()
+        XCTAssertTrue(session.held.isEmpty)
+        RunLoop.main.run(until: Date().addingTimeInterval(PlaySession.autoGradeDelay + 0.3))
+        XCTAssertEqual(session.phase, .graded)
+    }
+
+    func testResetAndNewBlockClearHeldKeys() {
+        let session = shortPassage()
+        session.mouseDown(on: session.expected.first!)
+        XCTAssertFalse(session.held.isEmpty)
+        session.resetAll()
+        XCTAssertTrue(session.held.isEmpty)
+
+        session.mouseDown(on: session.expected.first!)
+        XCTAssertFalse(session.held.isEmpty)
+        let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        session.loadReference(root.appendingPathComponent("Examples/ode-to-joy-c.mid"), remember: false)
+        XCTAssertTrue(session.held.isEmpty)
+    }
+
+    func testAStuckKeyDoesNotBlockTheSameKeyAfterReset() {
+        let session = shortPassage()
+        let pitch = session.expected.first!
+        session.mouseDown(on: pitch)
+        session.resetAll()
+        session.mouseDown(on: pitch)
+        XCTAssertTrue(session.held.contains(pitch))
+        session.mouseUp()
+        XCTAssertTrue(session.held.isEmpty)
+    }
 }
 #endif
 

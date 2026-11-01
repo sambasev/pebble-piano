@@ -103,6 +103,9 @@ final class PlaySession: ObservableObject {
     }
     @Published private(set) var autoGradePending = false
     static let autoGradeDelay = 1.5
+    /// A finished passage grades this long after its last chord even if a key still looks held:
+    /// a key's release can go missing, and the take must not wait for it forever.
+    var autoGradeHeldLimit = 5.0
 
     /// Keys currently down, from either input.
     @Published private(set) var held: Set<Int> = []
@@ -495,6 +498,7 @@ final class PlaySession: ObservableObject {
     private var auditionWork: [DispatchWorkItem] = []
     private var auditionCount: [Int: Int] = [:]   // overlapping instances of a pitch
     private var autoGradeWork: DispatchWorkItem?
+    private var passageCompletedAt: Double?
     private var auditionTimer: Timer?
     /// The preview under way: when it started and how its time maps to the music.
     private struct AuditionClock {
@@ -1067,7 +1071,7 @@ final class PlaySession: ObservableObject {
             playAlongNoteOn(pitch, velocity: velocity, time: time, playSound: playSound)
             return
         }
-        if phase == .graded { resetTake() }
+        if phase == .graded { resetTake(keepingHeld: true) }
         if phase == .waiting {
             phase = .recording
             takeStart = time
@@ -1079,6 +1083,8 @@ final class PlaySession: ObservableObject {
         held.insert(pitch)
         if playSound && soundOn { synth?.noteOn(pitch: pitch, velocity: velocity) }
         advanceGuide(with: pitch, strict: strict)
+        // This note may never be released, so the time limit has to keep running through it.
+        scheduleAutoGrade()
     }
 
     private func noteOff(_ pitch: Int, time: Double) {
@@ -1104,15 +1110,22 @@ final class PlaySession: ObservableObject {
 
     private func scheduleAutoGrade() {
         cancelAutoGrade()
+        if !passageComplete { passageCompletedAt = nil }
         // Lessons always auto-grade: a wait block is done when its take is graded.
-        guard mode == .wait, autoGrade || isInLesson || tutor != nil, phase == .recording, passageComplete, held.isEmpty else { return }
+        guard mode == .wait, autoGrade || isInLesson || tutor != nil, phase == .recording, passageComplete else { return }
+        let now = ProcessInfo.processInfo.systemUptime
+        let completedAt = passageCompletedAt ?? now
+        passageCompletedAt = completedAt
+        // Keys down: wait for them, but only up to the limit. Every key change re-arms this, so
+        // the delay never drops below the usual one and the player can still keep playing.
+        let delay = held.isEmpty ? Self.autoGradeDelay : max(Self.autoGradeDelay, completedAt + autoGradeHeldLimit - now)
         let item = DispatchWorkItem { [weak self] in
-            guard let self, self.autoGrade || self.isInLesson || self.tutor != nil, self.phase == .recording, self.held.isEmpty else { return }
+            guard let self, self.autoGrade || self.isInLesson || self.tutor != nil, self.phase == .recording else { return }
             self.finishTake()
         }
         autoGradeWork = item
         autoGradePending = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + Self.autoGradeDelay, execute: item)
+        DispatchQueue.main.asyncAfter(deadline: .now() + delay, execute: item)
     }
 
     private func cancelAutoGrade() {
@@ -1198,6 +1211,7 @@ final class PlaySession: ObservableObject {
         for (_, i) in openNote { notes[i].offset = max(notes[i].onset + 0.01, now) }
         openNote = [:]
         synth?.allNotesOff()
+        releaseHeldNotes()
         lastTake = notes.map { n in
             var m = n
             m.onset -= start
@@ -1235,8 +1249,23 @@ final class PlaySession: ObservableObject {
             || !rewindsPerBar.isEmpty
     }
 
-    func resetTake() {
+    /// Lets go of every key the session thinks is down. A release that arrives later is harmless.
+    private func releaseHeldNotes() {
+        for pitch in held {
+            guide.noteOff(pitch)
+            synth?.noteOff(pitch: pitch)
+        }
+        held = []
+        mousePitch = nil
+        wrong = mode == .playAlong ? [] : guide.wrongHeld
+    }
+
+    /// - Parameter keepingHeld: for a new take started by a key going down, whose release must
+    ///   still count. Everything else (Reset, a new block) starts with no keys down.
+    func resetTake(keepingHeld: Bool = false) {
         cancelAutoGrade()
+        passageCompletedAt = nil
+        if !keepingHeld { releaseHeldNotes() }
         notes = []
         openNote = [:]
         takeStart = nil
