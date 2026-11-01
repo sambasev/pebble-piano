@@ -2431,8 +2431,14 @@ extension PlaySession {
     }
     var tutorPlayedNotes: [PlayedNote] { playedNotes.map { PlayedNote(quarter: $0.quarter + tutorOffset, pitch: $0.pitch) } }
     var tutorPlayhead: Double? { playheadQuarter.map { $0 + tutorOffset } }
+    /// Bars to mark on the score: the bars of the step being played, or between steps the bars
+    /// of the step coming up. Never the whole piece (an assessment, Perform, listening), and not
+    /// once a try is graded: then only the bars with mistakes are marked (`mistakeMeasures`).
     var tutorHighlight: Set<Int> {
-        guard tutor != nil, let e = tutorAttempt, e.kind != .listen, e.kind != .newNote else { return [] }
+        guard let engine = tutor, phase != .graded else { return [] }
+        let e = tutorAttempt ?? engine.exercise
+        let wholePiece: Set<PracticeExercise.Kind> = [.assessment, .placement, .perform, .listen, .newNote]
+        guard !wholePiece.contains(e.kind), e.measures.count < (tutorFullReference?.measureCount ?? Int.max) else { return [] }
         return Set(e.measures.map { passage?.printedMeasure(forPlayed: $0) ?? $0 })
     }
     func tutorPrinted(_ e: PracticeExercise) -> [Int] {
