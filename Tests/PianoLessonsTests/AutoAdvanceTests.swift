@@ -19,7 +19,7 @@ final class AutoAdvanceTests: XCTestCase {
     }
 
     func testWordCount() {
-        XCTAssertEqual(AutoAdvance.wordCount("D is the white key  between\nthe 2 black keys"), 9)
+        XCTAssertEqual(AutoAdvance.wordCount("D is the white key  between\nthe 2 black keys"), 10)
         XCTAssertEqual(AutoAdvance.wordCount(""), 0)
     }
 }

@@ -19,6 +19,11 @@ final class WireTests: XCTestCase {
         XCTAssertEqual((wav.count - 44) / 2, 24_000)
     }
 
+    func testCarriageReturnEventSeparators() {
+        let body = Data("data: first\r\rdata: second\r\rdata: [DONE]\r\r".utf8)
+        XCTAssertEqual(ServerSentEvents.dataPayloads(body), ["first", "second"])
+    }
+
     func testServerSentEvents() {
         let body = Data("event: a\ndata: {\"x\":1}\n\n: comment\r\ndata: line1\ndata: line2\r\n\r\ndata: [DONE]\n\n".utf8)
         XCTAssertEqual(ServerSentEvents.dataPayloads(body), ["{\"x\":1}", "line1\nline2"])
