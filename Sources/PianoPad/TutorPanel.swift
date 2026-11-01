@@ -49,7 +49,7 @@ struct TutorPanel: View {
             Text(readyText(e)).font(.callout)
         }
         if autoStarts(engine) {
-            // Long enough to read what's on screen; a new step or a new comment starts a new count.
+            // A new step or a new comment starts a new count.
             TimedContinueButton(title: startLabel(e), seconds: countdownSeconds) { session.startTutorExercise() }
                 .frame(maxWidth: .infinity)
                 .id(countdownID(engine))
@@ -105,9 +105,9 @@ struct TutorPanel: View {
             && session.phase != .recording && (session.tutorAttempt == nil || session.phase == .graded)
     }
 
+    /// One second (1.5 for a child): the comment stays on screen while the step runs.
     private var countdownSeconds: Double {
-        let text = session.tutorAI.isEmpty ? session.tutorText : session.tutorAI
-        return max(4, AutoAdvance.seconds(.reading(words: AutoAdvance.wordCount(text)), child: session.learner?.kind == .child))
+        session.learner?.kind == .child ? 1.5 : 1
     }
 
     private func countdownID(_ engine: PiecePracticeEngine) -> String {
