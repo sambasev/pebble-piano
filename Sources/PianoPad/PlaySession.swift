@@ -1654,8 +1654,11 @@ final class PlaySession: ObservableObject {
 
     var displayRange: ClosedRange<Int> { Self.keyboardRange }
 
-    /// Computer key for a pitch at the current octave, if any.
+    /// The computer key that plays `pitch` (musical typing), shown on the on-screen keyboard
+    /// only when the learner plays on the computer keyboard; for a piano (microphone or
+    /// Bluetooth MIDI) the letters would only confuse.
     func keyLabel(for pitch: Int) -> String? {
+        guard chosenInput == .computerKeyboard else { return nil }
         let offset = pitch - typing.basePitch
         return MusicalTyping.noteKeys.first(where: { $0.value == offset }).map { String($0.key).uppercased() }
     }
@@ -1701,6 +1704,16 @@ extension PlaySession {
 
     /// Where the first bar starts, in quarters, so beat 1 lands on the downbeat.
     var firstBarQuarter: Double { clock?.barStart(0) ?? 0 }
+
+    /// The bar a point in the music falls in (played order, from 0), where it starts and how
+    /// long it is, in quarters; `pickup` when it's a short first bar. Nil before a piece's
+    /// timing is loaded. For the child page's dancers, so their big jump lands on bar lines.
+    func bar(containing quarter: Double) -> (index: Int, start: Double, length: Double, pickup: Bool)? {
+        guard let clock else { return nil }
+        let index = clock.barIndex(containing: quarter)
+        let length = clock.barLength(index)
+        return (index, clock.barStart(index), length, index == 0 && length < clock.quartersPerBar - 1e-6)
+    }
 
     /// The practice tempo in bpm; setting it sets `tempoPercent`.
     var practiceBPM: Double {

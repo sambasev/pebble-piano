@@ -75,6 +75,9 @@ private struct PagePlayerView: View {
                     .ppGlass(cornerRadius: PP.Radius.xl, padding: PP.Space.s3)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
+                if runner.showsDancers, block.kind != .earTraining {
+                    DancerStrip(reaction: runner.dancerReaction)
+                }
                 feedbackLine
                     .frame(height: Self.feedbackHeight)
                 controls(block)

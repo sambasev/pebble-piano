@@ -12,6 +12,7 @@ extension PlaySession {
 
     /// Saves the choice and applies it: the microphone on or off, Bluetooth MIDI rescanned.
     func setInput(_ source: InputSource) {
+        objectWillChange.send() // the on-screen keyboard shows typing letters only for the computer keyboard
         learnerSettings.inputSource = source.rawValue
         saveLearnerSettings()
         applyInputChoice()
