@@ -187,5 +187,15 @@ extension TutorPlayerTests {
         XCTAssertEqual(session.mode, originalMode)
         XCTAssertEqual(session.tempoPercent, originalTempo)
     }
+
+    func testClickVolumePersistence() {
+        let session = player()
+        let previous = session.clickVolume
+        defer { session.clickVolume = previous }
+
+        session.clickVolume = 0.45
+        XCTAssertEqual(session.clickVolume, 0.45, accuracy: 0.001)
+        XCTAssertEqual(UserDefaults.standard.double(forKey: "PianoPad.volume.click"), 0.45, accuracy: 0.001)
+    }
 }
 #endif

@@ -74,6 +74,13 @@ final class PlaySession: ObservableObject {
             UserDefaults.standard.set(pianoVolume, forKey: "PianoPad.volume.piano")
         }
     }
+    /// Click track (metronome) loudness, 0–1. Remembered.
+    @Published var clickVolume: Double = PlaySession.storedVolume("click", default: 0.6) {
+        didSet {
+            backing?.clickVolume = Float(clickVolume)
+            UserDefaults.standard.set(clickVolume, forKey: "PianoPad.volume.click")
+        }
+    }
     /// Backing track loudness, 0–1. Remembered.
     @Published var backingVolume: Double = PlaySession.storedVolume("backing", default: 0.8) {
         didSet {
@@ -1951,6 +1958,7 @@ extension PlaySession {
             return nil
         }
         backing?.volume = Float(backingVolume)
+        backing?.clickVolume = Float(clickVolume)
         backing?.onInterrupted = { [weak self] in
             self?.stopPlayAlong(discard: false)
             self?.message = "Playback stopped: the audio output changed."

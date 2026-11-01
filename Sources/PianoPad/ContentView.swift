@@ -610,6 +610,8 @@ struct ContentView: View {
             KnobView(title: "Piano", value: $session.pianoVolume, range: 0...2, defaultValue: 1.4,
                      systemImage: "pianokeys")
             if session.mode == .playAlong {
+                KnobView(title: "Click", value: $session.clickVolume, range: 0...1, defaultValue: 0.6,
+                         systemImage: "metronome")
                 KnobView(title: "Backing", value: $session.backingVolume, range: 0...1, defaultValue: 0.8,
                          systemImage: "waveform")
             }
