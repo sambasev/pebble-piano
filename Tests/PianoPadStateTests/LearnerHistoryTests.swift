@@ -16,6 +16,16 @@ final class LearnerHistoryTests: XCTestCase {
     private let ode = PieceID.passage("book.pdf#ode")
     private let song = PieceID.file(contents: Data("MThd song".utf8))
 
+    func testDrillSavesTakeWithoutWholePieceProgress() throws {
+        let h = LearnerHistory(folder: folder)
+        try h.record(piece: ode, midi: Data(), report: Data(), score: 0.4, passed: false)
+        let before = h.progress(for: ode)
+        try h.record(piece: ode, midi: Data(), report: Data(), score: 1, passed: true, contributesToProgress: false)
+        XCTAssertEqual(h.takes(for: ode).count, 2)
+        XCTAssertEqual(h.progress(for: ode), before)
+        XCTAssertNil(h.progress(for: ode)?.completedAt)
+    }
+
     func testEmptyWithNoFiles() {
         let h = LearnerHistory(folder: folder)
         XCTAssertTrue(h.progress().isEmpty)

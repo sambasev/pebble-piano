@@ -133,14 +133,14 @@ struct ContentView: View {
                             pageBounds: session.pageBounds,
                             passage: passage,
                             showWholePage: session.showWholePage,
-                            playheadQuarter: session.playheadQuarter,
+                            playheadQuarter: session.tutorPlayhead,
                             graded: session.phase == .graded && session.report != nil,
-                            mistakeMeasures: session.mistakeMeasures,
+                            mistakeMeasures: session.mistakeMeasures.union(session.tutorHighlight),
                             auditioning: session.isAuditioning,
                             staffPlacements: session.staffPlacements,
                             noteKey: session.noteKey,
                             wrongPitches: session.markedWrong,
-                            playedNotes: session.showGuide ? session.playedNotes : [],
+                            playedNotes: session.showGuide ? session.tutorPlayedNotes : [],
                             replayMeasure: session.replayMeasure,
                             followsMusic: session.isPlayingAlong,
                             onTapMeasure: { session.playFrom(printedMeasure: $0) }
@@ -185,7 +185,7 @@ struct ContentView: View {
             playOptions
                 .ppGlass(cornerRadius: PP.Radius.lg, padding: PP.Space.s3)
             if session.passage == nil && session.score == nil {
-                ReportView(report: session.report, phase: session.phase)
+                ReportView(report: session.tutorDisplayReport, phase: session.phase)
                     .frame(maxWidth: .infinity, alignment: .topLeading)
                     .ppGlass()
                 Spacer(minLength: 0)
@@ -196,7 +196,13 @@ struct ContentView: View {
 
     /// The grade, or how a take works, on a glass panel beside the music.
     private var reportPanel: some View {
-        ReportView(report: session.report, phase: session.phase)
+        ScrollView {
+            VStack(alignment: .leading) {
+                TutorPanel().environmentObject(session)
+                Divider()
+                ReportView(report: session.tutorDisplayReport, phase: session.phase)
+            }
+        }
             .frame(maxWidth: .infinity, alignment: .topLeading)
             .ppGlass()
             .frame(width: 340, alignment: .topLeading)
@@ -614,13 +620,13 @@ struct ContentView: View {
 
     private var notationOverlay: ScoreOverlay {
         ScoreOverlay(
-            cursorQuarter: session.playheadQuarter,
+            cursorQuarter: session.tutorPlayhead,
             auditioning: session.isAuditioning,
             expected: session.showGuide ? session.expected : [],
-            played: session.showGuide ? session.playedNotes : [],
+            played: session.showGuide ? session.tutorPlayedNotes : [],
             wrong: session.markedWrong,
             mistakeMeasures: session.replayMeasure.map { [$0] }
-                ?? (session.phase == .graded && session.report != nil ? session.mistakeMeasures : nil)
+                ?? (session.tutor != nil ? session.tutorHighlight.union(session.mistakeMeasures) : (session.phase == .graded && session.report != nil ? session.mistakeMeasures : nil))
         )
     }
 

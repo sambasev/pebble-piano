@@ -5,6 +5,7 @@ import Foundation
 import PDFKit
 import PianoGraderCore
 import PianoGraderIO
+import PianoLessons
 import PianoPadState
 import EarTrainingUI
 import EarTrainingIntegration
@@ -415,6 +416,20 @@ final class PlaySession: ObservableObject {
 
     // MARK: Private state
 
+    @Published var tutor: PiecePracticeEngine?
+    @Published var tutorText = ""
+    @Published var tutorAI = ""
+    @Published var tutorBusy = false
+    var tutorTask: Task<Void, Never>?
+    var tutorGeneration = UUID()
+    var tutorFullReference: MIDISequence?
+    var tutorSavedSetup: PracticeSnapshot?
+    var tutorBeforeAttempt: PiecePracticeEngine?
+    var tutorAttempt: PracticeExercise?
+    var tutorFeedbackClient: (any TutorFeedbackClient)?
+    var tutorContext = ""
+    var tutorRecent: [String] = []
+
     private var fileRubric: Rubric?
     /// The reference as read from the file. `reference` is this retimed to a linked backing
     /// track's tempo, so everything (listening, the score, grading) follows the backing.
@@ -525,7 +540,7 @@ final class PlaySession: ObservableObject {
     /// Active time per screen, for the anonymous usage stats (Usage.swift).
     private(set) var activity: ActivityTracker?
 
-    init(learnerStore: LearnerStore = LearnerStore()) {
+    init(learnerStore: LearnerStore = LearnerStore(), startServices: Bool = true) {
         self.learnerStore = learnerStore
         // Assigned directly (not through applyLearner), so no observers run during init.
         learners = learnerStore.learners
@@ -536,6 +551,7 @@ final class PlaySession: ObservableObject {
         customPlayAlong = Self.customPlayAlong(from: learnerSettings)
         missMode = Self.missMode(from: learnerSettings)
         synth?.volume = pianoVolume
+        guard startServices else { return }
         startMIDI()
         // The learner's input choice (the mic back on for mic learners), once init is done.
         DispatchQueue.main.async { [weak self] in self?.applyInputChoice() }
@@ -1024,6 +1040,7 @@ final class PlaySession: ObservableObject {
     private func noteOn(_ pitch: Int, velocity: Int, time: Double, playSound: Bool, strict: Bool = true,
                         source: InputSource) {
         guard tabPlaysNotes, !isChoosingLearner else { return }
+        if tutor != nil && (tutorAttempt == nil || phase == .graded) { return }
         if source != judgeInput {
             judgeInput = source
             configureJudge()
@@ -1074,9 +1091,9 @@ final class PlaySession: ObservableObject {
     private func scheduleAutoGrade() {
         cancelAutoGrade()
         // Lessons always auto-grade: a wait block is done when its take is graded.
-        guard mode == .wait, autoGrade || isInLesson, phase == .recording, passageComplete, held.isEmpty else { return }
+        guard mode == .wait, autoGrade || isInLesson || tutor != nil, phase == .recording, passageComplete, held.isEmpty else { return }
         let item = DispatchWorkItem { [weak self] in
-            guard let self, self.autoGrade || self.isInLesson, self.phase == .recording, self.held.isEmpty else { return }
+            guard let self, self.autoGrade || self.isInLesson || self.tutor != nil, self.phase == .recording, self.held.isEmpty else { return }
             self.finishTake()
         }
         autoGradeWork = item
@@ -1178,6 +1195,7 @@ final class PlaySession: ObservableObject {
         grade()
         recordGradedTake()
         reportGradeToLesson()
+        tutorGraded()
         updatePlayhead()
     }
 
@@ -1390,6 +1408,7 @@ final class PlaySession: ObservableObject {
     /// keep their own staves and clefs (Beyer writes both hands in treble clef).
     func loadReference(_ url: URL, keepPassage: Bool = false, tempo: Double? = nil, remember: Bool = true,
                        measures: ClosedRange<Int>? = nil, writtenScore: Score? = nil) {
+        endTutoring()
         stopPlayAlong(discard: false)
         if !keepPassage {
             passage = nil
@@ -1420,6 +1439,7 @@ final class PlaySession: ObservableObject {
     /// No passage, no MIDI: nothing to play against. Lesson explain blocks use this so their
     /// notes don't land on the previous block's music.
     func unloadReference() {
+        endTutoring()
         stopAudition()
         stopPlayAlong(discard: true)
         passage = nil
@@ -1486,6 +1506,7 @@ final class PlaySession: ObservableObject {
     }
 
     func selectPassage(_ id: String) {
+        endTutoring()
         guard let book, let p = book.annotations.passages.first(where: { $0.id == id }) else { return }
         renderPage(p.page, in: book.document)
         passage = p
@@ -1639,7 +1660,7 @@ extension PlaySession {
 
     /// Lessons may play along with clicks alone; the Practice tab needs a backing track.
     var canPlayAlong: Bool {
-        reference != nil && clock != nil && (judge?.chordCount ?? 0) > 0 && (hasBackingTrack || lessonPiece != nil)
+        reference != nil && clock != nil && (judge?.chordCount ?? 0) > 0 && (hasBackingTrack || lessonPiece != nil || tutor != nil)
     }
 
     /// Tempo heard at the current speed, in quarter notes per minute.
@@ -1766,6 +1787,12 @@ extension PlaySession {
             rebuildJudge()
             return
         }
+        if tutor != nil {
+            clock = BeatClock(startSeconds: 0, bpm: reference.initialTempoBPM,
+                              timeSignature: reference.timeSignature, tempoFactor: tempoPercent / 100)
+            rebuildJudge()
+            return
+        }
         let factor = tempoPercent / 100
         // A saved track linked here wins over a backing written into the book's annotations.
         var chosen: BackingAnnotation?
@@ -1845,7 +1872,7 @@ extension PlaySession {
         do {
             if let annotation = backingAnnotation, let url = backingURL {
                 backing = try BackingPlayer(annotation: annotation, fileURL: url, clock: clock, outputDeviceUID: outputDeviceUID)
-            } else if lessonPiece != nil {
+            } else if lessonPiece != nil || tutor != nil {
                 // Lessons only: clicks, with a count-in of the block's beats (whole bars).
                 let beatsPerBar = max(1, clock.timeSignature.numerator)
                 let bars = max(1, Int((Double(lessonCountInBeats) / Double(beatsPerBar)).rounded(.up)))
@@ -2101,6 +2128,7 @@ extension PlaySession {
     /// A bar was clicked on the score (0-based, played order). Play along: play from it,
     /// seeking the backing track (also while already playing). Wait: the guide waits there.
     func playFrom(bar: Int) {
+        guard tutor == nil else { return }
         guard reference != nil else { return }
         if isAuditioning { stopAudition() }
         switch mode {
@@ -2132,6 +2160,7 @@ extension PlaySession {
 
     /// The judge's settings: the chosen preset, or the rubric's.
     var playAlongSettings: Rubric.PlayAlong {
+        if tutor != nil { return .keepGoing }
         // A lesson stage (a song's Perform) can set its own, without touching the learner's.
         if let lessonPlayAlong { return lessonPlayAlong }
         switch strictness {
@@ -2191,6 +2220,7 @@ extension PlaySession {
         // Stop can then never silence the new tab's sequence.
         if let lease = earSequenceLease { stopEarSequence(lease) }
         MainActor.assumeIsolated { earTraining.session.stop() }
+        endTutoring()
         // Leaving a tab stops the music; coming back to practice picks up edits to the linked track.
         stopAudition()
         stopPlayAlong(discard: false)
@@ -2225,7 +2255,7 @@ extension PlaySession {
         guard wasRecording else { return }
         playAlongState = .finished
         synth?.allNotesOff()
-        guard !notes.isEmpty else {
+        guard !notes.isEmpty || tutor != nil else {
             phase = .waiting
             return
         }
@@ -2247,7 +2277,123 @@ extension PlaySession {
         grade()
         recordGradedTake()
         reportGradeToLesson()
+        tutorGraded()
         playheadQuarter = nil
+    }
+}
+
+extension PlaySession {
+    var tutorOffset: Double {
+        guard let exercise = tutorAttempt, let full = tutorFullReference else { return 0 }
+        return Double(exercise.measures.lowerBound - 1) * Double(full.timeSignature.numerator) * 4 / Double(full.timeSignature.denominator)
+    }
+    var tutorDisplayReport: GradeReport? {
+        guard var report else { return nil }
+        guard tutor != nil, let attempt = tutorAttempt else { return report }
+        for i in report.flags.indices {
+            let local = report.flags[i].position.measure
+            report.flags[i].position.measure = passage?.printedMeasure(forPlayed: attempt.originalMeasure(local)) ?? attempt.originalMeasure(local)
+            let oldPrefix = "m\(local) "
+            report.flags[i].message = report.flags[i].message.replacingOccurrences(of: oldPrefix, with: "m\(report.flags[i].position.measure) ")
+        }
+        for i in report.results.indices {
+            let local = report.results[i].position.measure
+            report.results[i].position.measure = passage?.printedMeasure(forPlayed: attempt.originalMeasure(local)) ?? attempt.originalMeasure(local)
+        }
+        return report
+    }
+    var tutorPlayedNotes: [PlayedNote] { playedNotes.map { PlayedNote(quarter: $0.quarter + tutorOffset, pitch: $0.pitch) } }
+    var tutorPlayhead: Double? { playheadQuarter.map { $0 + tutorOffset } }
+    var tutorHighlight: Set<Int> {
+        guard tutor != nil, let e = tutorAttempt else { return [] }
+        return Set(e.measures.map { passage?.printedMeasure(forPlayed: $0) ?? $0 })
+    }
+    func beginTutoring() {
+        guard tutor == nil, let reference, !reference.notes.isEmpty else { return }
+        resetAll()
+        tutorFullReference = sourceReference ?? reference
+        tutorSavedSetup = PracticeSnapshot(mode: mode, tempoPercent: tempoPercent, metronomeOn: metronomeOn, pieceTag: currentPieceTag)
+        let persona = learnerSettings.persona == "kriti" ? Persona.kriti : Persona.alex
+        tutor = PiecePracticeEngine(measureCount: reference.measureCount, persona: persona)
+        tutorText = "Try the piece so I can find what to practise. You can hear it first or learn the notes."
+        tutorRecent = []; tutorContext = ""; tutorBeforeAttempt = nil; tutorAI = ""
+    }
+    func endTutoring() {
+        guard tutor != nil else { return }
+        tutorGeneration = UUID(); tutorTask?.cancel(); tutorTask = nil; tutorBusy = false
+        resetAll()
+        tutor = nil; tutorAttempt = nil; tutorBeforeAttempt = nil; tutorAI = ""; tutorContext = ""
+        if let full = tutorFullReference {
+            sourceReference = full; reference = full
+            chords = ChordGrouping.group(full.notes, window: rubric.chordWindowMs / 1000)
+        }
+        tutorFullReference = nil
+        if let saved = tutorSavedSetup {
+            setModeNow(saved.mode); tempoPercent = saved.tempoPercent; metronomeOn = saved.metronomeOn
+        }
+        tutorSavedSetup = nil; setupPlayAlong(); resetTake()
+    }
+    func startTutorExercise() {
+        guard let e = tutor?.exercise, let full = tutorFullReference else { return }
+        tutorGeneration = UUID(); tutorTask?.cancel(); tutorBusy = false; tutorAI = ""
+        resetAll(); tutorBeforeAttempt = tutor; tutorAttempt = e
+        let sliced = full.measures(e.measures)
+        sourceReference = sliced; reference = sliced
+        chords = ChordGrouping.group(sliced.notes, window: rubric.chordWindowMs / 1000)
+        setModeNow(e.kind == .notes ? .wait : .playAlong)
+        tempoPercent = e.tempoPercent; metronomeOn = true
+        setupPlayAlong(); resetTake()
+        if e.kind != .notes { startTimedRun() }
+    }
+    func retryTutorExercise() {
+        if let previous = tutorBeforeAttempt { tutor = previous }
+        startTutorExercise()
+    }
+    func tutorGraded() {
+        guard var engine = tutor, let report, let attempt = tutorAttempt else { return }
+        var mapped = report
+        for i in mapped.flags.indices {
+            let original = attempt.originalMeasure(mapped.flags[i].position.measure)
+            mapped.flags[i].position.measure = passage?.printedMeasure(forPlayed: original) ?? original
+        }
+        for i in mapped.results.indices {
+            let original = attempt.originalMeasure(mapped.results[i].position.measure)
+            mapped.results[i].position.measure = passage?.printedMeasure(forPlayed: original) ?? original
+        }
+        mistakeMeasures = Set(mapped.flags.map(\.position.measure))
+        var evidence = report
+        if attempt.kind == .assessment && (tempoPercent < 99.5 || mode != .playAlong) { evidence.passed = false }
+        engine.record(evidence, replays: replaysThisTake, completedNotes: passageComplete)
+        tutor = engine
+        let printed = engine.exercise.measures.map { passage?.printedMeasure(forPlayed: $0) ?? $0 }
+        tutorText = TutorCoaching.message(report: mapped, next: engine.exercise, mastered: engine.mastered,
+                                         printedMeasures: printed, notesCompleted: attempt.kind == .notes && passageComplete)
+        tutorRecent = Array((tutorRecent + [tutorText]).suffix(3))
+        tutorContext = "Piece: \(score?.title ?? passage?.title ?? "Piano piece"). Teacher: \(engine.persona.name). Last exercise: \(attempt.title), bars \(attempt.measures), speed \(attempt.tempoPercent)%. Findings: \(tutorText) Selected next exercise: \(engine.exercise.title), bars \(engine.exercise.measures), speed \(engine.exercise.tempoPercent)%. Recent results: \(tutorRecent.joined(separator: "\n"))"
+        var feedbackEvidence = mapped
+        feedbackEvidence.flags = Array(mapped.flags.prefix(8))
+        feedbackEvidence.results = Array(mapped.results.filter { $0.kind != .correct }.prefix(8))
+        let measurements = (try? JSONEncoder().encode(feedbackEvidence)).flatMap { String(data: $0, encoding: .utf8) } ?? ""
+        tutorContext += " Deterministic grading evidence (measurements for interpretation, not for reciting): " + measurements
+        askTutor("Tell me how that attempt went, like my piano teacher, and guide me into the selected exercise.")
+    }
+    func askTutor(_ question: String) {
+        tutorTask?.cancel(); tutorGeneration = UUID(); tutorAI = ""; tutorBusy = false
+        guard let key = TutorKeychain.read(), !key.isEmpty else { tutorAI = ""; return }
+        let generation = tutorGeneration
+        let context = tutorContext.isEmpty ? tutorText : tutorContext
+        let client: any TutorFeedbackClient = tutorFeedbackClient ?? MetaTutorFeedbackClient(key: key, model: UserDefaults.standard.string(forKey: "TutorModel") ?? "muse-spark-1.3")
+        tutorBusy = true
+        tutorTask = Task { @MainActor [weak self] in
+            do {
+                let text = try await client.explain(context: context, question: question)
+                guard let self, !Task.isCancelled, self.tutorGeneration == generation else { return }
+                self.tutorAI = text; self.tutorBusy = false
+            } catch {
+                guard let self, self.tutorGeneration == generation else { return }
+                self.tutorBusy = false; self.tutorAI = "" // Keep the local teacher guidance visible on failure.
+            }
+        }
     }
 }
 

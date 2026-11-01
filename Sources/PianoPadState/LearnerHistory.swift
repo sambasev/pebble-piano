@@ -62,7 +62,7 @@ public final class LearnerHistory {
     /// Saves a graded take and updates the piece's progress. Returns the saved take.
     @discardableResult
     public func record(piece: PieceID, midi: Data, report: Data, score: Double, passed: Bool,
-                       at date: Date = Date()) throws -> SavedTake {
+                       at date: Date = Date(), contributesToProgress: Bool = true) throws -> SavedTake {
         let dir = takesDirectory.appendingPathComponent(piece.folderName, isDirectory: true)
         try fm.createDirectory(at: dir, withIntermediateDirectories: true)
         var stem = Self.stamp(date)
@@ -76,6 +76,7 @@ public final class LearnerHistory {
         try midi.write(to: midiURL, options: .atomic)
         try report.write(to: reportURL, options: .atomic)
 
+        if !contributesToProgress { return SavedTake(piece: piece, midiURL: midiURL, reportURL: reportURL, date: date) }
         var all = progress()
         var p = all[piece] ?? PieceProgress(lastPlayed: date)
         let score = min(1, max(0, score))

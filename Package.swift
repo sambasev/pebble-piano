@@ -23,6 +23,7 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-atomics", from: "1.2.0"),
     ],
     targets: [
+        .testTarget(name: "PianoPadTests", dependencies: ["PianoPad"]),
         // Pure grading logic: no UI, no CoreMIDI, no audio. Shared by everything.
         .target(
             name: "PianoGraderCore",

@@ -2,6 +2,7 @@
 import AppKit
 import Foundation
 import PianoGraderCore
+import PianoLessons
 import PianoPadState
 import UniformTypeIdentifiers
 
@@ -121,6 +122,7 @@ extension PlaySession {
     private func stopForLearnerChange() {
         lessonRunner.learnerWillChange()
         stopEarForLearnerChange()
+        endTutoring()
         stopPlayAlong(discard: true)
         stopAudition()
         resetTake()
@@ -247,7 +249,7 @@ extension PlaySession {
     /// Saves the take just graded, with its report, to the active learner's history.
     /// Without a learner (or a piece) nothing is saved.
     func recordGradedTake() {
-        guard let learner, let piece = currentPieceID, let report, !lastTake.isEmpty else { return }
+        guard let learner, let piece = currentPieceID, let report, (!lastTake.isEmpty || tutor != nil) else { return }
         if !isInLesson {
             Usage.event("Practice.graded", ["mode": mode.rawValue,
                                             "piece": passage != nil ? "book" : "midi",
@@ -256,12 +258,17 @@ extension PlaySession {
         do {
             let encoder = JSONEncoder()
             encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-            try learnerStore.history(for: learner.id).record(
+            let saved = try learnerStore.history(for: learner.id).record(
                 piece: piece,
                 midi: MIDIFile.write(notes: lastTake),
                 report: encoder.encode(report),
                 score: report.notes.score,
-                passed: report.passed)
+                passed: report.passed && (tutor == nil || (report.timing != nil && mode == .playAlong && tempoPercent >= 99.5 && replaysThisTake == 0)), contributesToProgress: tutor == nil || tutorAttempt?.kind == .assessment)
+            if let attempt = tutorAttempt {
+                let metadata = TutorAttemptContext(exercise: attempt, actualTempoPercent: tempoPercent,
+                    mode: mode.rawValue, printedMeasures: attempt.measures.map { passage?.printedMeasure(forPlayed: $0) ?? $0 })
+                try JSONEncoder().encode(metadata).write(to: saved.reportURL.deletingPathExtension().appendingPathExtension("tutor.json"), options: .atomic)
+            }
         } catch {
             message = "Couldn't save the take to \(learner.name)'s history: \(error.localizedDescription)"
         }
