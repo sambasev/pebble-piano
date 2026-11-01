@@ -334,17 +334,77 @@ final class LessonPlanTests: XCTestCase {
         var take = piece
         take.notes.removeAll { $0.onsetBeats >= 24 && $0.onsetBeats < 28 } // bar 7 missing
         engine.record(Grader().grade(reference: piece, take: take))
-        let done = engine.completedSteps.map { engine.steps[$0] }
-        XCTAssertTrue(done.contains { $0.kind == .notes && $0.measures == 1...4 && $0.hand == .right })
-        XCTAssertTrue(done.contains { $0.kind == .slow && $0.measures == 1...4 })
-        XCTAssertFalse(done.contains { $0.measures == 5...8 }, "phrase 2 had the slip")
-        XCTAssertFalse(done.contains { $0.kind == .newNote }, "G2 is also played in phrase 2")
+        XCTAssertEqual(engine.grades[0], .clean)
+        XCTAssertEqual(engine.grades[1], .moderate(bars: [7]))
+        // Phrase 1: its steps are skipped. Phrase 2: note by note on bar 7 only, then in time.
+        XCTAssertTrue(engine.steps.filter { $0.measures == 1...4 }.allSatisfy { $0.skipReason != nil })
+        let phrase2 = engine.steps.filter { $0.label == "Phrase 2" }.map { "\($0.kind.rawValue) \($0.measures.lowerBound)-\($0.measures.upperBound)" }
+        XCTAssertEqual(phrase2, ["notes 7-7", "slow 5-8", "fullSpeed 5-8"])
+        XCTAssertFalse(engine.completedSteps.contains { engine.steps[$0].kind == .newNote }, "G2 is also played in phrase 2")
         XCTAssertEqual(engine.exercise.kind, .listen, "next: the first step still to do")
         engine.completeStep()
         XCTAssertEqual(engine.exercise.kind, .newNote)
         engine.completeStep()
-        XCTAssertEqual(engine.exercise.measures, 5...8, "phrase 1 is done: on to phrase 2")
-        XCTAssertEqual(engine.exercise.hand, .right)
+        XCTAssertEqual(engine.exercise.kind, .notes)
+        XCTAssertEqual(engine.exercise.measures, 7...7)
+        // It's kept when the lesson is resumed.
+        var resumed = PiecePracticeEngine(measureCount: 8, plan: plan)
+        XCTAssertTrue(resumed.restore(engine.progress!))
+        XCTAssertEqual(resumed.exercise, engine.exercise)
+        XCTAssertEqual(resumed.steps.map(\.key), engine.steps.map(\.key))
+    }
+
+    func testANearlyPerfectRunIsPolishedNotRetaught() {
+        let piece = twoHandPiece(bars: 8)
+        var take = piece
+        // Two single slips: one note in bar 2, one in bar 6.
+        take.notes.removeAll { $0.onsetBeats == 5 && $0.track == 0 }
+        take.notes.removeAll { $0.onsetBeats == 21 && $0.track == 0 }
+        let report = Grader().grade(reference: piece, take: take)
+        XCTAssertGreaterThanOrEqual(PhraseGrade.accuracy(1...8, in: report), 0.9)
+        // A Perform that missed the stars: polish the two bars, not note by note.
+        let plan0 = LessonPlan(phrases: [.init(bars: 1...4, label: "Phrase 1"), .init(bars: 5...8, label: "Phrase 2")],
+                               handsSeparately: true, source: .model)
+        var engine = PiecePracticeEngine(measureCount: 8, plan: plan0)
+        engine.jump(to: engine.steps.count - 1)
+        engine.record(report, stars: 1)
+        XCTAssertFalse(engine.mastered)
+        XCTAssertEqual(engine.exercise.kind, .fullSpeed, "polish, not note by note")
+        XCTAssertEqual(engine.exercise.measures, 2...2)
+        engine.record(Grader().grade(reference: piece.measures(2...2), take: piece.measures(2...2)))
+        // With a plan, "Show me what you can do" grades both phrases minor: just those bars.
+        let plan = LessonPlan(phrases: [.init(bars: 1...4, label: "Phrase 1"), .init(bars: 5...8, label: "Phrase 2")],
+                              handsSeparately: true, source: .model)
+        var planned = PiecePracticeEngine(measureCount: 8, plan: plan)
+        planned.record(report)
+        XCTAssertEqual(planned.grades[0], .minor(bars: [2]))
+        XCTAssertEqual(planned.steps.filter { $0.label == "Phrase 1" }.map(\.kind), [.fullSpeed, .fullSpeed])
+        XCTAssertFalse(planned.steps.contains { $0.hand != nil && $0.skipReason == nil }, "no hands-separately steps")
+    }
+
+    func testTwoFailedRunsDropBackALevel() {
+        let piece = twoHandPiece(bars: 4)
+        let plan = LessonPlan(phrases: [.init(bars: 1...4, label: "Phrase 1")], handsSeparately: false, source: .model)
+        var engine = PiecePracticeEngine(measureCount: 4, persona: .kriti, plan: plan)
+        var slip = piece
+        slip.notes.removeAll { $0.onsetBeats == 5 && $0.track == 0 }
+        engine.record(Grader().grade(reference: piece, take: slip))   // a slip in bar 2: polish
+        XCTAssertEqual(engine.grades[0], .minor(bars: [2]))
+        engine.completeStep()                                          // listen
+        XCTAssertEqual(engine.exercise.measures, 2...2)
+        engine.skip()
+        XCTAssertEqual(engine.exercise.kind, .fullSpeed)
+        XCTAssertEqual(engine.exercise.measures, 1...4)
+        var miss = piece
+        miss.notes.removeAll { $0.onsetBeats >= 4 && $0.onsetBeats < 8 && $0.track == 0 }
+        let bad = Grader().grade(reference: piece, take: miss), clean = Grader().grade(reference: piece, take: piece)
+        engine.record(bad)
+        XCTAssertEqual(engine.exercise.kind, .fullSpeed, "one miss: try again")
+        engine.record(bad)
+        XCTAssertEqual(engine.exercise.kind, .slow, "two in a row: slowly first")
+        XCTAssertEqual(engine.exercise.measures, 1...4)
+        engine.record(clean); engine.record(clean)
+        XCTAssertEqual(engine.exercise.kind, .fullSpeed, "then back to full speed")
     }
 
     // MARK: Learn page

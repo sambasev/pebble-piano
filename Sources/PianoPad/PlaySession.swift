@@ -2724,6 +2724,9 @@ extension PlaySession {
                                          printedMeasures: tutorPrinted(engine.exercise),
                                          notesCompleted: attempt.isWaitMode && passageComplete, stars: stars,
                                          followingPlan: wasFollowing)
+        if attempt.kind == .placement, let plan = engine.plan {
+            tutorText = TutorCoaching.placementSummary(engine.grades, plan: plan) + TutorCoaching.invitation(for: engine.exercise, printedMeasures: tutorPrinted(engine.exercise))
+        }
         tutorRecent = Array((tutorRecent + [tutorText]).suffix(3))
         var plan = ""
         if let p = engine.plan {

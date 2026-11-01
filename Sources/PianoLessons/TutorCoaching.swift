@@ -35,6 +35,14 @@ public enum TutorCoaching {
         return observation + " " + invitation(for: next, printedMeasures: printedMeasures)
     }
 
+    /// After "Show me what you can do": how each phrase went, in a sentence.
+    public static func placementSummary(_ grades: [Int: PhraseGrade], plan: LessonPlan) -> String {
+        let parts = plan.phrases.indices.compactMap { i in grades[i].map { "\(plan.phrases[i].label): \($0.summary)" } }
+        guard !parts.isEmpty else { return "" }
+        if grades.values.allSatisfy({ $0 == .clean }) { return "You played every phrase cleanly. " }
+        return parts.joined(separator: "; ") + ". "
+    }
+
     /// What to do next, in a teacher's words.
     public static func invitation(for next: PracticeExercise, printedMeasures: [Int]) -> String {
         let bars = Array(Set(printedMeasures)).sorted()
