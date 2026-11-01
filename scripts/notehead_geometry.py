@@ -153,7 +153,15 @@ def header_glyphs(ink, top, bottom, sp):
     # (Key signatures aren't handled yet: the demo pieces are in C major.)
     mid = (top + bottom) / 2 - y0
     sig = [o for o in objs_full if end - 0.2 * sp <= o[0] <= end + 3 * sp and 1.4 * sp <= o[2] <= 4.2 * sp
-           and 0.6 * sp <= o[1] - o[0] <= 2.4 * sp and abs(o[3] - mid) <= 1.2 * sp]
+           and 0.6 * sp <= o[1] - o[0] <= 2.4 * sp and abs(o[3] - mid) <= 1.5 * sp
+           # Digits stay within the staff; a note's stem runs out of it.
+           and o[3] - o[2] / 2 >= top - y0 - 0.4 * sp and o[3] + o[2] / 2 <= bottom - y0 + 0.4 * sp]
+    # The digits fill the staff from its top line to its bottom line; a C (common or cut time)
+    # sits in its middle.
+    common = any(abs(o[3] - mid) <= 0.5 * sp and o[2] <= 2.6 * sp for o in sig)
+    if sig and not common and (min(o[3] - o[2] / 2 for o in sig) > top - y0 + 0.7 * sp
+                or max(o[3] + o[2] / 2 for o in sig) < bottom - y0 - 0.7 * sp):
+        sig = []
     return end, sig
 
 

@@ -225,11 +225,21 @@ public enum NoteheadGeometry {
         else { return (0, [], nil) }
         let end = clef.x1
         let mid = (staff.top + staff.bottom) / 2
-        let sig = glyphs.filter {
+        var sig = glyphs.filter {
             Double($0.x0) >= Double(end) - 0.2 * sp && Double($0.x0) <= Double(end) + 3 * sp
                 && (1.4 * sp...4.2 * sp).contains(Double($0.height))  // the two digits can join up
                 && (0.6 * sp...2.4 * sp).contains(Double($0.width))
-                && abs($0.centerY - mid) <= 1.2 * sp
+                && abs($0.centerY - mid) <= 1.5 * sp
+                // Digits stay within the staff; a note's stem runs out of it.
+                && Double($0.y0) >= staff.top - 0.4 * sp && Double($0.y1) <= staff.bottom + 0.4 * sp
+        }
+        // The digits fill the staff from its top line to its bottom line (so the first notes of a
+        // continuation system, one in each staff, aren't taken for one); a C (common or cut
+        // time) sits in its middle.
+        let common = sig.contains { abs($0.centerY - mid) <= 0.5 * sp && Double($0.height) <= 2.6 * sp }
+        if !sig.isEmpty && !common,
+           Double(sig.map(\.y0).min()!) > staff.top + 0.7 * sp || Double(sig.map(\.y1).max()!) < staff.bottom - 0.7 * sp {
+            sig = []
         }
         return (end, sig, kind(clef))
     }

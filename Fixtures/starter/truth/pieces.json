@@ -1,0 +1,1478 @@
+{
+ "beyer-12": {
+  "title": "Exercise No. 12",
+  "time": "4/4",
+  "clefs": [
+   "treble",
+   "treble"
+  ],
+  "measures": [
+   {
+    "upper": [
+     [
+      "C5",
+      "quarter"
+     ],
+     [
+      "D5",
+      "quarter"
+     ],
+     [
+      "E5",
+      "quarter"
+     ],
+     [
+      "F5",
+      "quarter"
+     ]
+    ],
+    "lower": [
+     [
+      "C4",
+      "whole"
+     ]
+    ]
+   },
+   {
+    "upper": [
+     [
+      "G5",
+      "quarter"
+     ],
+     [
+      "F5",
+      "quarter"
+     ],
+     [
+      "E5",
+      "quarter"
+     ],
+     [
+      "D5",
+      "quarter"
+     ]
+    ],
+    "lower": [
+     [
+      "G4",
+      "whole"
+     ]
+    ]
+   },
+   {
+    "upper": [
+     [
+      "C5",
+      "quarter"
+     ],
+     [
+      "D5",
+      "quarter"
+     ],
+     [
+      "E5",
+      "quarter"
+     ],
+     [
+      "F5",
+      "quarter"
+     ]
+    ],
+    "lower": [
+     [
+      "C4",
+      "whole"
+     ]
+    ]
+   },
+   {
+    "upper": [
+     [
+      "G5",
+      "quarter"
+     ],
+     [
+      "F5",
+      "quarter"
+     ],
+     [
+      "E5",
+      "quarter"
+     ],
+     [
+      "D5",
+      "quarter"
+     ]
+    ],
+    "lower": [
+     [
+      "G4",
+      "whole"
+     ]
+    ]
+   },
+   {
+    "upper": [
+     [
+      "C5",
+      "quarter"
+     ],
+     [
+      "D5",
+      "quarter"
+     ],
+     [
+      "E5",
+      "quarter"
+     ],
+     [
+      "F5",
+      "quarter"
+     ]
+    ],
+    "lower": [
+     [
+      "C4",
+      "whole"
+     ]
+    ]
+   },
+   {
+    "upper": [
+     [
+      "G5",
+      "quarter"
+     ],
+     [
+      "F5",
+      "quarter"
+     ],
+     [
+      "E5",
+      "quarter"
+     ],
+     [
+      "D5",
+      "quarter"
+     ]
+    ],
+    "lower": [
+     [
+      "G4",
+      "whole"
+     ]
+    ]
+   },
+   {
+    "upper": [
+     [
+      "E5",
+      "quarter"
+     ],
+     [
+      "C5",
+      "quarter"
+     ],
+     [
+      "E5",
+      "quarter"
+     ],
+     [
+      "D5",
+      "quarter"
+     ]
+    ],
+    "lower": [
+     [
+      "C4",
+      "half"
+     ],
+     [
+      "G4",
+      "half"
+     ]
+    ]
+   },
+   {
+    "upper": [
+     [
+      "C5",
+      "whole"
+     ]
+    ],
+    "lower": [
+     [
+      "C4",
+      "whole"
+     ]
+    ]
+   }
+  ]
+ },
+ "beyer-13": {
+  "title": "Exercise No. 13",
+  "time": "4/4",
+  "clefs": [
+   "treble",
+   "treble"
+  ],
+  "measures": [
+   {
+    "upper": [
+     [
+      "C5",
+      "whole"
+     ]
+    ],
+    "lower": [
+     [
+      "C4",
+      "quarter"
+     ],
+     [
+      "D4",
+      "quarter"
+     ],
+     [
+      "E4",
+      "quarter"
+     ],
+     [
+      "F4",
+      "quarter"
+     ]
+    ]
+   },
+   {
+    "upper": [
+     [
+      "G5",
+      "whole"
+     ]
+    ],
+    "lower": [
+     [
+      "G4",
+      "quarter"
+     ],
+     [
+      "F4",
+      "quarter"
+     ],
+     [
+      "E4",
+      "quarter"
+     ],
+     [
+      "D4",
+      "quarter"
+     ]
+    ]
+   },
+   {
+    "upper": [
+     [
+      "C5",
+      "whole"
+     ]
+    ],
+    "lower": [
+     [
+      "C4",
+      "quarter"
+     ],
+     [
+      "D4",
+      "quarter"
+     ],
+     [
+      "E4",
+      "quarter"
+     ],
+     [
+      "F4",
+      "quarter"
+     ]
+    ]
+   },
+   {
+    "upper": [
+     [
+      "G5",
+      "whole"
+     ]
+    ],
+    "lower": [
+     [
+      "G4",
+      "quarter"
+     ],
+     [
+      "F4",
+      "quarter"
+     ],
+     [
+      "E4",
+      "quarter"
+     ],
+     [
+      "D4",
+      "quarter"
+     ]
+    ]
+   },
+   {
+    "upper": [
+     [
+      "C5",
+      "whole"
+     ]
+    ],
+    "lower": [
+     [
+      "C4",
+      "quarter"
+     ],
+     [
+      "D4",
+      "quarter"
+     ],
+     [
+      "E4",
+      "quarter"
+     ],
+     [
+      "F4",
+      "quarter"
+     ]
+    ]
+   },
+   {
+    "upper": [
+     [
+      "G5",
+      "whole"
+     ]
+    ],
+    "lower": [
+     [
+      "G4",
+      "quarter"
+     ],
+     [
+      "F4",
+      "quarter"
+     ],
+     [
+      "E4",
+      "quarter"
+     ],
+     [
+      "D4",
+      "quarter"
+     ]
+    ]
+   },
+   {
+    "upper": [
+     [
+      "C5",
+      "half"
+     ],
+     [
+      "G5",
+      "half"
+     ]
+    ],
+    "lower": [
+     [
+      "E4",
+      "quarter"
+     ],
+     [
+      "G4",
+      "quarter"
+     ],
+     [
+      "E4",
+      "quarter"
+     ],
+     [
+      "G4",
+      "quarter"
+     ]
+    ]
+   },
+   {
+    "upper": [
+     [
+      "C5",
+      "whole"
+     ]
+    ],
+    "lower": [
+     [
+      "C4",
+      "whole"
+     ]
+    ]
+   }
+  ]
+ },
+ "hot-cross-buns": {
+  "title": "Hot Cross Buns",
+  "time": "4/4",
+  "clefs": [
+   "treble",
+   "bass"
+  ],
+  "measures": [
+   {
+    "upper": [
+     [
+      "E4",
+      "quarter"
+     ],
+     [
+      "D4",
+      "quarter"
+     ],
+     [
+      "C4",
+      "half"
+     ]
+    ],
+    "lower": [
+     [
+      "C3",
+      "whole"
+     ]
+    ]
+   },
+   {
+    "upper": [
+     [
+      "E4",
+      "quarter"
+     ],
+     [
+      "D4",
+      "quarter"
+     ],
+     [
+      "C4",
+      "half"
+     ]
+    ],
+    "lower": [
+     [
+      "G2",
+      "whole"
+     ]
+    ]
+   },
+   {
+    "upper": [
+     [
+      "C4",
+      "quarter"
+     ],
+     [
+      "C4",
+      "quarter"
+     ],
+     [
+      "C4",
+      "quarter"
+     ],
+     [
+      "C4",
+      "quarter"
+     ]
+    ],
+    "lower": [
+     [
+      "C3",
+      "whole"
+     ]
+    ]
+   },
+   {
+    "upper": [
+     [
+      "D4",
+      "quarter"
+     ],
+     [
+      "D4",
+      "quarter"
+     ],
+     [
+      "D4",
+      "quarter"
+     ],
+     [
+      "D4",
+      "quarter"
+     ]
+    ],
+    "lower": [
+     [
+      "G2",
+      "whole"
+     ]
+    ]
+   },
+   {
+    "upper": [
+     [
+      "E4",
+      "quarter"
+     ],
+     [
+      "D4",
+      "quarter"
+     ],
+     [
+      "C4",
+      "half"
+     ]
+    ],
+    "lower": [
+     [
+      "G2",
+      "half"
+     ],
+     [
+      "C3",
+      "half"
+     ]
+    ]
+   }
+  ]
+ },
+ "mary-had-a-little-lamb": {
+  "title": "Mary Had a Little Lamb",
+  "time": "4/4",
+  "clefs": [
+   "treble",
+   "bass"
+  ],
+  "measures": [
+   {
+    "upper": [
+     [
+      "E4",
+      "quarter"
+     ],
+     [
+      "D4",
+      "quarter"
+     ],
+     [
+      "C4",
+      "quarter"
+     ],
+     [
+      "D4",
+      "quarter"
+     ]
+    ],
+    "lower": [
+     [
+      "C3",
+      "whole"
+     ]
+    ]
+   },
+   {
+    "upper": [
+     [
+      "E4",
+      "quarter"
+     ],
+     [
+      "E4",
+      "quarter"
+     ],
+     [
+      "E4",
+      "half"
+     ]
+    ],
+    "lower": [
+     [
+      "C3",
+      "whole"
+     ]
+    ]
+   },
+   {
+    "upper": [
+     [
+      "D4",
+      "quarter"
+     ],
+     [
+      "D4",
+      "quarter"
+     ],
+     [
+      "D4",
+      "half"
+     ]
+    ],
+    "lower": [
+     [
+      "G2",
+      "whole"
+     ]
+    ]
+   },
+   {
+    "upper": [
+     [
+      "E4",
+      "quarter"
+     ],
+     [
+      "G4",
+      "quarter"
+     ],
+     [
+      "G4",
+      "half"
+     ]
+    ],
+    "lower": [
+     [
+      "C3",
+      "whole"
+     ]
+    ]
+   },
+   {
+    "upper": [
+     [
+      "E4",
+      "quarter"
+     ],
+     [
+      "D4",
+      "quarter"
+     ],
+     [
+      "C4",
+      "quarter"
+     ],
+     [
+      "D4",
+      "quarter"
+     ]
+    ],
+    "lower": [
+     [
+      "C3",
+      "whole"
+     ]
+    ]
+   },
+   {
+    "upper": [
+     [
+      "E4",
+      "quarter"
+     ],
+     [
+      "E4",
+      "quarter"
+     ],
+     [
+      "E4",
+      "quarter"
+     ],
+     [
+      "E4",
+      "quarter"
+     ]
+    ],
+    "lower": [
+     [
+      "C3",
+      "whole"
+     ]
+    ]
+   },
+   {
+    "upper": [
+     [
+      "D4",
+      "quarter"
+     ],
+     [
+      "D4",
+      "quarter"
+     ],
+     [
+      "E4",
+      "quarter"
+     ],
+     [
+      "D4",
+      "quarter"
+     ]
+    ],
+    "lower": [
+     [
+      "G2",
+      "whole"
+     ]
+    ]
+   },
+   {
+    "upper": [
+     [
+      "C4",
+      "whole"
+     ]
+    ],
+    "lower": [
+     [
+      "C3",
+      "whole"
+     ]
+    ]
+   }
+  ]
+ },
+ "twinkle-twinkle": {
+  "title": "Twinkle, Twinkle, Little Star",
+  "time": "4/4",
+  "clefs": [
+   "treble",
+   "bass"
+  ],
+  "measures": [
+   {
+    "upper": [
+     [
+      "C4",
+      "quarter"
+     ],
+     [
+      "C4",
+      "quarter"
+     ],
+     [
+      "G4",
+      "quarter"
+     ],
+     [
+      "G4",
+      "quarter"
+     ]
+    ],
+    "lower": [
+     [
+      "C3",
+      "whole"
+     ]
+    ]
+   },
+   {
+    "upper": [
+     [
+      "A4",
+      "quarter"
+     ],
+     [
+      "A4",
+      "quarter"
+     ],
+     [
+      "G4",
+      "half"
+     ]
+    ],
+    "lower": [
+     [
+      "F3",
+      "half"
+     ],
+     [
+      "C3",
+      "half"
+     ]
+    ]
+   },
+   {
+    "upper": [
+     [
+      "F4",
+      "quarter"
+     ],
+     [
+      "F4",
+      "quarter"
+     ],
+     [
+      "E4",
+      "quarter"
+     ],
+     [
+      "E4",
+      "quarter"
+     ]
+    ],
+    "lower": [
+     [
+      "F3",
+      "half"
+     ],
+     [
+      "C3",
+      "half"
+     ]
+    ]
+   },
+   {
+    "upper": [
+     [
+      "D4",
+      "quarter"
+     ],
+     [
+      "D4",
+      "quarter"
+     ],
+     [
+      "C4",
+      "half"
+     ]
+    ],
+    "lower": [
+     [
+      "G2",
+      "half"
+     ],
+     [
+      "C3",
+      "half"
+     ]
+    ]
+   },
+   {
+    "upper": [
+     [
+      "G4",
+      "quarter"
+     ],
+     [
+      "G4",
+      "quarter"
+     ],
+     [
+      "F4",
+      "quarter"
+     ],
+     [
+      "F4",
+      "quarter"
+     ]
+    ],
+    "lower": [
+     [
+      "C3",
+      "half"
+     ],
+     [
+      "F3",
+      "half"
+     ]
+    ]
+   },
+   {
+    "upper": [
+     [
+      "E4",
+      "quarter"
+     ],
+     [
+      "E4",
+      "quarter"
+     ],
+     [
+      "D4",
+      "half"
+     ]
+    ],
+    "lower": [
+     [
+      "C3",
+      "half"
+     ],
+     [
+      "G2",
+      "half"
+     ]
+    ]
+   },
+   {
+    "upper": [
+     [
+      "G4",
+      "quarter"
+     ],
+     [
+      "G4",
+      "quarter"
+     ],
+     [
+      "F4",
+      "quarter"
+     ],
+     [
+      "F4",
+      "quarter"
+     ]
+    ],
+    "lower": [
+     [
+      "C3",
+      "half"
+     ],
+     [
+      "F3",
+      "half"
+     ]
+    ]
+   },
+   {
+    "upper": [
+     [
+      "E4",
+      "quarter"
+     ],
+     [
+      "E4",
+      "quarter"
+     ],
+     [
+      "D4",
+      "half"
+     ]
+    ],
+    "lower": [
+     [
+      "C3",
+      "half"
+     ],
+     [
+      "G2",
+      "half"
+     ]
+    ]
+   },
+   {
+    "upper": [
+     [
+      "C4",
+      "quarter"
+     ],
+     [
+      "C4",
+      "quarter"
+     ],
+     [
+      "G4",
+      "quarter"
+     ],
+     [
+      "G4",
+      "quarter"
+     ]
+    ],
+    "lower": [
+     [
+      "C3",
+      "whole"
+     ]
+    ]
+   },
+   {
+    "upper": [
+     [
+      "A4",
+      "quarter"
+     ],
+     [
+      "A4",
+      "quarter"
+     ],
+     [
+      "G4",
+      "half"
+     ]
+    ],
+    "lower": [
+     [
+      "F3",
+      "half"
+     ],
+     [
+      "C3",
+      "half"
+     ]
+    ]
+   },
+   {
+    "upper": [
+     [
+      "F4",
+      "quarter"
+     ],
+     [
+      "F4",
+      "quarter"
+     ],
+     [
+      "E4",
+      "quarter"
+     ],
+     [
+      "E4",
+      "quarter"
+     ]
+    ],
+    "lower": [
+     [
+      "F3",
+      "half"
+     ],
+     [
+      "C3",
+      "half"
+     ]
+    ]
+   },
+   {
+    "upper": [
+     [
+      "D4",
+      "quarter"
+     ],
+     [
+      "D4",
+      "quarter"
+     ],
+     [
+      "C4",
+      "half"
+     ]
+    ],
+    "lower": [
+     [
+      "G2",
+      "half"
+     ],
+     [
+      "C3",
+      "half"
+     ]
+    ]
+   }
+  ]
+ },
+ "ode-to-joy": {
+  "title": "Ode to Joy",
+  "time": "4/4",
+  "clefs": [
+   "treble",
+   "bass"
+  ],
+  "measures": [
+   {
+    "upper": [
+     [
+      "E4",
+      "quarter"
+     ],
+     [
+      "E4",
+      "quarter"
+     ],
+     [
+      "F4",
+      "quarter"
+     ],
+     [
+      "G4",
+      "quarter"
+     ]
+    ],
+    "lower": [
+     [
+      "C3",
+      "whole"
+     ]
+    ]
+   },
+   {
+    "upper": [
+     [
+      "G4",
+      "quarter"
+     ],
+     [
+      "F4",
+      "quarter"
+     ],
+     [
+      "E4",
+      "quarter"
+     ],
+     [
+      "D4",
+      "quarter"
+     ]
+    ],
+    "lower": [
+     [
+      "G2",
+      "whole"
+     ]
+    ]
+   },
+   {
+    "upper": [
+     [
+      "C4",
+      "quarter"
+     ],
+     [
+      "C4",
+      "quarter"
+     ],
+     [
+      "D4",
+      "quarter"
+     ],
+     [
+      "E4",
+      "quarter"
+     ]
+    ],
+    "lower": [
+     [
+      "C3",
+      "whole"
+     ]
+    ]
+   },
+   {
+    "upper": [
+     [
+      "E4",
+      "dotted-half"
+     ],
+     [
+      "D4",
+      "quarter"
+     ]
+    ],
+    "lower": [
+     [
+      "G2",
+      "whole"
+     ]
+    ]
+   },
+   {
+    "upper": [
+     [
+      "E4",
+      "quarter"
+     ],
+     [
+      "E4",
+      "quarter"
+     ],
+     [
+      "F4",
+      "quarter"
+     ],
+     [
+      "G4",
+      "quarter"
+     ]
+    ],
+    "lower": [
+     [
+      "C3",
+      "whole"
+     ]
+    ]
+   },
+   {
+    "upper": [
+     [
+      "G4",
+      "quarter"
+     ],
+     [
+      "F4",
+      "quarter"
+     ],
+     [
+      "E4",
+      "quarter"
+     ],
+     [
+      "D4",
+      "quarter"
+     ]
+    ],
+    "lower": [
+     [
+      "G2",
+      "whole"
+     ]
+    ]
+   },
+   {
+    "upper": [
+     [
+      "C4",
+      "quarter"
+     ],
+     [
+      "C4",
+      "quarter"
+     ],
+     [
+      "D4",
+      "quarter"
+     ],
+     [
+      "E4",
+      "quarter"
+     ]
+    ],
+    "lower": [
+     [
+      "C3",
+      "whole"
+     ]
+    ]
+   },
+   {
+    "upper": [
+     [
+      "D4",
+      "dotted-half"
+     ],
+     [
+      "C4",
+      "quarter"
+     ]
+    ],
+    "lower": [
+     [
+      "G2",
+      "half"
+     ],
+     [
+      "C3",
+      "half"
+     ]
+    ]
+   }
+  ]
+ },
+ "lightly-row": {
+  "title": "Lightly Row",
+  "time": "4/4",
+  "clefs": [
+   "treble",
+   "bass"
+  ],
+  "measures": [
+   {
+    "upper": [
+     [
+      "G4",
+      "quarter"
+     ],
+     [
+      "E4",
+      "quarter"
+     ],
+     [
+      "E4",
+      "half"
+     ]
+    ],
+    "lower": [
+     [
+      "C3",
+      "whole"
+     ]
+    ]
+   },
+   {
+    "upper": [
+     [
+      "F4",
+      "quarter"
+     ],
+     [
+      "D4",
+      "quarter"
+     ],
+     [
+      "D4",
+      "half"
+     ]
+    ],
+    "lower": [
+     [
+      "G2",
+      "whole"
+     ]
+    ]
+   },
+   {
+    "upper": [
+     [
+      "C4",
+      "quarter"
+     ],
+     [
+      "D4",
+      "quarter"
+     ],
+     [
+      "E4",
+      "quarter"
+     ],
+     [
+      "F4",
+      "quarter"
+     ]
+    ],
+    "lower": [
+     [
+      "C3",
+      "whole"
+     ]
+    ]
+   },
+   {
+    "upper": [
+     [
+      "G4",
+      "quarter"
+     ],
+     [
+      "G4",
+      "quarter"
+     ],
+     [
+      "G4",
+      "half"
+     ]
+    ],
+    "lower": [
+     [
+      "C3",
+      "whole"
+     ]
+    ]
+   },
+   {
+    "upper": [
+     [
+      "G4",
+      "quarter"
+     ],
+     [
+      "E4",
+      "quarter"
+     ],
+     [
+      "E4",
+      "half"
+     ]
+    ],
+    "lower": [
+     [
+      "C3",
+      "whole"
+     ]
+    ]
+   },
+   {
+    "upper": [
+     [
+      "F4",
+      "quarter"
+     ],
+     [
+      "D4",
+      "quarter"
+     ],
+     [
+      "D4",
+      "half"
+     ]
+    ],
+    "lower": [
+     [
+      "G2",
+      "whole"
+     ]
+    ]
+   },
+   {
+    "upper": [
+     [
+      "C4",
+      "quarter"
+     ],
+     [
+      "E4",
+      "quarter"
+     ],
+     [
+      "G4",
+      "quarter"
+     ],
+     [
+      "G4",
+      "quarter"
+     ]
+    ],
+    "lower": [
+     [
+      "C3",
+      "whole"
+     ]
+    ]
+   },
+   {
+    "upper": [
+     [
+      "C4",
+      "whole"
+     ]
+    ],
+    "lower": [
+     [
+      "C3",
+      "whole"
+     ]
+    ]
+   }
+  ]
+ }
+}
