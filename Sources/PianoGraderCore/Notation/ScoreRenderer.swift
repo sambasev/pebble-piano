@@ -213,8 +213,14 @@ public struct ScoreRenderer {
                     guard fingers[next] > 0 else { next += 1; continue }
                     let highest = event.notes.map { clef.staffStep(of: $0.spelled) }.max() ?? 0
                     let aboveStaff = layout.y(ofStep: 8, staff: 0, system: system.index) - 1.4 * s
-                    let aboveNote = layout.y(ofStep: highest, staff: 0, system: system.index) - 4.6 * s
-                    items.append(.text(String(fingers[next]), at: DrawPoint(x, min(aboveStaff, aboveNote)),
+                    // Clear the stem when it points up; a high note's stem points down, so the
+                    // number only has to clear the head (4.6 spaces above it put the numbers for
+                    // the top notes out of the picture).
+                    let clearance = event.stemUp(clef: clef) && event.type.hasStem ? 4.6 : 1.6
+                    let aboveNote = layout.y(ofStep: highest, staff: 0, system: system.index) - clearance * s
+                    // Never above the system's top margin, where it would be cut off.
+                    let y = max(system.top + 0.9 * s, min(aboveStaff, aboveNote))
+                    items.append(.text(String(fingers[next]), at: DrawPoint(x, y),
                                        size: 1.4 * s, color: .ink, anchor: .center, bold: true))
                     next += 1
                 }
