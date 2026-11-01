@@ -162,7 +162,7 @@ private struct PagePlayerView: View {
         switch block {
         case .explain(let b): return b.advanceOn == nil ? "Look" : "Find it"
         case .concept: return "Good to know"
-        case .earTraining: return "Train your ear"
+        case .earTraining: return EarCheckWording.eyebrow(newNotes: runner.page?.newNotes ?? [])
         case .wait: return "Your turn: take your time"
         case .listen: return "Listen"
         case .timed: return "Play in time"
@@ -176,7 +176,7 @@ private struct PagePlayerView: View {
         switch block {
         case .explain(let b): return b.text
         case .concept(let b): return b.text
-        case .earTraining: return "Listen, then choose what you hear."
+        case .earTraining(let b): return EarCheckWording.prompt(newNotes: runner.page?.newNotes ?? [], quizNotes: b.notes)
         case .wait(let b): return b.prompt ?? "Play the notes on the staff."
         case .listen(let b): return b.prompt ?? "Listen first."
         case .timed(let b): return b.prompt ?? "Play along with the clicks."

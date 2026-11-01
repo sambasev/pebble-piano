@@ -73,4 +73,19 @@ final class EarLessonTests: XCTestCase {
         }
         XCTAssertEqual(checks, 3)
     }
+
+    func testEarCheckOnAPianoPageNamesItsNotes() {
+        let e = [NoteName(pitch: 64)]
+        XCTAssertEqual(EarCheckWording.eyebrow(newNotes: e), "Ear check: can you hear E?")
+        XCTAssertEqual(EarCheckWording.prompt(newNotes: e, quizNotes: [0, 2, 4]),
+                       "You just played C, D and E. Now find them by ear.")
+        XCTAssertEqual(EarCheckWording.prompt(newNotes: [NoteName(pitch: 65)], quizNotes: [4, 0, 2, 5]),
+                       "You just played C, D, E and F. Now find them by ear.")
+        XCTAssertEqual(EarCheckWording.prompt(newNotes: e, quizNotes: nil), "You just played E. Now find it by ear.")
+    }
+
+    func testEarCourseKeepsTheGeneralWording() {
+        XCTAssertEqual(EarCheckWording.eyebrow(newNotes: []), "Train your ear")
+        XCTAssertEqual(EarCheckWording.prompt(newNotes: [], quizNotes: [0, 2]), "Listen, then choose what you hear.")
+    }
 }
