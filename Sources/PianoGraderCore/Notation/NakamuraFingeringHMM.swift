@@ -98,6 +98,14 @@ public struct NakamuraFingeringHMM: Sendable {
             else if finger == 5 { cost += 1.5 }
         }
 
+        // Finger naturalness / independence preference (Nakamura & Parncutt)
+        // Fingers 1, 2, 3 are primary. Finger 4 is weakest and mechanically coupled; finger 5 is shorter.
+        if finger == 4 {
+            cost += 0.5
+        } else if finger == 5 {
+            cost += 0.2
+        }
+
         return cost
     }
 
@@ -254,16 +262,50 @@ public struct NakamuraFingeringHMM: Sendable {
 
         // Initial step t = 0
         let p0 = pitches[0]
-        let midPitch = KeyboardGeometry.x(pitches[min(pitches.count - 1, 4)])
+        let phrase = Array(pitches.prefix(min(pitches.count, 16)))
+        let phraseXs = phrase.map { KeyboardGeometry.x($0) }
+        let minX = phraseXs.min() ?? KeyboardGeometry.x(p0)
+        let maxX = phraseXs.max() ?? KeyboardGeometry.x(p0)
+        let phraseSpan = maxX - minX
+
+        let targetAnchor: Double
+        if hand == .right {
+            if phraseSpan <= 4.0 {
+                // In standard 5-finger position, thumb (finger 1) rests on the lowest note
+                targetAnchor = minX
+            } else {
+                let x0 = KeyboardGeometry.x(p0)
+                if abs(x0 - minX) <= 1.0 {
+                    targetAnchor = x0
+                } else if abs(x0 - maxX) <= 1.0 {
+                    targetAnchor = x0 - 4.0
+                } else {
+                    targetAnchor = ((minX + maxX) / 2.0) - 2.0
+                }
+            }
+        } else {
+            if phraseSpan <= 4.0 {
+                // In standard 5-finger position for left hand, pinky (finger 5) rests on lowest note
+                targetAnchor = minX
+            } else {
+                let x0 = KeyboardGeometry.x(p0)
+                if abs(x0 - minX) <= 1.0 {
+                    targetAnchor = x0
+                } else if abs(x0 - maxX) <= 1.0 {
+                    targetAnchor = x0 - 4.0
+                } else {
+                    targetAnchor = ((minX + maxX) / 2.0) - 2.0
+                }
+            }
+        }
 
         for (si, s) in states.enumerated() {
             if let explicitAnchor = anchors[0], explicitAnchor != s.finger { continue }
             let xh = candidateAnchors[s.anchorIndex]
             let rCost = reachCost(pitch: p0, finger: s.finger, xh: xh, hand: hand)
             if rCost < 25.0 {
-                // Hand placement prior: center of hand near initial phrase notes
-                let handCenter = xh + 2.0
-                let prior = abs(handCenter - midPitch) * 0.25
+                // Hand placement prior: prefer anchor matching target position
+                let prior = abs(xh - targetAnchor) * 0.5
                 dp[0][si] = rCost + prior
             }
         }

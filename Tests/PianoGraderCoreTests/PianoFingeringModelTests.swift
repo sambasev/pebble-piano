@@ -149,4 +149,26 @@ final class PianoFingeringModelTests: XCTestCase {
         let m18Fingers = fingered.filter { $0.measureNumber == 18 }.map(\.finger)
         XCTAssertEqual(m18Fingers, [3, 3, 4, 5], "Measure 18 (E E F G) should be finger 3 3 4 5")
     }
+
+    func testHotCrossBunsFingering() {
+        // Hot Cross Buns: E4, D4, C4, E4, D4, C4, C4 C4 C4 C4, D4 D4 D4 D4, E4 D4 C4
+        let pitches = [64, 62, 60, 64, 62, 60, 60, 60, 60, 60, 62, 62, 62, 62, 64, 62, 60]
+        let fingers = NakamuraFingeringHMM.solveMonophonic(pitches: pitches, hand: .right)
+        XCTAssertEqual(Array(fingers.prefix(3)), [3, 2, 1], "Initial three notes must be 3 2 1")
+        XCTAssertEqual(fingers, [
+            3, 2, 1,
+            3, 2, 1,
+            1, 1, 1, 1,
+            2, 2, 2, 2,
+            3, 2, 1
+        ], "Entire Hot Cross Buns in RH C-position must use fingers 3, 2, 1")
+    }
+
+    func testMaryHadALittleLambFingering() {
+        // Mary Had a Little Lamb: E4 D4 C4 D4 E4 E4 E4, D4 D4 D4, E4 G4 G4...
+        let pitches = [64, 62, 60, 62, 64, 64, 64, 62, 62, 62, 64, 67, 67]
+        let fingers = NakamuraFingeringHMM.solveMonophonic(pitches: pitches, hand: .right)
+        XCTAssertEqual(Array(fingers.prefix(4)), [3, 2, 1, 2])
+        XCTAssertEqual(fingers, [3, 2, 1, 2, 3, 3, 3, 2, 2, 2, 3, 5, 5])
+    }
 }
