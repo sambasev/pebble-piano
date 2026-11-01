@@ -1654,8 +1654,11 @@ final class PlaySession: ObservableObject {
 
     var displayRange: ClosedRange<Int> { Self.keyboardRange }
 
-    /// Computer key for a pitch at the current octave, if any.
+    /// The computer key that plays `pitch` (musical typing), shown on the on-screen keyboard
+    /// only when the learner plays on the computer keyboard; for a piano (microphone or
+    /// Bluetooth MIDI) the letters would only confuse.
     func keyLabel(for pitch: Int) -> String? {
+        guard chosenInput == .computerKeyboard else { return nil }
         let offset = pitch - typing.basePitch
         return MusicalTyping.noteKeys.first(where: { $0.value == offset }).map { String($0.key).uppercased() }
     }
