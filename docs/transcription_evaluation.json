@@ -1,0 +1,59 @@
+{
+  "models" : [
+    {
+      "detected_count" : 72,
+      "f1" : 0.90789473684210542,
+      "latency_p50_ms" : 88.999999999999972,
+      "latency_p95_ms" : 89.000000000001307,
+      "matched_count" : 69,
+      "name" : "Score-Informed NMF",
+      "precision" : 0.95833333333333337,
+      "recall" : 0.86250000000000004,
+      "truth_count" : 80
+    },
+    {
+      "detected_count" : 68,
+      "f1" : 0.90540540540540548,
+      "latency_p50_ms" : 88.999999999999972,
+      "latency_p95_ms" : 89.000000000001307,
+      "matched_count" : 67,
+      "name" : "Free-Play NMF (Unguided)",
+      "precision" : 0.98529411764705888,
+      "recall" : 0.83750000000000002,
+      "truth_count" : 80
+    },
+    {
+      "detected_count" : 129,
+      "f1" : 0.55502392344497609,
+      "latency_p50_ms" : 88.333333333333371,
+      "latency_p95_ms" : 94.333333333332973,
+      "matched_count" : 58,
+      "name" : "Spectral Peak (Baseline)",
+      "precision" : 0.44961240310077522,
+      "recall" : 0.72499999999999998,
+      "truth_count" : 80
+    },
+    {
+      "detected_count" : 80,
+      "f1" : 0.86250000000000004,
+      "latency_p50_ms" : 64.999999999999943,
+      "latency_p95_ms" : 65.000000000001279,
+      "matched_count" : 69,
+      "name" : "NMF (Fast 30ms Delay)",
+      "precision" : 0.86250000000000004,
+      "recall" : 0.86250000000000004,
+      "truth_count" : 80
+    },
+    {
+      "detected_count" : 72,
+      "f1" : 0.90789473684210542,
+      "latency_p50_ms" : 88.999999999999972,
+      "latency_p95_ms" : 89.000000000001307,
+      "matched_count" : 69,
+      "name" : "NMF (5 Iterations)",
+      "precision" : 0.95833333333333337,
+      "recall" : 0.86250000000000004,
+      "truth_count" : 80
+    }
+  ]
+}

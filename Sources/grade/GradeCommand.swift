@@ -15,8 +15,9 @@ struct Grade: ParsableCommand {
           grade check --fixtures fixtures
           grade transcribe song.mid -o song.musicxml
           grade listen take.wav --truth take.mid --guide lesson12a.mid
+          grade eval --environment dry,room --markdown report.md
         """,
-        subcommands: [Score.self, CheckFixtures.self, Transcribe.self, Listen.self, Calibrate.self],
+        subcommands: [Score.self, CheckFixtures.self, Transcribe.self, Listen.self, Calibrate.self, Evaluate.self],
         defaultSubcommand: Score.self
     )
 }
