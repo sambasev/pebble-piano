@@ -2551,14 +2551,17 @@ extension PlaySession {
     /// Whose progress: the learner's ID, or "default" when there's none.
     var tutorLearnerKey: String { learner?.id.uuidString ?? "default" }
 
-    /// The saved lesson progress for the piece open in Practice (before tutoring starts).
+    /// This learner's saved lesson progress on the piece open in Practice (before tutoring
+    /// starts), when they've done something in it.
     var savedTutorProgress: PiecePracticeEngine.Progress? {
-        guard let url = referenceURL else { return nil }
-        return PieceLessonStore.progress(PieceLessonStore.key(for: url), learner: tutorLearnerKey)
+        guard let url = referenceURL,
+              let saved = PieceLessonStore.progress(PieceLessonStore.key(for: url), learner: tutorLearnerKey),
+              saved.isUnderWay else { return nil }
+        return saved
     }
 
     func saveTutorProgress() {
-        guard tutorSavesProgress, let key = tutorPieceKey, let progress = tutor?.progress else { return }
+        guard tutorSavesProgress, let key = tutorPieceKey, let progress = tutor?.progress, progress.isUnderWay else { return }
         PieceLessonStore.save(progress, key: key, learner: tutorLearnerKey)
     }
 

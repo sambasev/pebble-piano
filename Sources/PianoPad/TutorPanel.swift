@@ -30,7 +30,7 @@ struct TutorPanel: View {
                     let done = saved.completedSteps.count
                     let total = saved.stepCount.map { " of \($0)" } ?? ""
                     Text(saved.mastered ? "You've passed this piece with the tutor\(saved.lastStars.map { " (\($0) ★)" } ?? "")."
-                         : "Your lesson on this piece is under way: \(done)\(total) steps done.")
+                         : "\(session.learner.map { "\($0.name)'s" } ?? "Your") lesson on this piece is under way: \(done)\(total) steps done.")
                         .font(.callout)
                     Button {
                         session.beginTutoring(planLesson: true)

@@ -110,6 +110,12 @@ public struct PiecePracticeEngine: Sendable {
         public var saved: Date
         /// Steps in the plan (nil in progress saved before this was kept).
         public var stepCount: Int?
+
+        /// Something has been done: a step passed, a later step reached, a Perform played, or
+        /// the plan left for the drills. Opening a lesson and leaving it isn't progress.
+        public var isUnderWay: Bool {
+            !completedSteps.isEmpty || (stepIndex ?? 1) > 0 || lastStars != nil || mastered
+        }
     }
 
     public var progress: Progress? {

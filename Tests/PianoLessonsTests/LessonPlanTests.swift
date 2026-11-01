@@ -260,6 +260,13 @@ final class LessonPlanTests: XCTestCase {
         XCTAssertEqual(different.stepIndex, 0)
     }
 
+    func testOpeningALessonIsNotProgress() throws {
+        var engine = PiecePracticeEngine(measureCount: 8, plan: .fallback(for: twoHandPiece(bars: 8)))
+        XCTAssertFalse(try XCTUnwrap(engine.progress).isUnderWay)
+        engine.completeStep()
+        XCTAssertTrue(try XCTUnwrap(engine.progress).isUnderWay)
+    }
+
     // MARK: Learn page
 
     func testLessonPageForLearn() throws {
