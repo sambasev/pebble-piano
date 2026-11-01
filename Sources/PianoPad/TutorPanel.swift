@@ -11,6 +11,7 @@ struct TutorPanel: View {
             if let engine = session.tutor {
                 Text(session.tutorAI.isEmpty ? session.tutorText : session.tutorAI)
                 if session.tutorBusy { ProgressView("Preparing explanation…") }
+                if let note = session.tutorNote { Text(note).font(.caption).foregroundStyle(.secondary) }
                 Text("\(engine.exercise.title) · bars \(engine.exercise.measures.lowerBound)–\(engine.exercise.measures.upperBound) · \(Int(engine.exercise.tempoPercent))%")
                 Text("Clean runs: \(engine.cleanStreak)/\(engine.needed)").font(.caption)
                 if session.tutorAttempt == nil {
@@ -36,8 +37,8 @@ struct TutorPanel: View {
                 }
                 Button("Move on from exercise") { session.tutor?.skip() }
                 HStack {
-                    Button("What went wrong?") { session.askTutor("What went wrong?") }
-                    Button("Why this exercise?") { session.askTutor("Why this exercise?") }
+                    Button("What went wrong?") { session.askTutor("What went wrong?", userAsked: true) }
+                    Button("Why this exercise?") { session.askTutor("Why this exercise?", userAsked: true) }
                 }.disabled(session.phase == .recording)
                 Button("End tutoring") { session.endTutoring() }
             } else if session.reference?.notes.isEmpty == false {

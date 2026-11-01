@@ -39,6 +39,7 @@ final class TutorPlayerTests: XCTestCase {
 #endif
 
 #if os(macOS)
+import PianoAI
 import PianoLessons
 private struct FailingTutorFeedback: TutorFeedbackClient {
     func explain(context: String, question: String) async throws -> String { throw URLError(.notConnectedToInternet) }
@@ -52,6 +53,21 @@ private actor DelayedTutorFeedback: TutorFeedbackClient {
     func finish() { continuation?.resume(returning: "Old response"); continuation = nil }
 }
 extension TutorPlayerTests {
+    @MainActor func testAskingWithoutAKeyExplainsAndKeepsGuidance() {
+        let session = player()
+        session.makeTutorFeedbackClient = { throw ModelError.missingKey(.meta) }
+        session.beginTutoring()
+        let original = session.tutorText
+        session.askTutor("Tell me how that went.")
+        XCTAssertNil(session.tutorNote, "Automatic comments stay quiet without a key")
+        session.askTutor("What went wrong?", userAsked: true)
+        XCTAssertFalse(session.tutorBusy)
+        XCTAssertEqual(session.tutorText, original)
+        XCTAssertEqual(session.tutorAI, "")
+        XCTAssertNotNil(session.tutorNote)
+        session.endTutoring()
+        XCTAssertNil(session.tutorNote)
+    }
     @MainActor func testOfflineFallbackPreservesGuidance() async throws {
         let session = player()
         session.beginTutoring()

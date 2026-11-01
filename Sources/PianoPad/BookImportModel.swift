@@ -77,6 +77,9 @@ final class BookImportModel: ObservableObject {
     /// Changes when a system's bars change, so its engraving is redrawn.
     @Published private(set) var engravingIDs: [Int: UUID] = [:]
     @Published var message: String?
+    /// Says what needs a Meta key, when a feature that uses one is tried without it. Not an error:
+    /// the rest of the app, and pieces already read, work without a key.
+    @Published var aiKeyNote: String?
     /// The bundled books and the ones the learner opened.
     @Published private(set) var library: [LibraryBook] = []
     /// Pieces read and saved, newest first.
@@ -114,6 +117,7 @@ final class BookImportModel: ObservableObject {
             message = "Couldn't open \(url.lastPathComponent)."
             return
         }
+        aiKeyNote = nil
         document = doc
         documentURL = url
         pageCount = doc.pageCount
@@ -178,13 +182,9 @@ final class BookImportModel: ObservableObject {
 
     func read() {
         guard let selection, let page = pageGray else { return }
-        let client: ModelClient
-        do {
-            client = try ModelClient.configured(.meta)
-        } catch {
-            message = (error as? LocalizedError)?.errorDescription ?? "\(error)"
-            return
-        }
+        // No key is fine as long as every line has a saved reading (see `finishReading`).
+        let client = try? ModelClient.configured(.meta)
+        aiKeyNote = nil
         reads = selection.enumerated().compactMap { pair -> SystemRead? in
             let (k, i) = pair
             let crop = SystemFinder.crop(page, systems[i])
@@ -206,7 +206,7 @@ final class BookImportModel: ObservableObject {
         }
     }
 
-    private func readSystem(_ id: Int, png: Data, client: ModelClient, fresh: Bool) async {
+    private func readSystem(_ id: Int, png: Data, client: ModelClient?, fresh: Bool) async {
         await setStep(id, .measuring)
         do {
             // Measure first (under a second): the bar count tells the model how many bars to read.
@@ -219,6 +219,8 @@ final class BookImportModel: ObservableObject {
                 self.reads[id].geometry = measured
                 self.reads[id].step = .done
             }
+        } catch ModelError.missingKey(_) {
+            await setStep(id, .failed(Self.keyNeededReason))
         } catch {
             await setStep(id, .failed((error as? LocalizedError)?.errorDescription ?? "\(error)"))
         }
@@ -228,7 +230,15 @@ final class BookImportModel: ObservableObject {
         await MainActor.run { self.reads[id].step = step }
     }
 
+    private static let keyNeededReason = "it needs a Meta key"
+
     private func finishReading() {
+        if reads.contains(where: { $0.step == .failed(Self.keyNeededReason) }) {
+            reads = []
+            phase = .choosing
+            aiKeyNote = "Reading a new piece needs a Meta key, which you can add in AI settings. Pieces you've already read, and the rest of PerfectPiano, work without one."
+            return
+        }
         guard reads.allSatisfy({ $0.step == .done }) else {
             message = "Some lines couldn't be read. Check your connection and try again."
             return
@@ -265,18 +275,26 @@ final class BookImportModel: ObservableObject {
     }
 
     /// Readings are cached by image, so reading the same piece again is instant (and free).
-    static func cachedReading(png: Data, client: ModelClient, reader: SystemReader? = nil, expectedMeasures: Int? = nil,
+    static func cachedReading(png: Data, client: ModelClient?, reader: SystemReader? = nil, expectedMeasures: Int? = nil,
                               fresh: Bool = false) async throws -> SystemReading {
-        // The key covers the image and how it was asked (v2: with the measured bar count).
-        let key = SHA256.hash(data: png).map { String(format: "%02x", $0) }.joined() + "-v2-\(expectedMeasures ?? 0)"
-        let url = cacheFolder.appendingPathComponent("\(key).json")
-        if !fresh, let data = try? Data(contentsOf: url), let cached = try? JSONDecoder().decode(SystemReading.self, from: data) {
+        let url = cacheURL(png: png, expectedMeasures: expectedMeasures)
+        let activeReader = reader ?? client.map { SystemReader(client: $0) }
+        // Without a key a saved reading is still used, even when asked to read again.
+        if !fresh || activeReader == nil, let data = try? Data(contentsOf: url),
+           let cached = try? JSONDecoder().decode(SystemReading.self, from: data) {
             return cached
         }
-        let reading = try await (reader ?? SystemReader(client: client)).read(png: png, expectedMeasures: expectedMeasures)
+        guard let activeReader else { throw ModelError.missingKey(.meta) }
+        let reading = try await activeReader.read(png: png, expectedMeasures: expectedMeasures)
         try? FileManager.default.createDirectory(at: cacheFolder, withIntermediateDirectories: true)
         try? JSONEncoder().encode(reading).write(to: url)
         return reading
+    }
+
+    /// The key covers the image and how it was asked (v2: with the measured bar count).
+    static func cacheURL(png: Data, expectedMeasures: Int?) -> URL {
+        let key = SHA256.hash(data: png).map { String(format: "%02x", $0) }.joined() + "-v2-\(expectedMeasures ?? 0)"
+        return cacheFolder.appendingPathComponent("\(key).json")
     }
 
     static var cacheFolder: URL {
@@ -344,11 +362,12 @@ final class BookImportModel: ObservableObject {
             message = "Bar \(id) couldn't be found on the page, so it can't be read again. Nudge its notes or tap That's right."
             return
         }
-        let client: ModelClient
-        do { client = try ModelClient.configured(.meta) } catch {
-            message = (error as? LocalizedError)?.errorDescription ?? "\(error)"
+        guard let client = try? ModelClient.configured(.meta) else {
+            aiKeyNote = "Reading a bar again needs a Meta key, which you can add in AI settings. You can still nudge its notes or tap That's right."
+            if message?.hasPrefix("The first reading skipped") == true { message = nil }
             return
         }
+        aiKeyNote = nil
         // The bar alone, with its clefs' context lost: zoom by cropping just this bar.
         let pad = Int(0.6 * g.upper.spacing)
         let x0 = max(0, Int(g.barEdges[j]) - pad)
@@ -396,6 +415,7 @@ final class BookImportModel: ObservableObject {
     }
 
     func startOver() {
+        aiKeyNote = nil
         phase = .choosing
         reads = []
         bars = []

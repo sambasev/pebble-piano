@@ -7,6 +7,7 @@ import SwiftUI
 /// The Books tab: open a book, pick a piece by its systems, read it, review it, practise it.
 struct BooksView: View {
     @ObservedObject var model: BookImportModel
+    @State private var showAISettings = false
 
     var body: some View {
         HStack(alignment: .top, spacing: PP.Space.s4) {
@@ -15,6 +16,13 @@ struct BooksView: View {
             VStack(alignment: .leading, spacing: PP.Space.s3) {
                 if let message = model.message {
                     Text(message).font(.ppCallout).foregroundColor(PP.warning)
+                }
+                if let note = model.aiKeyNote {
+                    HStack(spacing: PP.Space.s3) {
+                        Text(note).font(.ppCallout).foregroundColor(PP.inkMuted)
+                            .fixedSize(horizontal: false, vertical: true)
+                        Button("AI settings…") { showAISettings = true }
+                    }
                 }
                 if model.documentURL == nil {
                     emptyState
@@ -29,6 +37,9 @@ struct BooksView: View {
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
         }
         .onAppear { model.refreshLibrary() }
+        .sheet(isPresented: $showAISettings) {
+            AISettingsView { showAISettings = false; model.aiKeyNote = nil }
+        }
     }
 
     private var emptyState: some View {

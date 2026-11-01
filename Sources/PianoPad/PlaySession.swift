@@ -436,6 +436,10 @@ final class PlaySession: ObservableObject {
     var tutorBeforeAttempt: PiecePracticeEngine?
     var tutorAttempt: PracticeExercise?
     var tutorFeedbackClient: (any TutorFeedbackClient)?
+    /// Where the tutor's model comes from, when `tutorFeedbackClient` isn't set. Throws without a key.
+    var makeTutorFeedbackClient: () throws -> any TutorFeedbackClient = { try ModelTutorFeedbackClient.configured() }
+    /// Says why a question got no model answer. The local guidance stays on screen either way.
+    @Published var tutorNote: String?
     var tutorContext = ""
     var tutorRecent: [String] = []
 
@@ -2347,13 +2351,13 @@ extension PlaySession {
         let persona = learnerSettings.persona == "kriti" ? Persona.kriti : Persona.alex
         tutor = PiecePracticeEngine(measureCount: reference.measureCount, persona: persona)
         tutorText = "Try the piece so I can find what to practise. You can hear it first or learn the notes."
-        tutorRecent = []; tutorContext = ""; tutorBeforeAttempt = nil; tutorAI = ""
+        tutorRecent = []; tutorContext = ""; tutorBeforeAttempt = nil; tutorAI = ""; tutorNote = nil
     }
     func endTutoring() {
         guard tutor != nil else { return }
         tutorGeneration = UUID(); tutorTask?.cancel(); tutorTask = nil; tutorBusy = false
         resetAll()
-        tutor = nil; tutorAttempt = nil; tutorBeforeAttempt = nil; tutorAI = ""; tutorContext = ""
+        tutor = nil; tutorAttempt = nil; tutorBeforeAttempt = nil; tutorAI = ""; tutorContext = ""; tutorNote = nil
         if let full = tutorFullReference {
             sourceReference = full; reference = full
             chords = ChordGrouping.group(full.notes, window: rubric.chordWindowMs / 1000)
@@ -2366,7 +2370,7 @@ extension PlaySession {
     }
     func startTutorExercise() {
         guard let e = tutor?.exercise, let full = tutorFullReference else { return }
-        tutorGeneration = UUID(); tutorTask?.cancel(); tutorBusy = false; tutorAI = ""
+        tutorGeneration = UUID(); tutorTask?.cancel(); tutorBusy = false; tutorAI = ""; tutorNote = nil
         resetAll(); tutorBeforeAttempt = tutor; tutorAttempt = e
         let sliced = full.measures(e.measures)
         sourceReference = sliced; reference = sliced
@@ -2408,15 +2412,18 @@ extension PlaySession {
         tutorContext += " Deterministic grading evidence (measurements for interpretation, not for reciting): " + measurements
         askTutor("Tell me how that attempt went, like my piano teacher, and guide me into the selected exercise.")
     }
-    func askTutor(_ question: String) {
-        tutorTask?.cancel(); tutorGeneration = UUID(); tutorAI = ""; tutorBusy = false
+    /// `userAsked`: the learner pressed a question button, so they should hear if there's no answer.
+    func askTutor(_ question: String, userAsked: Bool = false) {
+        tutorTask?.cancel(); tutorGeneration = UUID(); tutorAI = ""; tutorBusy = false; tutorNote = nil
         let generation = tutorGeneration
         let context = tutorContext.isEmpty ? tutorText : tutorContext
         let client: any TutorFeedbackClient
         do {
-            client = try tutorFeedbackClient ?? ModelTutorFeedbackClient.configured()
+            client = try tutorFeedbackClient ?? makeTutorFeedbackClient()
         } catch {
-            return // Local teacher guidance remains available without a configured key.
+            // Local teacher guidance remains available without a configured key.
+            if userAsked { tutorNote = "Longer answers need a Meta key, which you can add in AI settings. The guidance above comes from your own playing." }
+            return
         }
         tutorBusy = true
         tutorTask = Task { @MainActor [weak self] in
@@ -2427,6 +2434,7 @@ extension PlaySession {
             } catch {
                 guard let self, self.tutorGeneration == generation else { return }
                 self.tutorBusy = false; self.tutorAI = "" // Keep the local teacher guidance visible on failure.
+                if userAsked, !Task.isCancelled { self.tutorNote = "Couldn't reach the tutor just now. The guidance above comes from your own playing." }
             }
         }
     }
