@@ -135,9 +135,9 @@ struct PebbleLook {
 enum Pebble {
     /// Faces (pupils, mouths) stay dark in both themes, inside the coloured body.
     static let ink = Color(hex: 0x1B1630)
-    /// Limbs, feet and outlines follow the theme's ink: dark on a light page, near-white on a
-    /// dark one, so they never disappear into the background.
-    static let line = PP.ink
+    /// Limbs, feet and outlines: a soft grey-lilac that shows on either theme without
+    /// standing out (a muted dark grey on a light page, a dim lilac-grey on a dark one).
+    static let line = Color.pp(0x4B4566, 0x7A7399)
 
     /// A foot in the drawing: its centre across (design units) and how far it's lifted, 0...1.
     struct Foot {
