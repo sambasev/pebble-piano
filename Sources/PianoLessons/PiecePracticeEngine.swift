@@ -2,13 +2,60 @@ import Foundation
 import PianoGraderCore
 
 public struct PracticeExercise: Equatable, Codable, Sendable {
-    public enum Kind: String, Codable, Sendable { case assessment, notes, slow, fullSpeed, context }
+    public enum Kind: String, Codable, Sendable {
+        case assessment, notes, slow, fullSpeed, context
+        /// The app plays the music; nothing to grade.
+        case listen
+        /// One note the learner hasn't met: find it and play it (wait mode, one note).
+        case newNote
+        /// The whole piece at full speed, for stars.
+        case perform
+    }
     public var kind: Kind
     public var measures: ClosedRange<Int>
     public var tempoPercent: Double
-    public var title: String { kind == .assessment ? "Play the whole piece" : kind == .notes ? "Learn note by note" : kind == .slow ? "Slowly, in time" : kind == .context ? "With surrounding bars" : "Full speed" }
-    public init(kind: Kind, measures: ClosedRange<Int>, tempoPercent: Double = 100) {
+    /// One hand only; nil plays both.
+    public var hand: Hand?
+    /// The note a `.newNote` step introduces.
+    public var note: NoteName?
+    /// The phrase this step practises ("Phrase 2"), when it follows a lesson plan.
+    public var label: String?
+
+    public var title: String {
+        let base: String
+        switch kind {
+        case .assessment: base = "Play the whole piece"
+        case .notes: base = "Learn note by note"
+        case .slow: base = "Slowly, in time"
+        case .fullSpeed: base = "Full speed"
+        case .context: base = "With surrounding bars"
+        case .listen: base = "Listen"
+        case .newNote: base = "New note: \(note?.letter ?? "")"
+        case .perform: base = "Perform"
+        }
+        switch hand {
+        case .right?: return "Right hand · " + base.lowercasedFirst
+        case .left?: return "Left hand · " + base.lowercasedFirst
+        default: return base
+        }
+    }
+
+    /// "Phrase 1 (bars 1–4)", "Bars 1–8", "Bar 3".
+    public var whereText: String {
+        let bars = measures.count == 1 ? "bar \(measures.lowerBound)" : "bars \(measures.lowerBound)–\(measures.upperBound)"
+        guard let label else { return bars.capitalizedFirst }
+        return "\(label) (\(bars))"
+    }
+
+    /// Played in wait mode (the music waits for each note).
+    public var isWaitMode: Bool { kind == .notes || kind == .newNote }
+    /// Graded on the clicks.
+    public var isTimed: Bool { [.assessment, .slow, .fullSpeed, .context, .perform].contains(kind) }
+
+    public init(kind: Kind, measures: ClosedRange<Int>, tempoPercent: Double = 100, hand: Hand? = nil,
+                note: NoteName? = nil, label: String? = nil) {
         self.kind = kind; self.measures = measures; self.tempoPercent = tempoPercent
+        self.hand = hand; self.note = note; self.label = label
     }
     public func originalMeasure(_ local: Int) -> Int { measures.lowerBound + local - 1 }
     public func printedMeasure(_ local: Int, playOrder: [Int]) -> Int {
@@ -17,7 +64,20 @@ public struct PracticeExercise: Equatable, Codable, Sendable {
     }
 }
 
+private extension String {
+    var lowercasedFirst: String { prefix(1).lowercased() + dropFirst() }
+    var capitalizedFirst: String { prefix(1).uppercased() + dropFirst() }
+}
+
 /// Decisions depend only on grading evidence. Language models never advance this engine.
+///
+/// Two ways through a piece:
+/// - **Following a lesson plan** (`plan` given): listen, new notes, each phrase (hands
+///   separately, then together, then slowly in time), the phrases joined, the whole piece
+///   slowly, then Perform for stars.
+/// - **Adaptive** (no plan, after the plan's Perform, or "Assess me instead"): play the whole
+///   piece, then drill the phrase around the worst bar (note by note, slow, full speed, with
+///   the bars around it) and assess again.
 public struct PiecePracticeEngine: Sendable {
     public let measureCount: Int
     public let persona: Persona
@@ -25,38 +85,174 @@ public struct PiecePracticeEngine: Sendable {
     public private(set) var cleanStreak = 0
     public private(set) var runs = 0
     public private(set) var mastered = false
+    /// The plan being followed, or the one the adaptive drills take phrases from.
+    public private(set) var plan: LessonPlan?
+    /// The plan's steps, in order (empty without a plan).
+    public private(set) var steps: [PracticeExercise] = []
+    /// Where the learner is in `steps`; nil when not following the plan.
+    public private(set) var stepIndex: Int?
+    /// Steps of the plan passed (or skipped) so far.
+    public private(set) var completedSteps: Set<Int> = []
+    /// Stars from the last Perform run.
+    public private(set) var lastStars: Int?
     private var queue: [PracticeExercise] = []
-    public init(measureCount: Int, persona: Persona = .alex) {
+
+    public init(measureCount: Int, persona: Persona = .alex, plan: LessonPlan? = nil) {
         self.measureCount = max(1, measureCount); self.persona = persona
         exercise = PracticeExercise(kind: .assessment, measures: 1...max(1, measureCount))
+        if let plan { follow(plan) }
     }
-    public var needed: Int { exercise.kind == .notes ? 1 : persona.drill.cleanRunsNeeded }
+
+    public var isFollowingPlan: Bool { stepIndex != nil }
+
+    public var needed: Int {
+        switch exercise.kind {
+        case .notes, .newNote, .listen, .perform: return 1
+        default: return persona.drill.cleanRunsNeeded
+        }
+    }
+
+    // MARK: The plan
+
+    /// The steps for a plan, in teaching order.
+    public static func steps(for plan: LessonPlan, measureCount: Int, persona: Persona) -> [PracticeExercise] {
+        let count = max(1, measureCount)
+        let whole = 1...count
+        let slow = persona.drill.slowTempoPercent
+        var out: [PracticeExercise] = [.init(kind: .listen, measures: whole)]
+        for n in plan.newNotes {
+            out.append(.init(kind: .newNote, measures: whole, hand: n.hand, note: n.note))
+        }
+        for p in plan.phrases {
+            let bars = max(1, min(count, p.bars.lowerBound))...max(1, min(count, p.bars.upperBound))
+            if plan.handsSeparately {
+                out.append(.init(kind: .notes, measures: bars, hand: .right, label: p.label))
+                out.append(.init(kind: .notes, measures: bars, hand: .left, label: p.label))
+            }
+            out.append(.init(kind: .notes, measures: bars, label: p.label))
+            out.append(.init(kind: .slow, measures: bars, tempoPercent: slow, label: p.label))
+        }
+        if plan.phrases.count > 1 {
+            for i in 1..<plan.phrases.count {
+                let a = plan.phrases[i - 1], b = plan.phrases[i]
+                out.append(.init(kind: .slow, measures: max(1, a.bars.lowerBound)...min(count, b.bars.upperBound),
+                                 tempoPercent: slow, label: "\(a.label) + \(b.label)"))
+            }
+        }
+        if plan.phrases.count > 2 { out.append(.init(kind: .slow, measures: whole, tempoPercent: slow)) }
+        out.append(.init(kind: .perform, measures: whole))
+        // No step twice in a row (a one-phrase piece: its slow step is the whole piece).
+        return out.enumerated().filter { i, step in
+            i == 0 || !(out[i - 1].kind == step.kind && out[i - 1].measures == step.measures && out[i - 1].hand == step.hand)
+        }.map(\.element)
+    }
+
+    /// Starts following `plan` from its first step.
+    public mutating func follow(_ plan: LessonPlan) {
+        self.plan = plan
+        steps = Self.steps(for: plan, measureCount: measureCount, persona: persona)
+        completedSteps = []
+        queue = []; mastered = false; lastStars = nil
+        jump(to: 0)
+    }
+
+    /// Goes to step `index` of the plan (the checklist).
+    public mutating func jump(to index: Int) {
+        guard steps.indices.contains(index) else { return }
+        stepIndex = index
+        exercise = steps[index]
+        cleanStreak = 0; runs = 0
+    }
+
+    /// A step with nothing to grade (listen) is done.
+    public mutating func completeStep() {
+        guard let i = stepIndex else { return }
+        completedSteps.insert(i)
+        nextStep()
+    }
+
+    /// Leaves the plan for the adaptive loop: play the whole piece to find what to practise.
+    public mutating func assessInstead() {
+        stepIndex = nil
+        reassess()
+    }
+
+    private mutating func nextStep() {
+        guard let i = stepIndex else { return }
+        if i + 1 < steps.count {
+            jump(to: i + 1)
+        } else {
+            stepIndex = nil
+            exercise = .init(kind: .assessment, measures: 1...measureCount)
+            cleanStreak = 0; runs = 0
+        }
+    }
+
+    // MARK: Adaptive
+
     public mutating func reassess() {
         queue = []; cleanStreak = 0; runs = 0; mastered = false
+        stepIndex = nil
         exercise = PracticeExercise(kind: .assessment, measures: 1...measureCount)
     }
     public mutating func learnNotes() { reassess(); exercise.kind = .notes }
-    public mutating func skip() { advance() }
-    public mutating func record(_ report: GradeReport, replays: Int = 0, completedNotes: Bool = false) {
+    public mutating func skip() {
+        if let i = stepIndex { completedSteps.insert(i); nextStep() } else { advance() }
+    }
+
+    /// Records a graded run of the current exercise. `stars`: the Perform run's stars.
+    public mutating func record(_ report: GradeReport, replays: Int = 0, completedNotes: Bool = false, stars: Int? = nil) {
+        if exercise.kind == .listen { completeStep(); return }
+        if exercise.kind == .perform {
+            lastStars = stars
+            mastered = (stars ?? 0) >= 2 && report.timing != nil && replays == 0
+            if let i = stepIndex { completedSteps.insert(i) }
+            stepIndex = nil
+            if mastered {
+                exercise = .init(kind: .assessment, measures: 1...measureCount)
+                cleanStreak = 0; runs = 0
+            } else {
+                planDrills(after: report)
+            }
+            return
+        }
         if exercise.kind == .assessment {
             mastered = report.passed && report.timing != nil && replays == 0
             guard !mastered else { return }
-            let bar = RemediationPlanner.worstMeasure(in: [report])
-            let range = bar.map { min(measureCount, max(1, $0))...min(measureCount, max(1, $0)) } ?? 1...measureCount
-            let hasNoteErrors = report.notes.wrongPitch + report.notes.missed + report.notes.extra > 0
-            queue = []
-            if hasNoteErrors { queue.append(.init(kind: .notes, measures: range)) }
-            queue.append(.init(kind: .slow, measures: range, tempoPercent: persona.drill.slowTempoPercent))
-            queue.append(.init(kind: .fullSpeed, measures: range))
-            let context = max(1, range.lowerBound - 1)...min(measureCount, range.upperBound + 1)
-            if context != range { queue.append(.init(kind: .context, measures: context)) }
-            advance(); return
+            planDrills(after: report)
+            return
         }
         runs += 1
-        let clean = exercise.kind == .notes ? completedNotes : RemediationPlanner.isClean(report, replays: replays) && report.timing != nil
+        let clean = exercise.isWaitMode ? completedNotes : RemediationPlanner.isClean(report, replays: replays) && report.timing != nil
         cleanStreak = clean ? cleanStreak + 1 : 0
-        if cleanStreak >= needed || (persona.drill.maxRunsPerStep.map { runs >= $0 } ?? false) { advance() }
+        if cleanStreak >= needed || (persona.drill.maxRunsPerStep.map { runs >= $0 } ?? false) {
+            if let i = stepIndex {
+                completedSteps.insert(i)
+                nextStep()
+            } else {
+                advance()
+            }
+        }
     }
+
+    /// The drills after a whole-piece run that wasn't good enough: the worst bar's notes, then
+    /// its phrase slowly and at full speed, then with the bars around it.
+    private mutating func planDrills(after report: GradeReport) {
+        let worst = RemediationPlanner.worstMeasure(in: [report]).map { min(measureCount, max(1, $0)) }
+        let bar = worst.map { $0...$0 } ?? 1...measureCount
+        let phrase = worst.flatMap { plan?.phrase(containing: $0) }
+        let range = phrase.map { max(1, $0.bars.lowerBound)...min(measureCount, $0.bars.upperBound) } ?? bar
+        let label = phrase?.label
+        let hasNoteErrors = report.notes.wrongPitch + report.notes.missed + report.notes.extra > 0
+        queue = []
+        if hasNoteErrors { queue.append(.init(kind: .notes, measures: bar)) }
+        queue.append(.init(kind: .slow, measures: range, tempoPercent: persona.drill.slowTempoPercent, label: label))
+        queue.append(.init(kind: .fullSpeed, measures: range, label: label))
+        let context = max(1, range.lowerBound - 1)...min(measureCount, range.upperBound + 1)
+        if context != range { queue.append(.init(kind: .context, measures: context)) }
+        advance()
+    }
+
     private mutating func advance() {
         cleanStreak = 0; runs = 0
         exercise = queue.isEmpty ? .init(kind: .assessment, measures: 1...measureCount) : queue.removeFirst()
@@ -68,8 +264,10 @@ public struct TutorAttemptContext: Codable, Sendable {
     public var actualTempoPercent: Double
     public var mode: String
     public var printedMeasures: [Int]
-    public init(exercise: PracticeExercise, actualTempoPercent: Double, mode: String, printedMeasures: [Int]) {
+    /// Stars, for a Perform run.
+    public var stars: Int?
+    public init(exercise: PracticeExercise, actualTempoPercent: Double, mode: String, printedMeasures: [Int], stars: Int? = nil) {
         self.exercise = exercise; self.actualTempoPercent = actualTempoPercent
-        self.mode = mode; self.printedMeasures = printedMeasures
+        self.mode = mode; self.printedMeasures = printedMeasures; self.stars = stars
     }
 }

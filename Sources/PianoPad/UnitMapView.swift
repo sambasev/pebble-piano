@@ -30,6 +30,10 @@ struct UnitMapView: View {
                     }
                     if unit.pages.contains(where: \.isGoalSongPage) { GoalCard(runner: runner, unit: unit) }
                 }
+                if !runner.piecePages.isEmpty {
+                    Divider().padding(.vertical, PP.Space.s3)
+                    PiecesSection(runner: runner)
+                }
                 Divider().padding(.vertical, PP.Space.s3)
                 EarPathSection(runner: runner)
             }
@@ -111,6 +115,62 @@ struct UnitMapView: View {
                 }
                 .buttonStyle(PPPrimaryButtonStyle())
                 .keyboardShortcut(.defaultAction)
+            }
+        }
+    }
+}
+
+/// Lessons made by Teach me this piece, one card per piece. Every piece is open.
+private struct PiecesSection: View {
+    @ObservedObject var runner: LessonRunner
+    private let columns = [GridItem(.adaptive(minimum: 200, maximum: 260), spacing: PP.Space.s4)]
+
+    var body: some View {
+        let pages = runner.piecePages
+        let progress = runner.piecesProgress
+        return VStack(alignment: .leading, spacing: PP.Space.s6) {
+            VStack(alignment: .leading, spacing: PP.Space.s2) {
+                Text("My pieces · planned with Muse Spark").ppEyebrow()
+                Label("Your own pieces", systemImage: "music.note.list").font(.ppTitle)
+                Text("Pieces you chose to learn: listen, new notes, phrase by phrase, then perform for stars.")
+                    .font(.ppCallout).foregroundColor(PP.inkMuted)
+            }
+            LazyVGrid(columns: columns, alignment: .leading, spacing: PP.Space.s4) {
+                ForEach(pages, id: \.id) { page in
+                    let saved = progress[page.id]
+                    Button { runner.openPiecePage(page.id) } label: {
+                        VStack(alignment: .leading, spacing: PP.Space.s3) {
+                            HStack {
+                                Image(systemName: "music.note")
+                                    .frame(width: 34, height: 34).background(Circle().fill(PP.surfaceRaised))
+                                Spacer()
+                                if let stars = saved?.bestStars, stars > 0 {
+                                    HStack(spacing: 1) {
+                                        ForEach(0..<3, id: \.self) { i in
+                                            Image(systemName: i < stars ? "star.fill" : "star").font(.ppCaption)
+                                        }
+                                    }.foregroundColor(PP.accent)
+                                } else if saved?.isCompleted == true {
+                                    Image(systemName: "checkmark.circle.fill").foregroundColor(PP.success)
+                                }
+                            }
+                            Text(page.title).font(.ppHeadline).lineLimit(2)
+                            if !page.newNotes.isEmpty {
+                                Text("New: " + page.newNotes.map(\.letter).joined(separator: ", "))
+                                    .font(.ppCaption).foregroundColor(PP.inkMuted)
+                            }
+                            Spacer(minLength: 0)
+                            Text(saved?.isCompleted == true ? "Play again"
+                                 : (saved?.currentBlock ?? 0 > 0 ? "Continue · step \((saved?.currentBlock ?? 0) + 1)" : "\(page.blocks.count) steps"))
+                                .font(.ppCaption).foregroundColor(PP.inkMuted)
+                        }
+                        .foregroundColor(PP.ink).padding(PP.Space.s4)
+                        .frame(maxWidth: .infinity, minHeight: 170, alignment: .topLeading)
+                        .background(RoundedRectangle(cornerRadius: PP.Radius.lg).fill(PP.surfaceGlass))
+                        .overlay(RoundedRectangle(cornerRadius: PP.Radius.lg).strokeBorder(PP.surfaceGlassEdge))
+                        .contentShape(Rectangle())
+                    }.buttonStyle(.plain).help("Open the lesson for \(page.title)")
+                }
             }
         }
     }

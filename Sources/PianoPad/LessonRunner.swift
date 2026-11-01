@@ -10,7 +10,7 @@ import EarTrainingUI
 /// through `PlayerControl`, turns player events into engine events, and saves progress.
 /// Everything runs on the main thread.
 final class LessonRunner: ObservableObject, PlayerObserver {
-    enum Course: String, CaseIterable { case piano = "Piano lessons", ear = "Ear training" }
+    enum Course: String, CaseIterable { case piano = "Piano lessons", ear = "Ear training", pieces = "My pieces" }
     @Published private(set) var course: Course = .piano
     @Published private(set) var earResult: EarQuizResult?
     /// Catalog data is read by path, independent of the lesson currently loaded in the player.
@@ -25,6 +25,23 @@ final class LessonRunner: ObservableObject, PlayerObserver {
     func openEarPage(_ id: String) {
         selectCourse(.ear)
         open(id)
+    }
+
+    /// A lesson made by Teach me this piece (PieceLessonStore), from the My pieces section.
+    func openPiecePage(_ id: String) {
+        selectCourse(.pieces)
+        if unit?.unit.page(id) == nil { unit = nil; loadUnit() }
+        open(id)
+    }
+
+    /// The learner's pieces with a lesson page, newest first, and their progress.
+    var piecePages: [LessonPage] { PieceLessonStore.pages().map(\.page) }
+    var piecesProgress: [String: PageProgress] {
+        guard let history else { return [:] }
+        let all = history.lessonProgress()
+        return Dictionary(uniqueKeysWithValues: piecePages.compactMap { page in
+            all[.lessonPage(unit: PieceLessonBuilder.unitID, page: page.id)].map { (page.id, $0) }
+        })
     }
     func previousEarBest(for page: LessonPage) -> Int? {
         guard let config = page.blocks.compactMap({ block -> Block.EarTraining? in
@@ -249,7 +266,7 @@ final class LessonRunner: ObservableObject, PlayerObserver {
 
     func isUnlocked(_ pageID: String) -> Bool {
         guard let unit else { return false }
-        if Self.unlockAllPages { return unit.unit.page(pageID) != nil }
+        if Self.unlockAllPages || course == .pieces { return unit.unit.page(pageID) != nil }
         return unit.unit.isUnlocked(pageID, completed: completedPages)
     }
 
@@ -861,6 +878,8 @@ final class LessonRunner: ObservableObject, PlayerObserver {
         if player.tab != .learn { player.tab = .learn }
         if EarLessonCourse.unit.page(pageID) != nil {
             openEarPage(pageID)
+        } else if pageID.hasPrefix("piece-") {
+            openPiecePage(pageID)
         } else {
             selectCourse(.piano)
             open(pageID)
@@ -999,6 +1018,16 @@ final class LessonRunner: ObservableObject, PlayerObserver {
         if course == .ear {
             unit = LoadedUnit(unit: EarLessonCourse.unit, folder: FileManager.default.temporaryDirectory)
             loadError = nil
+            return
+        }
+        if course == .pieces {
+            guard let pieces = PieceLessonStore.unit() else {
+                loadError = "No piece lessons yet: open a piece in Practice and choose Teach me this piece."
+                return
+            }
+            let errors = pieces.validate()
+            unit = pieces
+            loadError = errors.isEmpty ? nil : errors.map(\.description).joined(separator: "\n")
             return
         }
         guard let folder = PlaySession.bundledResource("Lessons/unit1") else {

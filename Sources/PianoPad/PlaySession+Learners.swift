@@ -264,10 +264,11 @@ extension PlaySession {
                 midi: MIDIFile.write(notes: lastTake),
                 report: encoder.encode(report),
                 score: report.notes.score,
-                passed: report.passed && (tutor == nil || (report.timing != nil && mode == .playAlong && tempoPercent >= 99.5 && replaysThisTake == 0)), contributesToProgress: tutor == nil || tutorAttempt?.kind == .assessment)
+                passed: report.passed && (tutor == nil || (report.timing != nil && mode == .playAlong && tempoPercent >= 99.5 && replaysThisTake == 0)), contributesToProgress: tutor == nil || tutorAttempt?.kind == .assessment || tutorAttempt?.kind == .perform)
             if let attempt = tutorAttempt {
                 let metadata = TutorAttemptContext(exercise: attempt, actualTempoPercent: tempoPercent,
-                    mode: mode.rawValue, printedMeasures: attempt.measures.map { passage?.printedMeasure(forPlayed: $0) ?? $0 })
+                    mode: mode.rawValue, printedMeasures: attempt.measures.map { passage?.printedMeasure(forPlayed: $0) ?? $0 },
+                    stars: tutorPerformStars)
                 try JSONEncoder().encode(metadata).write(to: saved.reportURL.deletingPathExtension().appendingPathExtension("tutor.json"), options: .atomic)
             }
         } catch {

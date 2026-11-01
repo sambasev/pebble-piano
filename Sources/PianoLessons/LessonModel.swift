@@ -24,11 +24,14 @@ public struct LessonUnit: Codable, Equatable, Sendable {
     public var id: String
     public var title: String
     public var pages: [LessonPage]
+    /// Every page is open from the start (the learner's own pieces), not unlocked in order.
+    public var allPagesOpen: Bool?
 
-    public init(id: String, title: String, pages: [LessonPage]) {
+    public init(id: String, title: String, pages: [LessonPage], allPagesOpen: Bool? = nil) {
         self.id = id
         self.title = title
         self.pages = pages
+        self.allPagesOpen = allPagesOpen
     }
 
     public func page(_ id: String) -> LessonPage? { pages.first { $0.id == id } }
@@ -39,6 +42,7 @@ public struct LessonUnit: Codable, Equatable, Sendable {
     public func isUnlocked(_ pageID: String, completed: Set<String>) -> Bool {
         guard let first = pages.first else { return false }
         if first.id == pageID { return true }
+        if allPagesOpen == true { return page(pageID) != nil }
         return pages.contains { completed.contains($0.id) && $0.unlocks == pageID }
     }
 

@@ -460,6 +460,16 @@ final class PlaySession: ObservableObject {
     @Published var tutorNote: String?
     var tutorContext = ""
     var tutorRecent: [String] = []
+    /// Muse Spark is planning the lesson (Start waits; "Use a quick plan" skips it).
+    @Published var tutorPlanning = false
+    /// Where the plan came from, shown under the checklist.
+    @Published var tutorPlanNote: String?
+    var tutorPlanTask: Task<Void, Never>?
+    var tutorPlanID = UUID()
+    /// The piece's key in PieceLessonStore (nil for a book passage with no file).
+    var tutorPieceKey: String?
+    /// Tests inject a fake planner; nil uses Muse Spark when a key is configured.
+    var tutorPlanModel: (any LessonPlanModel)?
 
     private var fileRubric: Rubric?
     /// The reference as read from the file. `reference` is this retimed to a linked backing
@@ -2413,22 +2423,105 @@ extension PlaySession {
     var tutorPlayedNotes: [PlayedNote] { playedNotes.map { PlayedNote(quarter: $0.quarter + tutorOffset, pitch: $0.pitch) } }
     var tutorPlayhead: Double? { playheadQuarter.map { $0 + tutorOffset } }
     var tutorHighlight: Set<Int> {
-        guard tutor != nil, let e = tutorAttempt else { return [] }
+        guard tutor != nil, let e = tutorAttempt, e.kind != .listen, e.kind != .newNote else { return [] }
         return Set(e.measures.map { passage?.printedMeasure(forPlayed: $0) ?? $0 })
     }
-    func beginTutoring() {
+    func tutorPrinted(_ e: PracticeExercise) -> [Int] {
+        e.measures.map { passage?.printedMeasure(forPlayed: $0) ?? $0 }
+    }
+    var tutorTitle: String { score?.title ?? passage?.title ?? tutorFullReference?.title ?? "this piece" }
+
+    /// Teach me this piece. `planLesson`: plan a lesson (Muse Spark, checked, else in code) and
+    /// follow it; otherwise start straight away with the adaptive loop (assess, then drill).
+    func beginTutoring(planLesson: Bool = false) {
         guard tutor == nil, let reference, !reference.notes.isEmpty else { return }
         resetAll()
-        tutorFullReference = sourceReference ?? reference
+        let full = sourceReference ?? reference
+        tutorFullReference = full
         tutorSavedSetup = PracticeSnapshot(mode: mode, tempoPercent: tempoPercent, metronomeOn: metronomeOn, pieceTag: currentPieceTag)
         let persona = learnerSettings.persona == "kriti" ? Persona.kriti : Persona.alex
-        tutor = PiecePracticeEngine(measureCount: reference.measureCount, persona: persona)
-        tutorText = "Try the piece so I can find what to practise. You can hear it first or learn the notes."
+        tutor = PiecePracticeEngine(measureCount: full.measureCount, persona: persona)
         tutorRecent = []; tutorContext = ""; tutorBeforeAttempt = nil; tutorAI = ""; tutorNote = nil
+        tutorPieceKey = referenceURL.map(PieceLessonStore.key(for:))
+        guard planLesson else {
+            tutorText = "Try the piece so I can find what to practise. You can hear it first or learn the notes."
+            return
+        }
+        tutorText = "Planning your lesson…"
+        planTutorLesson(fresh: false)
     }
+
+    /// Plans the lesson: the cached plan when there is one (unless `fresh`), else Muse Spark's,
+    /// checked, else the quick plan worked out in code.
+    func planTutorLesson(fresh: Bool) {
+        guard tutor != nil, let full = tutorFullReference else { return }
+        tutorPlanTask?.cancel()
+        let id = UUID(); tutorPlanID = id
+        if !fresh, let key = tutorPieceKey, let cached = PieceLessonStore.plan(key) {
+            applyTutorPlan(cached, save: false)
+            return
+        }
+        let model: (any LessonPlanModel)? = tutorPlanModel ?? (try? ModelLessonPlanModel.configured())
+        let title = tutorTitle
+        let known = knownNotes()
+        let fingering = fingeringNotes
+        tutorPlanning = true
+        tutorPlanNote = model == nil ? nil : "Planning your lesson with Muse Spark…"
+        tutorPlanTask = Task { @MainActor [weak self] in
+            let plan = await LessonPlanner.plan(for: full, title: title, model: model, known: known, fingering: fingering,
+                                                log: { print("[LessonPlanner] \($0)") })
+            guard let self, !Task.isCancelled, self.tutorPlanID == id, self.tutor != nil else { return }
+            self.applyTutorPlan(plan, save: true)
+        }
+    }
+
+    /// Skips the model and plans in code now.
+    func useQuickTutorPlan() {
+        guard tutor != nil, let full = tutorFullReference else { return }
+        tutorPlanTask?.cancel(); tutorPlanID = UUID()
+        var plan = LessonPlan.fallback(for: full)
+        plan.newNotes = LessonPlan.newNotes(in: full, known: knownNotes(), fingering: fingeringNotes)
+        applyTutorPlan(plan, save: false)
+    }
+
+    func applyTutorPlan(_ plan: LessonPlan, save: Bool) {
+        guard var engine = tutor else { return }
+        engine.follow(plan)
+        tutor = engine
+        tutorPlanning = false
+        tutorAttempt = nil
+        tutorPlanNote = plan.source == .model ? "Lesson planned by Muse Spark, checked by PianoPad." : "Quick plan (no AI): phrases of about four bars."
+        tutorText = "Here's your lesson for \(tutorTitle): \(plan.phrases.count) phrase\(plan.phrases.count == 1 ? "" : "s")"
+            + (plan.handsSeparately ? ", hands separately first" : "") + ". "
+            + TutorCoaching.invitation(for: engine.exercise, printedMeasures: tutorPrinted(engine.exercise))
+        tutorContext = ""
+        guard let key = tutorPieceKey, let full = tutorFullReference else { return }
+        if save { try? PieceLessonStore.save(plan, key: key) }
+        do {
+            try PieceLessonStore.writeLesson(plan, sequence: full, title: tutorTitle, key: key,
+                                             slowPercent: engine.persona.drill.slowTempoPercent)
+        } catch {
+            message = "Couldn't add the lesson to Learn: \(error.localizedDescription)"
+        }
+    }
+
+    /// Notes the learner has met: middle-C position, plus every note introduced on a
+    /// completed page of Unit 1.
+    func knownNotes() -> Set<Int> {
+        var known = LessonPlan.startingNotes
+        guard let learner, let folder = PlaySession.bundledResource("Lessons/unit1"),
+              let unit = try? LoadedUnit.load(folder: folder) else { return known }
+        let done = learnerStore.history(for: learner.id).completedPages(unit: unit.unit.id)
+        for page in unit.unit.pages where done.contains(page.id) {
+            known.formUnion(page.newNotes.map(\.pitch))
+        }
+        return known
+    }
+
     func endTutoring() {
         guard tutor != nil else { return }
         tutorGeneration = UUID(); tutorTask?.cancel(); tutorTask = nil; tutorBusy = false
+        tutorPlanTask?.cancel(); tutorPlanTask = nil; tutorPlanID = UUID(); tutorPlanning = false; tutorPlanNote = nil
         resetAll()
         tutor = nil; tutorAttempt = nil; tutorBeforeAttempt = nil; tutorAI = ""; tutorContext = ""; tutorNote = nil
         if let full = tutorFullReference {
@@ -2441,21 +2534,64 @@ extension PlaySession {
         }
         tutorSavedSetup = nil; setupPlayAlong(); resetTake()
     }
+
+    /// The music for a step: its bars, one hand when it says so, or one note for a new note.
+    func tutorMusic(_ e: PracticeExercise, full: MIDISequence) -> MIDISequence {
+        if e.kind == .newNote, let note = e.note {
+            let track = e.hand.flatMap { full.handTracks?[$0] } ?? 0
+            let spq = 60 / max(1, full.initialTempoBPM)
+            return MIDISequence(notes: [NoteEvent(pitch: note.pitch, onset: 0, offset: spq, onsetBeats: 0, offsetBeats: 1, track: track)],
+                                ticksPerQuarter: full.ticksPerQuarter, initialTempoBPM: full.initialTempoBPM,
+                                timeSignature: full.timeSignature, keySignature: full.keySignature, title: full.title)
+        }
+        return full.measures(e.measures).hand(e.hand)
+    }
+
     func startTutorExercise() {
-        guard let e = tutor?.exercise, let full = tutorFullReference else { return }
+        guard !tutorPlanning, let e = tutor?.exercise, let full = tutorFullReference else { return }
         tutorGeneration = UUID(); tutorTask?.cancel(); tutorBusy = false; tutorAI = ""; tutorNote = nil
         resetAll(); tutorBeforeAttempt = tutor; tutorAttempt = e
-        let sliced = full.measures(e.measures)
-        sourceReference = sliced; reference = sliced
-        chords = ChordGrouping.group(sliced.notes, window: rubric.chordWindowMs / 1000)
-        setModeNow(e.kind == .notes ? .wait : .playAlong)
+        let music = e.kind == .listen ? full : tutorMusic(e, full: full)
+        sourceReference = music; reference = music
+        chords = ChordGrouping.group(music.notes, window: rubric.chordWindowMs / 1000)
+        setModeNow(e.isTimed ? .playAlong : .wait)
         tempoPercent = e.tempoPercent; metronomeOn = true
         setupPlayAlong(); resetTake()
-        if e.kind != .notes { startTimedRun() }
+        if e.kind == .listen {
+            // Nothing to grade: play it, and the plan moves on.
+            startListening()
+            tutor?.completeStep()
+            tutorAttempt = nil
+            if let next = tutor?.exercise {
+                tutorText = "Listen and follow the music. " + TutorCoaching.invitation(for: next, printedMeasures: tutorPrinted(next))
+            }
+            return
+        }
+        if e.isTimed { startTimedRun() }
     }
     func retryTutorExercise() {
         if let previous = tutorBeforeAttempt { tutor = previous }
         startTutorExercise()
+    }
+    /// The checklist: go to step `index`.
+    func tutorJump(to index: Int) {
+        guard phase != .recording, var engine = tutor else { return }
+        engine.jump(to: index)
+        tutor = engine; tutorAttempt = nil; tutorAI = ""
+        tutorText = TutorCoaching.invitation(for: engine.exercise, printedMeasures: tutorPrinted(engine.exercise))
+    }
+    /// Leave the plan: play the whole piece so the tutor can find what to practise.
+    func tutorAssessInstead() {
+        guard var engine = tutor else { return }
+        engine.assessInstead()
+        tutor = engine; tutorAttempt = nil; tutorAI = ""
+        tutorText = TutorCoaching.invitation(for: engine.exercise, printedMeasures: tutorPrinted(engine.exercise))
+    }
+    /// Stars for the run just graded, when it was the tutor's Perform step.
+    var tutorPerformStars: Int? {
+        guard let report, tutorAttempt?.kind == .perform else { return nil }
+        let help = replaysThisTake > 0 || tempoPercent < 99.5 || mode != .playAlong
+        return Stars.compute(report: report, rubric: rubric, helpUsed: help)
     }
     func tutorGraded() {
         guard var engine = tutor, let report, let attempt = tutorAttempt else { return }
@@ -2470,14 +2606,23 @@ extension PlaySession {
         }
         mistakeMeasures = Set(mapped.flags.map(\.position.measure))
         var evidence = report
-        if attempt.kind == .assessment && (tempoPercent < 99.5 || mode != .playAlong) { evidence.passed = false }
-        engine.record(evidence, replays: replaysThisTake, completedNotes: passageComplete)
+        if (attempt.kind == .assessment || attempt.kind == .perform) && (tempoPercent < 99.5 || mode != .playAlong) { evidence.passed = false }
+        let stars = tutorPerformStars
+        let wasFollowing = engine.isFollowingPlan
+        engine.record(evidence, replays: replaysThisTake, completedNotes: passageComplete, stars: stars)
         tutor = engine
-        let printed = engine.exercise.measures.map { passage?.printedMeasure(forPlayed: $0) ?? $0 }
         tutorText = TutorCoaching.message(report: mapped, next: engine.exercise, mastered: engine.mastered,
-                                         printedMeasures: printed, notesCompleted: attempt.kind == .notes && passageComplete)
+                                         printedMeasures: tutorPrinted(engine.exercise),
+                                         notesCompleted: attempt.isWaitMode && passageComplete, stars: stars,
+                                         followingPlan: wasFollowing)
         tutorRecent = Array((tutorRecent + [tutorText]).suffix(3))
-        tutorContext = "Piece: \(score?.title ?? passage?.title ?? "Piano piece"). Teacher: \(engine.persona.name). Last exercise: \(attempt.title), bars \(attempt.measures), speed \(attempt.tempoPercent)%. Findings: \(tutorText) Selected next exercise: \(engine.exercise.title), bars \(engine.exercise.measures), speed \(engine.exercise.tempoPercent)%. Recent results: \(tutorRecent.joined(separator: "\n"))"
+        var plan = ""
+        if let p = engine.plan {
+            plan = " Lesson plan (\(p.source == .model ? "from Muse Spark" : "worked out in code")): "
+                + p.phrases.map { "\($0.label) bars \($0.bars.lowerBound)-\($0.bars.upperBound)\($0.tip.map { " (tip: \($0))" } ?? "")" }.joined(separator: "; ")
+                + (p.handsSeparately ? "; hands separately first." : ".")
+        }
+        tutorContext = "Piece: \(tutorTitle). Teacher: \(engine.persona.name).\(plan) Last exercise: \(attempt.title), \(attempt.whereText), speed \(attempt.tempoPercent)%\(stars.map { ", earned \($0) of 3 stars" } ?? ""). Findings: \(tutorText) Selected next exercise: \(engine.exercise.title), \(engine.exercise.whereText), speed \(engine.exercise.tempoPercent)%. Recent results: \(tutorRecent.joined(separator: "\n"))"
         var feedbackEvidence = mapped
         feedbackEvidence.flags = Array(mapped.flags.prefix(8))
         feedbackEvidence.results = Array(mapped.results.filter { $0.kind != .correct }.prefix(8))
