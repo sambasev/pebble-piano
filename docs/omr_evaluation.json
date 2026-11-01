@@ -1,0 +1,123 @@
+{
+  "benchmark": "PerfectPiano Multimodal OMR Evaluation",
+  "version": "1.0",
+  "date": "2026-11-01",
+  "hardware": {
+    "gpu": "Modal L40S (LEGATO)",
+    "cloud_api": "Meta Model API (Muse Wonder, Muse Spark, SAM 3.1)"
+  },
+  "datasets": {
+    "historical_1895_scan": "Ferdinand Beyer Op. 101, ed. Ruthardt (Leipzig: Peters, 1895), IMSLP #81208",
+    "modern_vector_scores": "LilyPond / Verovio vector engravings (Beyer Op. 101 Nos 12, 13, 24 & Czerny Op. 824)"
+  },
+  "results": [
+    {
+      "model": "LEGATO (Llama 3.2 Vision 11B)",
+      "condition": "Historical 1895 Crop",
+      "format": "1-line crop",
+      "note_accuracy_percent": 0.0,
+      "pitch_accuracy_percent": 0.0,
+      "rhythm_accuracy_percent": null,
+      "bar_exact_match_percent": 0.0,
+      "latency_seconds": 42.0,
+      "status": "failed",
+      "failure_mode": "autoregressive repetition loop ([eg]2 [eg]2 across 87 bars due to aspect-ratio and vintage noise OOD)"
+    },
+    {
+      "model": "LEGATO (Llama 3.2 Vision 11B)",
+      "condition": "Modern Clean Score",
+      "format": "1-line crop",
+      "note_accuracy_percent": 89.5,
+      "pitch_accuracy_percent": 89.5,
+      "rhythm_accuracy_percent": 100.0,
+      "bar_exact_match_percent": 75.0,
+      "latency_seconds": 5.8,
+      "status": "passed",
+      "failure_mode": "none (terminates cleanly with |] at measure 8)"
+    },
+    {
+      "model": "LEGATO (Llama 3.2 Vision 11B)",
+      "condition": "Modern Clean Score",
+      "format": "full page",
+      "note_accuracy_percent": 100.0,
+      "pitch_accuracy_percent": 100.0,
+      "rhythm_accuracy_percent": 100.0,
+      "bar_exact_match_percent": 100.0,
+      "latency_seconds": 9.3,
+      "status": "passed",
+      "failure_mode": "none (flawless 16/16 bars exact match)"
+    },
+    {
+      "model": "Muse Spark 1.3",
+      "condition": "Historical 1895 Scan",
+      "format": "1-line crop",
+      "note_accuracy_percent": 47.1,
+      "pitch_accuracy_percent": 53.0,
+      "rhythm_accuracy_percent": 76.5,
+      "bar_exact_match_percent": 14.3,
+      "latency_seconds": 64.0,
+      "status": "passed",
+      "failure_mode": "pitch shifts and dropped notes on dense measures"
+    },
+    {
+      "model": "Muse Spark 1.3",
+      "condition": "Modern Clean Score",
+      "format": "1-line crop",
+      "note_accuracy_percent": 69.7,
+      "pitch_accuracy_percent": 73.5,
+      "rhythm_accuracy_percent": 85.0,
+      "bar_exact_match_percent": 39.3,
+      "latency_seconds": 97.0,
+      "status": "passed",
+      "failure_mode": "occasional rhythm and voice assignment slips"
+    },
+    {
+      "model": "Muse Wonder 1.0",
+      "condition": "Historical 1895 Scan",
+      "format": "1-line crop",
+      "note_accuracy_percent": 87.7,
+      "pitch_accuracy_percent": 87.7,
+      "rhythm_accuracy_percent": 100.0,
+      "bar_exact_match_percent": 71.4,
+      "latency_seconds": 126.0,
+      "status": "passed",
+      "failure_mode": "pitch drift on dense bars; 100% rhythm lock"
+    },
+    {
+      "model": "Muse Wonder 1.0",
+      "condition": "Modern Clean Score",
+      "format": "1-line crop",
+      "note_accuracy_percent": 88.4,
+      "pitch_accuracy_percent": 88.4,
+      "rhythm_accuracy_percent": 100.0,
+      "bar_exact_match_percent": 67.9,
+      "latency_seconds": 65.0,
+      "status": "passed",
+      "failure_mode": "minor vertical line/space shift; 100% rhythm lock"
+    },
+    {
+      "model": "Hybrid Wonder + CV Geometry",
+      "condition": "Historical 1895 Scan",
+      "format": "1-line crop",
+      "note_accuracy_percent": 94.8,
+      "pitch_accuracy_percent": 94.8,
+      "rhythm_accuracy_percent": 100.0,
+      "bar_exact_match_percent": 80.4,
+      "latency_seconds": 128.0,
+      "status": "passed",
+      "failure_mode": "zero silent errors; 45/56 bars trusted"
+    },
+    {
+      "model": "Hybrid Wonder + CV Geometry",
+      "condition": "Modern Clean Score",
+      "format": "1-line crop",
+      "note_accuracy_percent": 100.0,
+      "pitch_accuracy_percent": 100.0,
+      "rhythm_accuracy_percent": 100.0,
+      "bar_exact_match_percent": 83.9,
+      "latency_seconds": 67.0,
+      "status": "passed",
+      "failure_mode": "zero silent errors; 155/155 notes exact"
+    }
+  ]
+}
