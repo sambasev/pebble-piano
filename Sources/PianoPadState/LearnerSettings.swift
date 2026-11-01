@@ -41,8 +41,8 @@ public struct LearnerSettings: Codable, Equatable, Sendable {
     public var inputSource: String?
     /// When setup (onboarding) was finished; nil for learners added another way.
     public var onboardedAt: Date?
-    /// Children's lesson pages: the Pebbles dance under the keyboard. nil: on (the default);
-    /// a grown-up can turn them off.
+    /// Lesson pages: the Pebbles dance under the keyboard. nil: on (the default); the learner,
+    /// or a grown-up for a child, can turn them off.
     public var dancers: Bool?
 
     public var showsDancers: Bool { dancers ?? true }

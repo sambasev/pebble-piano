@@ -1,7 +1,7 @@
 import Foundation
 import PianoGraderCore
 
-// The Pebbles: three round creatures that dance under the keyboard on a child's lesson
+// The Pebbles: three round creatures that dance under the keyboard on a lesson
 // page. Everything here is pure (no UI, no clock of its own): the view asks for a pose with
 // the music's current position, so the dance can never drift from the clicks.
 

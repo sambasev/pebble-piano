@@ -81,13 +81,15 @@ struct UnitMapView: View {
                             }
                         }
                     }
+                    Divider()
+                    Toggle("Dancing Pebbles", isOn: Binding(get: { runner.showsDancers }, set: { runner.setDancers($0) }))
                 } label: {
                     Label("Teacher: \(runner.persona.name)", systemImage: "person.fill")
                         .font(.ppCallout)
                 }
                 .menuStyle(.borderlessButton)
                 .fixedSize()
-                .help("Who teaches: how strict the judging is and how many stars a song needs")
+                .help("Who teaches: how strict the judging is and how many stars a song needs. Also turns the dancing Pebbles on or off.")
                 }
             }
             Spacer()

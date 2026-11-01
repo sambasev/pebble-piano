@@ -290,10 +290,11 @@ final class LessonRunner: ObservableObject, PlayerObserver {
     /// teacher choice with the grown-ups.
     var isChild: Bool { player.learner?.kind == .child }
 
-    /// The Pebbles dance under the keyboard: children only, unless a grown-up turned them off.
-    var showsDancers: Bool { isChild && player.learnerSettings.showsDancers }
+    /// The Pebbles dance under the keyboard on every lesson page, for adults and children,
+    /// unless the learner (or a grown-up, for a child) turned them off.
+    var showsDancers: Bool { player.learnerSettings.showsDancers }
 
-    /// Turns the dancers on or off for this learner (from For grown-ups).
+    /// Turns the dancers on or off for this learner (the teacher menu, or For grown-ups).
     func setDancers(_ on: Bool) {
         objectWillChange.send()
         player.learnerSettings.dancers = on

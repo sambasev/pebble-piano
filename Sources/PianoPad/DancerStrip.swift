@@ -3,7 +3,7 @@ import PianoGraderCore
 import PianoLessons
 import SwiftUI
 
-/// The Pebbles: three round dancers under the keyboard on a child's lesson page.
+/// The Pebbles: three round dancers under the keyboard on every lesson page.
 ///
 /// While music plays (play-along, count-in or Listen) they dance to it: a small bob on each
 /// beat and a big jump that lands on every bar line, in the piece's time signature, strolling
