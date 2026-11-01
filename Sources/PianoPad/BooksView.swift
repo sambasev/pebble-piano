@@ -178,7 +178,9 @@ struct BookPagePicker: View {
             .frame(width: CGFloat(s.width) * scale, height: CGFloat(s.height) * scale)
             // Hit-test before moving: `.offset` moves the drawing but not the click area, so
             // every line's click area sat at the page's top left and the last line took clicks.
-            .contentShape(Rectangle())
+            // A little beyond the outline, so the line's number (which sticks out of its top
+            // left corner) is clickable too.
+            .contentShape(Rectangle().inset(by: -14))
             .onTapGesture { model.tapSystem(s.index, extend: NSEvent.modifierFlags.contains(.shift)) }
             .help("Click the first line of the piece; Shift-click the last")
             .offset(x: CGFloat(s.left) * scale, y: CGFloat(s.top) * scale)
