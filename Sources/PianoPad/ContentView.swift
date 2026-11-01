@@ -114,12 +114,18 @@ struct ContentView: View {
             if let passage = session.passage, let image = session.pageImage {
                 HStack(alignment: .top, spacing: 16) {
                     VStack(alignment: .leading, spacing: 8) {
-                        HStack {
+                        HStack(spacing: PP.Space.s3) {
                             Text(passage.instructions ?? passage.title)
                                 .font(.ppCallout)
                                 .foregroundColor(PP.inkMuted)
                                 .lineLimit(2)
                             Spacer()
+                            Toggle(isOn: $session.showFingering) {
+                                Label("Fingering", systemImage: "hand.point.up.fill")
+                            }
+                            .toggleStyle(.button)
+                            .controlSize(.small)
+                            .help("Show or hide finger numbers on the sheet music notes")
                             Picker("View", selection: $session.showWholePage) {
                                 Text("Passage").tag(false)
                                 Text("Page").tag(true)
@@ -141,6 +147,8 @@ struct ContentView: View {
                             noteKey: session.noteKey,
                             wrongPitches: session.markedWrong,
                             playedNotes: session.showGuide ? session.tutorPlayedNotes : [],
+                            fingeringNotes: session.fingeringNotes,
+                            showFingering: session.showFingering,
                             replayMeasure: session.replayMeasure,
                             followsMusic: session.isPlayingAlong,
                             onTapMeasure: { session.playFrom(printedMeasure: $0) }
@@ -156,6 +164,12 @@ struct ContentView: View {
                             Text(score.title).font(.ppHeadline).lineLimit(1)
                             Text(scoreSummary(score)).font(.ppCallout).foregroundColor(PP.inkMuted).lineLimit(1)
                             Spacer()
+                            Toggle(isOn: $session.showFingering) {
+                                Label("Fingering", systemImage: "hand.point.up.fill")
+                            }
+                            .toggleStyle(.button)
+                            .controlSize(.small)
+                            .help("Show or hide finger numbers on the sheet music notes")
                         }
                         NotationView(score: score, scoreID: session.scoreID, overlay: notationOverlay,
                                      onTapMeasure: { session.playFrom(bar: $0) },
@@ -626,7 +640,8 @@ struct ContentView: View {
             played: session.showGuide ? session.tutorPlayedNotes : [],
             wrong: session.markedWrong,
             mistakeMeasures: session.replayMeasure.map { [$0] }
-                ?? (session.tutor != nil ? session.tutorHighlight.union(session.mistakeMeasures) : (session.phase == .graded && session.report != nil ? session.mistakeMeasures : nil))
+                ?? (session.tutor != nil ? session.tutorHighlight.union(session.mistakeMeasures) : (session.phase == .graded && session.report != nil ? session.mistakeMeasures : nil)),
+            fingering: session.showFingering ? session.topStaffFingering : []
         )
     }
 

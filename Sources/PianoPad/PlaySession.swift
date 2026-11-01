@@ -128,6 +128,14 @@ final class PlaySession: ObservableObject {
     @Published private(set) var pageImage: NSImage?
     @Published private(set) var pageBounds: CGRect = .zero
     @Published var showWholePage = false
+    /// Whether the fingering overlay is toggled on.
+    @Published var showFingering = true
+    /// Fingered notes analyzed from the transcribed music.
+    @Published private(set) var fingeringNotes: [FingeredNote] = []
+
+    var topStaffFingering: [Int] {
+        fingeringNotes.filter { $0.hand == .right }.map(\.finger)
+    }
     /// MIDI files to pick from alongside the book's passages: the bundled examples and
     /// files opened recently. (name, url)
     @Published var pieces: [(name: String, url: URL)] = []
@@ -1429,6 +1437,13 @@ final class PlaySession: ObservableObject {
             score = keepPassage ? nil
                 : writtenScore ?? Transcriber().transcribe(sequence, title: sequence.title ?? url.deletingPathExtension().lastPathComponent)
             scoreID = UUID()
+            if let p = passage {
+                fingeringNotes = PianoFingeringModel.analyze(passage: p, sequence: sequence)
+            } else if let s = score {
+                fingeringNotes = PianoFingeringModel.analyze(score: s)
+            } else {
+                fingeringNotes = PianoFingeringModel.analyze(sequence: sequence)
+            }
             message = sequence.notes.isEmpty ? "\(url.lastPathComponent) has no notes to play." : nil
             if !keepPassage && remember { rememberPiece(url, title: sequence.title) }
             setupPlayAlong()
@@ -1450,6 +1465,7 @@ final class PlaySession: ObservableObject {
         reference = nil
         referenceURL = nil
         chords = []
+        fingeringNotes = []
         score = nil
         scoreID = UUID()
         setupPlayAlong()

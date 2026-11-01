@@ -26,6 +26,10 @@ struct ScoreView: View {
     var wrongPitches: Set<Int> = []
     /// Reference notes played correctly: a green circle over each printed note.
     var playedNotes: [PlayedNote] = []
+    /// Fingered notes from analyzing the transcribed music.
+    var fingeringNotes: [FingeredNote] = []
+    /// Whether to display finger numbers over the printed sheet music notes.
+    var showFingering: Bool = false
     /// Play-along: the printed measure about to be played again, tinted orange.
     var replayMeasure: Int? = nil
     /// Play-along: the playhead moves with the music every frame, so it isn't animated.
@@ -114,6 +118,24 @@ struct ScoreView: View {
                     }
                     .frame(width: region.width * scale, height: region.height * scale)
                     .allowsHitTesting(false)
+                }
+
+                // Automatic Piano Fingering overlay: 1–5 badges above/below printed notes
+                if showFingering && !fingeringNotes.isEmpty {
+                    ForEach(fingeringBadges(region: region, scale: scale)) { badge in
+                        let diameter = max(15, badge.size * 1.35)
+                        ZStack {
+                            Circle()
+                                .fill(paper.page.opacity(0.88))
+                                .overlay(Circle().stroke(paper.ink.opacity(0.24), lineWidth: 1))
+                            Text("\(badge.finger)")
+                                .font(.system(size: max(9, badge.size * 0.85), weight: .bold, design: .rounded))
+                                .foregroundColor(paper.ink)
+                        }
+                        .frame(width: diameter, height: diameter)
+                        .offset(x: badge.x - diameter / 2, y: badge.y - diameter / 2)
+                        .allowsHitTesting(false)
+                    }
                 }
 
                 if let location {
@@ -209,6 +231,59 @@ struct ScoreView: View {
                 yOfStep: { step in (region.maxY - staff.y(ofStep: step)) * scale })
         }
         return items
+    }
+
+    struct FingeringBadge: Identifiable {
+        let id: String
+        let finger: Int
+        let hand: Hand
+        let x: Double
+        let y: Double
+        let size: Double
+    }
+
+    private func fingeringBadges(region: PageRect, scale: Double) -> [FingeringBadge] {
+        guard showFingering, !fingeringNotes.isEmpty else { return [] }
+        var badges: [FingeringBadge] = []
+        var seen = Set<String>()
+
+        for note in fingeringNotes {
+            guard passage.lap(atQuarter: note.quarter) == 0,
+                  let location = passage.location(atQuarter: note.quarter),
+                  let staves = staffPlacements[location.measure.number], !staves.isEmpty else { continue }
+
+            let key = "\(location.measure.number)-\(Int(location.x))-\(note.pitch)"
+            guard !seen.contains(key) else { continue }
+            seen.insert(key)
+
+            let staffIndex = staves.count > 1 ? (note.hand == .left ? 1 : 0) : 0
+            let staff = staves[staffIndex]
+            let clef: Clef = staves.count > 1 ? (staffIndex == 0 ? .treble : .bass) : (passage.clef ?? .treble)
+            let step = clef.staffStep(of: noteKey.spell(note.pitch))
+            let s = staff.spacing * scale
+
+            let noteY = (region.maxY - staff.y(ofStep: step)) * scale
+            let staffTopY = (region.maxY - staff.y(ofStep: 8)) * scale
+            let staffBottomY = (region.maxY - staff.y(ofStep: 0)) * scale
+
+            let fingerY: Double
+            if note.hand == .right || staffIndex == 0 {
+                fingerY = min(staffTopY - 1.2 * s, noteY - 1.6 * s)
+            } else {
+                fingerY = max(staffBottomY + 1.2 * s, noteY + 1.6 * s)
+            }
+            let fingerX = (location.x - region.x) * scale
+
+            badges.append(FingeringBadge(
+                id: "\(note.id)-\(badges.count)",
+                finger: note.finger,
+                hand: note.hand,
+                x: fingerX,
+                y: fingerY,
+                size: s
+            ))
+        }
+        return badges
     }
 
     /// Top-left of a page rectangle inside the view (y flips: PDF y grows upwards).

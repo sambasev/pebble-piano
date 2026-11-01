@@ -106,10 +106,6 @@ public struct LessonPage: Codable, Equatable, Sendable {
     }
 }
 
-/// Which hand an exercise is for.
-public enum Hand: String, Codable, Sendable {
-    case right = "R", left = "L", both = "LR"
-}
 
 /// One step on a lesson page.
 public enum Block: Equatable, Sendable {
