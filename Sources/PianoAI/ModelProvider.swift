@@ -80,6 +80,16 @@ public final class AISettings: @unchecked Sendable {
     private let defaults: UserDefaults
     public init(defaults: UserDefaults = .standard) { self.defaults = defaults }
 
+    /// Model used by the Practice tutor. Preserve the previous tutor-only preference.
+    public var tutorModel: String {
+        get {
+            let value = defaults.string(forKey: "ai.tutor.model") ?? defaults.string(forKey: "TutorModel")
+            let trimmed = value?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+            return trimmed.isEmpty ? MetaModels.spark : trimmed
+        }
+        set { defaults.set(newValue.trimmingCharacters(in: .whitespacesAndNewlines), forKey: "ai.tutor.model") }
+    }
+
     /// Your Modal deployment's OpenAI-compatible base URL, ending in `/v1`.
     public var modalBaseURL: URL? {
         get { defaults.string(forKey: "ai.modal.baseURL").flatMap { URL(string: $0) } }

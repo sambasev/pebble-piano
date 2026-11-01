@@ -5,6 +5,7 @@ import Foundation
 import PDFKit
 import PianoGraderCore
 import PianoGraderIO
+import PianoAI
 import PianoLessons
 import PianoPadState
 import EarTrainingUI
@@ -552,6 +553,7 @@ final class PlaySession: ObservableObject {
         missMode = Self.missMode(from: learnerSettings)
         synth?.volume = pianoVolume
         guard startServices else { return }
+        try? LegacyTutorKeyMigration.run()
         startMIDI()
         // The learner's input choice (the mic back on for mic learners), once init is done.
         DispatchQueue.main.async { [weak self] in self?.applyInputChoice() }
@@ -2379,10 +2381,14 @@ extension PlaySession {
     }
     func askTutor(_ question: String) {
         tutorTask?.cancel(); tutorGeneration = UUID(); tutorAI = ""; tutorBusy = false
-        guard let key = TutorKeychain.read(), !key.isEmpty else { tutorAI = ""; return }
         let generation = tutorGeneration
         let context = tutorContext.isEmpty ? tutorText : tutorContext
-        let client: any TutorFeedbackClient = tutorFeedbackClient ?? MetaTutorFeedbackClient(key: key, model: UserDefaults.standard.string(forKey: "TutorModel") ?? "muse-spark-1.3")
+        let client: any TutorFeedbackClient
+        do {
+            client = try tutorFeedbackClient ?? ModelTutorFeedbackClient.configured()
+        } catch {
+            return // Local teacher guidance remains available without a configured key.
+        }
         tutorBusy = true
         tutorTask = Task { @MainActor [weak self] in
             do {

@@ -8,6 +8,7 @@ import SwiftUI
 struct AISettingsView: View {
     var onDone: () -> Void
 
+    @State private var tutorModel = AISettings.shared.tutorModel
     @State private var provider: ModelProvider = .meta
     @State private var keyDraft = ""
     @State private var modalURL = AISettings.shared.modalBaseURL?.absoluteString ?? ""
@@ -29,6 +30,16 @@ struct AISettingsView: View {
             .labelsHidden()
 
             keySection
+
+            if provider == .meta {
+                LabeledContent("Practice tutor model") {
+                    TextField(MetaModels.spark, text: $tutorModel)
+                        .textFieldStyle(.roundedBorder)
+                        .onSubmit(saveSettings)
+                }
+                Text("The Practice tutor uses this Meta key. Piano audio and grading stay on your Mac.")
+                    .font(.ppCaption).foregroundColor(PP.inkMuted)
+            }
 
             if provider == .modal {
                 LabeledContent("Base URL") {
@@ -129,6 +140,7 @@ struct AISettingsView: View {
     }
 
     private func saveSettings() {
+        AISettings.shared.tutorModel = tutorModel
         if provider == .modal {
             let trimmed = modalURL.trimmingCharacters(in: .whitespaces)
             AISettings.shared.modalBaseURL = trimmed.isEmpty ? nil : URL(string: trimmed)

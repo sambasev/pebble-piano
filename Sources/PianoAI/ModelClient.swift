@@ -45,15 +45,19 @@ public struct ChatOptions: Sendable {
     /// that takes too long to start answering fails with HTTP 504.
     public var stream: Bool
 
+    /// Override the page-analysis timeout for interactive requests.
+    public var requestTimeout: TimeInterval?
+
     public init(model: String = MetaModels.spark, schema: (name: String, schema: JSONValue)? = nil,
                 reasoningEffort: String? = nil, maxTokens: Int? = nil, temperature: Double? = nil,
-                stream: Bool = false) {
+                stream: Bool = false, requestTimeout: TimeInterval? = nil) {
         self.model = model
         self.schema = schema
         self.reasoningEffort = reasoningEffort
         self.maxTokens = maxTokens
         self.temperature = temperature
         self.stream = stream
+        self.requestTimeout = requestTimeout
     }
 }
 
@@ -123,6 +127,7 @@ public struct ModelClient: Sendable {
         let started = Date()
         do {
             var req = try request("chat/completions", json: .object(body))
+            if let timeout = options.requestTimeout { req.timeoutInterval = timeout }
             if options.stream { req.setValue("text/event-stream", forHTTPHeaderField: "Accept") }
             let (data, _) = try await send(req)
             let parsed = options.stream ? try Self.parseChatStream(data) : try Self.parseChat(data)

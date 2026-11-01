@@ -80,7 +80,6 @@ targets:
       path: Generated/PianoPad.entitlements
       properties:
         com.apple.security.app-sandbox: true
-        com.apple.security.network.client: true
         # Microphone grading.
         com.apple.security.device.audio-input: true
         # Pairing a Bluetooth MIDI piano (CABTLEMIDIWindowController).
