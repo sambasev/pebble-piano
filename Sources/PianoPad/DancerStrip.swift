@@ -65,27 +65,50 @@ struct DancerStrip: View {
         let ground = size.height - 2
         let reach = max(0, laneWidth / 2 - bodyWidth / 2 - 4)
         for (i, look) in Self.looks.enumerated() {
+            let wander = GremlinWander.dancer(i)
+            let lane = Double(laneWidth * (CGFloat(i) + 0.5))
+            let bodyX: (Double) -> Double = { t in lane + wander.position(atBeat: t).x * Double(reach) }
+            let walk = reduceMotion ? nil : wander.walk(atBeat: walkTime)
+            let walking = walk.map { walkTime < $0.end } ?? false
+
             var pose: GremlinPose
             if reduceMotion {
                 pose = .rest
             } else if let beat {
-                pose = .dancing(beat)
+                pose = .dancing(beat, walking: walking)
             } else {
                 pose = .breathing(seconds: uptime, offset: Double(i) * 1.7)
             }
+            // The waddle: a slight lean to each side in turn, arms swinging with it.
+            let sway = walk.map { GremlinGait.sway(at: walkTime, walkStart: $0.start, walkEnd: $0.end) } ?? 0
+            pose.tilt += 0.05 * sway
             if let reaction {
                 pose = reaction.apply(to: pose, at: uptime, delay: Double(i) * 0.06)
                 if reduceMotion { pose.lift = 0; pose.tilt = 0 }
             }
-            let place = reduceMotion ? (x: 0.0, facing: 1) : GremlinWander.dancer(i).position(atBeat: walkTime)
-            let centerX = laneWidth * (CGFloat(i) + 0.5) + CGFloat(place.x) * reach
+
+            let place = reduceMotion ? (x: 0.0, facing: 1) : wander.position(atBeat: walkTime)
+            let centerX = reduceMotion ? lane : bodyX(walkTime)
+            // Feet, measured on the floor in points, then into the drawing's units (mirrored
+            // with the body when it faces left).
+            var feet = Pebble.standingFeet
+            if let walk {
+                let floor = GremlinGait.feet(at: walkTime, walkStart: walk.start, walkEnd: walk.end, direction: walk.direction,
+                                             spread: Double(Pebble.footSpread * scale), body: bodyX)
+                feet = floor.map { foot in
+                    Pebble.Foot(x: 60 + CGFloat(place.facing) * CGFloat(foot.x - centerX) / scale, lift: CGFloat(foot.lift))
+                }
+                // Keep each foot on its own hip when the drawing is mirrored.
+                if place.facing < 0 { feet.reverse() }
+            }
+
             var c = context
-            c.translateBy(x: centerX, y: ground - CGFloat(pose.lift) * 140 * scale)
+            c.translateBy(x: CGFloat(centerX), y: ground - CGFloat(pose.lift) * 140 * scale)
             c.rotate(by: .radians(pose.tilt))
             let stretch = CGFloat(pose.stretch)
             c.scaleBy(x: CGFloat(place.facing) * scale * (1 - 0.8 * stretch), y: scale * (1 + stretch))
             c.translateBy(x: -60, y: -137)
-            Pebble.draw(look, face: pose.face, in: &c)
+            Pebble.draw(look, face: pose.face, feet: feet, armSwing: CGFloat(sway), in: &c)
         }
     }
 
@@ -114,17 +137,36 @@ enum Pebble {
     /// drawings on any background.
     static let ink = Color(hex: 0x1B1630)
 
-    static func draw(_ look: PebbleLook, face: GremlinFace, in c: inout GraphicsContext) {
+    /// A foot in the drawing: its centre across (design units) and how far it's lifted, 0...1.
+    struct Foot {
+        var x: CGFloat
+        var lift: CGFloat
+    }
+
+    /// How far each foot stands from the body's centre, in design units.
+    static let footSpread: CGFloat = 14
+    static let standingFeet = [Foot(x: 60 - footSpread, lift: 0), Foot(x: 60 + footSpread, lift: 0)]
+    /// How high a stepping foot rises at the top of its arc, in design units.
+    static let stepHeight: CGFloat = 9
+
+    /// - Parameters:
+    ///   - feet: left, then right (in the drawing's own left and right).
+    ///   - armSwing: -1...1 while walking: the arms swing opposite each other.
+    static func draw(_ look: PebbleLook, face: GremlinFace, feet: [Foot] = standingFeet, armSwing: CGFloat = 0,
+                     in c: inout GraphicsContext) {
         let limb = StrokeStyle(lineWidth: 6, lineCap: .round, lineJoin: .round)
         let outline = StrokeStyle(lineWidth: 3.5, lineCap: .round, lineJoin: .round)
 
-        // Legs and feet, below the body.
-        var legs = Path()
-        legs.move(to: CGPoint(x: 50, y: 112)); legs.addLine(to: CGPoint(x: 47, y: 128))
-        legs.move(to: CGPoint(x: 70, y: 112)); legs.addLine(to: CGPoint(x: 73, y: 128))
-        c.stroke(legs, with: .color(ink), style: limb)
-        c.fill(Path(ellipseIn: CGRect(x: 34, y: 125, width: 24, height: 12)), with: .color(ink))
-        c.fill(Path(ellipseIn: CGRect(x: 62, y: 125, width: 24, height: 12)), with: .color(ink))
+        // Legs from the hips to the feet, below the body.
+        let hips = [CGPoint(x: 50, y: 112), CGPoint(x: 70, y: 112)]
+        for (hip, foot) in zip(hips, feet) {
+            let ankle = CGPoint(x: foot.x, y: 128 - foot.lift * stepHeight)
+            var leg = Path()
+            leg.move(to: hip)
+            leg.addLine(to: ankle)
+            c.stroke(leg, with: .color(ink), style: limb)
+            c.fill(Path(ellipseIn: CGRect(x: ankle.x - 12, y: ankle.y - 3, width: 24, height: 12)), with: .color(ink))
+        }
 
         // Arms reaching out from the sides, with round hands: out to the side, up in a
         // cheer, drooping after a slip.
@@ -136,11 +178,15 @@ enum Pebble {
         }
         for side in [false, true] {
             let m: (CGPoint) -> CGPoint = { side ? CGPoint(x: 120 - $0.x, y: $0.y) : $0 }
+            // Walking: one hand up as the other goes down.
+            let swing = CGPoint(x: 0, y: (side ? 1 : -1) * 6 * armSwing)
+            let hand = CGPoint(x: m(reach.hand).x, y: m(reach.hand).y + swing.y)
+            let elbow = CGPoint(x: m(reach.elbow).x, y: m(reach.elbow).y + swing.y / 2)
             var arm = Path()
             arm.move(to: m(reach.shoulder))
-            arm.addQuadCurve(to: m(reach.hand), control: m(reach.elbow))
+            arm.addQuadCurve(to: hand, control: elbow)
             c.stroke(arm, with: .color(ink), style: limb)
-            let h = m(reach.hand)
+            let h = hand
             let palm = Path(ellipseIn: CGRect(x: h.x - 5, y: h.y - 5, width: 10, height: 10))
             c.fill(palm, with: .color(look.body))
             c.stroke(palm, with: .color(ink), lineWidth: 3)

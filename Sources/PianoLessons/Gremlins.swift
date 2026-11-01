@@ -104,14 +104,17 @@ public struct GremlinPose: Equatable, Sendable {
 
     /// The dance at `b`: a small bob on each beat; on the last beat of the bar a crouch and a
     /// big jump that lands, squashed, on the next downbeat. In 1/4 every beat is a downbeat.
-    public static func dancing(_ b: GremlinBeat) -> GremlinPose {
+    ///
+    /// While `walking`, every beat is a small bob (each one a step): a big jump mid-stride
+    /// looks wrong, and the dancers spend most of their time standing, where it shows.
+    public static func dancing(_ b: GremlinBeat, walking: Bool = false) -> GremlinPose {
         let p = b.phase
-        let big = b.isLastBeat
+        let big = b.isLastBeat && !walking
         let height = big ? barJump : beatHop
         let lift = height * 4 * p * (1 - p)
         // Landing squash at the start of each beat: hardest on the downbeat, a crouch before
         // the big jump, light otherwise.
-        let landing: Double = b.isDownbeat ? 0.16 : (big ? 0.12 : 0.06)
+        let landing: Double = walking ? 0.05 : (b.isDownbeat ? 0.16 : (big ? 0.12 : 0.06))
         let squash = -landing * max(0, 1 - p / 0.2)
         let air = p > 0.2 ? (big ? 0.08 : 0.025) * sin(Double.pi * (p - 0.2) / 0.8) : 0
         return GremlinPose(lift: lift, stretch: squash + air)
@@ -218,6 +221,16 @@ public struct GremlinWander: Equatable, Sendable {
         return (from + (to - from) * Self.stride(u, rampFraction: min(0.5, 0.75 / walk)), facing(leg))
     }
 
+    /// The walk in the leg at beat time `t`, once it has started: its first and last beat
+    /// (whole beats, in `t`'s time) and its direction. Nil while standing before it.
+    public func walk(atBeat t: Double) -> (start: Double, end: Double, direction: Int)? {
+        let length = Double(legBeats)
+        let leg = Int(((t + offsetBeats) / length).rounded(.down))
+        let start = Double(leg) * length - offsetBeats + Double(restBeats(leg))
+        guard t >= start else { return nil }
+        return (start, start + Double(walkBeats(leg)), facing(leg))
+    }
+
     /// Beats standing at the start of leg `leg` before walking: 2 to 5.
     public func restBeats(_ leg: Int) -> Int {
         min(legBeats - walkBeats(leg), 2 + Int(random(leg, salt: 1) * 4))
@@ -256,6 +269,89 @@ public struct GremlinWander: Equatable, Sendable {
         z = (z ^ (z >> 30)) &* 0xBF58_476D_1CE4_E5B9
         z = (z ^ (z >> 27)) &* 0x94D0_49BB_1331_11EB
         return z ^ (z >> 31)
+    }
+}
+
+/// One foot, in the same units as the body's position: where it is along the floor and how
+/// high it's lifted (0 on the ground, 1 at the top of a step).
+public struct GremlinFoot: Equatable, Sendable {
+    public var x: Double
+    public var lift: Double
+
+    public init(x: Double, lift: Double = 0) {
+        self.x = x
+        self.lift = lift
+    }
+}
+
+/// Walking with real steps: one step per beat, feet taking turns.
+///
+/// The foot on the ground stays where it landed while the body moves over it; the other
+/// lifts in a small arc and lands half a step ahead of the body, on the beat. The last step
+/// of a walk lands at the foot's standing place, and the other foot steps in beside it in the
+/// first half beat after, so the dancer ends standing square. Feet never slide.
+public enum GremlinGait {
+    /// The two feet at time `t` for a walk over `walkStart...walkEnd` (whole beats apart).
+    ///
+    /// - Parameters:
+    ///   - direction: 1 walking right (increasing x), -1 left.
+    ///   - spread: how far each foot stands from the body's centre: the left foot's place is
+    ///     body - spread, the right foot's body + spread.
+    ///   - body: the body's position at any time, in the units wanted back.
+    /// - Returns: the left foot, then the right.
+    public static func feet(at t: Double, walkStart a: Double, walkEnd b: Double, direction: Int,
+                            spread: Double, body x: (Double) -> Double) -> [GremlinFoot] {
+        let home = [-spread, spread]
+        let steps = max(1, Int((b - a).rounded()))
+        guard t >= a else { return home.map { GremlinFoot(x: x(t) + $0) } }
+        let d = Double(direction >= 0 ? 1 : -1)
+        // Half a step's length: how far ahead of the body a foot lands.
+        let lead = abs(x(b) - x(a)) / Double(steps) / 2
+        // The trailing foot steps first.
+        let trailing = direction >= 0 ? 0 : 1
+        func swinging(_ k: Int) -> Int { (trailing + k) % 2 }
+        func landing(_ k: Int, _ f: Int) -> Double {
+            k == steps - 1 ? x(b) + home[f] : x(a + Double(k + 1)) + home[f] + d * lead
+        }
+        /// Where foot `f` stands before step `k`: its last landing, or its place at the start.
+        func planted(before k: Int, _ f: Int) -> Double {
+            var j = k - 1
+            while j >= 0 {
+                if swinging(j) == f { return landing(j, f) }
+                j -= 1
+            }
+            return x(a) + home[f]
+        }
+        func arc(_ from: Double, _ to: Double, _ p: Double) -> GremlinFoot {
+            let eased = p * p * (3 - 2 * p)
+            return GremlinFoot(x: from + (to - from) * eased, lift: sin(Double.pi * p))
+        }
+
+        if t < b {
+            let k = min(steps - 1, Int((t - a).rounded(.down)))
+            let p = t - a - Double(k)
+            let f = swinging(k)
+            var feet = [GremlinFoot(x: 0), GremlinFoot(x: 0)]
+            feet[f] = arc(planted(before: k, f), landing(k, f), p)
+            feet[1 - f] = GremlinFoot(x: planted(before: k, 1 - f))
+            return feet
+        }
+        // After the walk: the foot that didn't take the last step steps in beside the other.
+        let last = swinging(steps - 1)
+        let other = 1 - last
+        var feet = [GremlinFoot(x: 0), GremlinFoot(x: 0)]
+        feet[last] = GremlinFoot(x: x(b) + home[last])
+        let settle = (t - b) / 0.5
+        feet[other] = settle < 1 ? arc(planted(before: steps, other), x(b) + home[other], settle)
+                                 : GremlinFoot(x: x(b) + home[other])
+        return feet
+    }
+
+    /// The side-to-side waddle while walking, -1...1: one way on even steps, the other way on
+    /// odd ones, 0 standing. Leans the body and swings the arms.
+    public static func sway(at t: Double, walkStart a: Double, walkEnd b: Double) -> Double {
+        guard t >= a, t < b else { return 0 }
+        return sin(Double.pi * (t - a))
     }
 }
 

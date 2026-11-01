@@ -178,4 +178,76 @@ final class GremlinTests: XCTestCase {
         clock.advance(toBeat: nil)
         XCTAssertEqual(clock.time, held)
     }
+
+    // MARK: Walking with steps
+
+    /// A body walking right from 0 to 40 over beats 10...14, with ease in and out.
+    private func body(_ t: Double) -> Double {
+        let u = min(1, max(0, (t - 10) / 4))
+        return 40 * u * u * (3 - 2 * u)
+    }
+
+    private func feet(_ t: Double, direction: Int = 1) -> [GremlinFoot] {
+        GremlinGait.feet(at: t, walkStart: 10, walkEnd: 14, direction: direction, spread: 5, body: body)
+    }
+
+    func testStandsSquareBeforeAndAfterTheWalk() {
+        XCTAssertEqual(feet(9), [GremlinFoot(x: -5), GremlinFoot(x: 5)])
+        XCTAssertEqual(feet(15), [GremlinFoot(x: 35), GremlinFoot(x: 45)])
+    }
+
+    func testOneFootStepsAtATimeOnTheBeat() {
+        for step in 0..<4 {
+            let mid = feet(10.5 + Double(step))
+            let lifted = mid.filter { $0.lift > 0.5 }
+            XCTAssertEqual(lifted.count, 1, "one foot in the air at a time")
+            // On the beat both feet are down.
+            XCTAssertTrue(feet(10 + Double(step) + 1e-9).allSatisfy { $0.lift < 1e-6 })
+        }
+        // The feet take turns: the trailing (left) foot first when walking right.
+        XCTAssertGreaterThan(feet(10.5)[0].lift, 0.5)
+        XCTAssertGreaterThan(feet(11.5)[1].lift, 0.5)
+        XCTAssertGreaterThan(feet(10.5, direction: -1)[1].lift, 0.5, "walking left, the right foot trails")
+    }
+
+    func testPlantedFootNeverSlides() {
+        for step in 0..<4 {
+            let start = 10 + Double(step)
+            let planted = 1 - (step % 2) // the foot not stepping
+            let samples = stride(from: start + 0.01, to: start + 0.99, by: 0.07).map { feet($0)[planted].x }
+            XCTAssertEqual(samples.max()! - samples.min()!, 0, accuracy: 1e-12)
+        }
+    }
+
+    func testStepsMoveForward() {
+        var last = feet(10)
+        for i in 1...10 {
+            let now = feet(10 + Double(i) * 0.5)
+            XCTAssertGreaterThanOrEqual(now[0].x, last[0].x - 1e-9)
+            XCTAssertGreaterThanOrEqual(now[1].x, last[1].x - 1e-9)
+            last = now
+        }
+    }
+
+    func testSwayAlternatesSides() {
+        XCTAssertGreaterThan(GremlinGait.sway(at: 10.5, walkStart: 10, walkEnd: 14), 0.9)
+        XCTAssertLessThan(GremlinGait.sway(at: 11.5, walkStart: 10, walkEnd: 14), -0.9)
+        XCTAssertEqual(GremlinGait.sway(at: 15, walkStart: 10, walkEnd: 14), 0)
+    }
+
+    func testNoBigJumpWhileWalking() {
+        let lastBeat = GremlinBeat.at(quarter: 3.5, barStart: 0, meter: .common)
+        XCTAssertEqual(GremlinPose.dancing(lastBeat).lift, GremlinPose.barJump, accuracy: 1e-9)
+        XCTAssertEqual(GremlinPose.dancing(lastBeat, walking: true).lift, GremlinPose.beatHop, accuracy: 1e-9)
+    }
+
+    func testWalkIsReportedOnceItStarts() {
+        let w = GremlinWander.dancer(2)
+        let legStart = Double(3 * w.legBeats) - w.offsetBeats
+        let start = legStart + Double(w.restBeats(3))
+        XCTAssertNil(w.walk(atBeat: start - 0.5))
+        let walk = w.walk(atBeat: start + 0.5)
+        XCTAssertEqual(walk?.start, start)
+        XCTAssertEqual(walk?.end, start + Double(w.walkBeats(3)))
+    }
 }
