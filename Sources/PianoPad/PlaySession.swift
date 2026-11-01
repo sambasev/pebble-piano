@@ -443,7 +443,12 @@ final class PlaySession: ObservableObject {
 
     // MARK: Private state
 
-    @Published var tutor: PiecePracticeEngine?
+    @Published var tutor: PiecePracticeEngine? {
+        didSet { saveTutorProgress() }
+    }
+    /// The planned lesson's progress is saved on every change once it has been restored
+    /// (so starting up never overwrites what was saved).
+    var tutorSavesProgress = false
     @Published var tutorText = ""
     @Published var tutorAI = ""
     @Published var tutorBusy = false
@@ -2458,7 +2463,7 @@ extension PlaySession {
         tutorPlanTask?.cancel()
         let id = UUID(); tutorPlanID = id
         if !fresh, let key = tutorPieceKey, let cached = PieceLessonStore.plan(key) {
-            applyTutorPlan(cached, save: false)
+            applyTutorPlan(cached, save: false, resume: true)
             return
         }
         let model: (any LessonPlanModel)? = tutorPlanModel ?? (try? ModelLessonPlanModel.configured())
@@ -2471,7 +2476,7 @@ extension PlaySession {
             let plan = await LessonPlanner.plan(for: full, title: title, model: model, known: known, fingering: fingering,
                                                 log: { print("[LessonPlanner] \($0)") })
             guard let self, !Task.isCancelled, self.tutorPlanID == id, self.tutor != nil else { return }
-            self.applyTutorPlan(plan, save: true)
+            self.applyTutorPlan(plan, save: true, resume: !fresh)
         }
     }
 
@@ -2481,19 +2486,38 @@ extension PlaySession {
         tutorPlanTask?.cancel(); tutorPlanID = UUID()
         var plan = LessonPlan.fallback(for: full)
         plan.newNotes = LessonPlan.newNotes(in: full, known: knownNotes(), fingering: fingeringNotes)
-        applyTutorPlan(plan, save: false)
+        applyTutorPlan(plan, save: false, resume: true)
     }
 
-    func applyTutorPlan(_ plan: LessonPlan, save: Bool) {
+    /// `resume`: pick up the learner's saved progress on this plan (not after "Plan again").
+    func applyTutorPlan(_ plan: LessonPlan, save: Bool, resume: Bool) {
         guard var engine = tutor else { return }
+        tutorSavesProgress = false
         engine.follow(plan)
+        var resumed = false
+        if let key = tutorPieceKey {
+            if resume, let saved = PieceLessonStore.progress(key, learner: tutorLearnerKey) {
+                resumed = engine.restore(saved)
+            } else if !resume {
+                PieceLessonStore.clearProgress(key, learner: tutorLearnerKey)
+            }
+        }
         tutor = engine
+        tutorSavesProgress = tutorPieceKey != nil
+        saveTutorProgress()
         tutorPlanning = false
         tutorAttempt = nil
         tutorPlanNote = plan.source == .model ? "Lesson planned by Muse Spark, checked by PianoPad." : "Quick plan (no AI): phrases of about four bars."
-        tutorText = "Here's your lesson for \(tutorTitle): \(plan.phrases.count) phrase\(plan.phrases.count == 1 ? "" : "s")"
-            + (plan.handsSeparately ? ", hands separately first" : "") + ". "
-            + TutorCoaching.invitation(for: engine.exercise, printedMeasures: tutorPrinted(engine.exercise))
+        if resumed {
+            let done = engine.completedSteps.count, total = engine.steps.count
+            tutorText = "Welcome back to \(tutorTitle): \(done) of \(total) steps done. "
+                + (engine.mastered ? "You've passed this piece; play it again any time. " : "")
+                + TutorCoaching.invitation(for: engine.exercise, printedMeasures: tutorPrinted(engine.exercise))
+        } else {
+            tutorText = "Here's your lesson for \(tutorTitle): \(plan.phrases.count) phrase\(plan.phrases.count == 1 ? "" : "s")"
+                + (plan.handsSeparately ? ", hands separately first" : "") + ". "
+                + TutorCoaching.invitation(for: engine.exercise, printedMeasures: tutorPrinted(engine.exercise))
+        }
         tutorContext = ""
         guard let key = tutorPieceKey, let full = tutorFullReference else { return }
         if save { try? PieceLessonStore.save(plan, key: key) }
@@ -2518,8 +2542,17 @@ extension PlaySession {
         return known
     }
 
+    /// Whose progress: the learner's ID, or "default" when there's none.
+    var tutorLearnerKey: String { learner?.id.uuidString ?? "default" }
+
+    func saveTutorProgress() {
+        guard tutorSavesProgress, let key = tutorPieceKey, let progress = tutor?.progress else { return }
+        PieceLessonStore.save(progress, key: key, learner: tutorLearnerKey)
+    }
+
     func endTutoring() {
         guard tutor != nil else { return }
+        tutorSavesProgress = false
         tutorGeneration = UUID(); tutorTask?.cancel(); tutorTask = nil; tutorBusy = false
         tutorPlanTask?.cancel(); tutorPlanTask = nil; tutorPlanID = UUID(); tutorPlanning = false; tutorPlanNote = nil
         resetAll()

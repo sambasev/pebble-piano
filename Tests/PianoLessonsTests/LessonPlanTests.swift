@@ -235,6 +235,31 @@ final class LessonPlanTests: XCTestCase {
         XCTAssertEqual(new.whereText, "Phrase 1 (bars 1–4)")
     }
 
+    func testProgressSavesAndResumesOnTheSamePlanOnly() throws {
+        let piece = twoHandPiece(bars: 8)
+        let plan = LessonPlan.fallback(for: piece)
+        var engine = PiecePracticeEngine(measureCount: 8, plan: plan)
+        engine.completeStep()
+        engine.skip()
+        let saved = try XCTUnwrap(engine.progress)
+        let decoded = try JSONDecoder().decode(PiecePracticeEngine.Progress.self, from: JSONEncoder().encode(saved))
+        var again = PiecePracticeEngine(measureCount: 8, plan: plan)
+        XCTAssertTrue(again.restore(decoded))
+        XCTAssertEqual(again.stepIndex, engine.stepIndex)
+        XCTAssertEqual(again.completedSteps, engine.completedSteps)
+        XCTAssertEqual(again.exercise, engine.exercise)
+        // Past the plan, in the adaptive drills: the drill comes back.
+        engine.assessInstead()
+        var other = PiecePracticeEngine(measureCount: 8, plan: plan)
+        XCTAssertTrue(other.restore(try XCTUnwrap(engine.progress)))
+        XCTAssertFalse(other.isFollowingPlan)
+        XCTAssertEqual(other.exercise.kind, .assessment)
+        // A different plan doesn't take it.
+        var different = PiecePracticeEngine(measureCount: 8, plan: LessonPlan(phrases: [.init(bars: 1...8, label: "All")], handsSeparately: false, source: .model))
+        XCTAssertFalse(different.restore(saved))
+        XCTAssertEqual(different.stepIndex, 0)
+    }
+
     // MARK: Learn page
 
     func testLessonPageForLearn() throws {

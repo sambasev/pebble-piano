@@ -97,6 +97,48 @@ public struct PiecePracticeEngine: Sendable {
     public private(set) var lastStars: Int?
     private var queue: [PracticeExercise] = []
 
+    /// Where the learner got to in a planned lesson, to save and resume.
+    public struct Progress: Codable, Equatable, Sendable {
+        /// Which plan this is for: progress on a different plan isn't restored.
+        public var planSignature: String
+        public var stepIndex: Int?
+        public var completedSteps: [Int]
+        /// The current exercise (an adaptive drill, once past the plan).
+        public var exercise: PracticeExercise
+        public var lastStars: Int?
+        public var mastered: Bool
+        public var saved: Date
+    }
+
+    public var progress: Progress? {
+        plan.map { Progress(planSignature: Self.signature($0), stepIndex: stepIndex, completedSteps: completedSteps.sorted(),
+                            exercise: exercise, lastStars: lastStars, mastered: mastered, saved: Date()) }
+    }
+
+    /// Picks up where `saved` left off, if it's for this plan. Returns whether it did.
+    @discardableResult
+    public mutating func restore(_ saved: Progress) -> Bool {
+        guard let plan, saved.planSignature == Self.signature(plan) else { return false }
+        completedSteps = Set(saved.completedSteps.filter { steps.indices.contains($0) })
+        lastStars = saved.lastStars
+        mastered = saved.mastered
+        queue = []
+        if let i = saved.stepIndex, steps.indices.contains(i) {
+            jump(to: i)
+        } else {
+            stepIndex = nil
+            exercise = saved.exercise
+            cleanStreak = 0; runs = 0
+        }
+        return true
+    }
+
+    /// The plan's phrases, hands and new notes, as text: equal for the same plan.
+    public static func signature(_ plan: LessonPlan) -> String {
+        plan.phrases.map { "\($0.bars.lowerBound)-\($0.bars.upperBound)" }.joined(separator: ",")
+            + "|\(plan.handsSeparately)|" + plan.newNotes.map(\.note.name).joined(separator: ",")
+    }
+
     public init(measureCount: Int, persona: Persona = .alex, plan: LessonPlan? = nil) {
         self.measureCount = max(1, measureCount); self.persona = persona
         exercise = PracticeExercise(kind: .assessment, measures: 1...max(1, measureCount))

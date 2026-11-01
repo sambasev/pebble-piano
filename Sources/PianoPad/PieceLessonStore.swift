@@ -45,6 +45,33 @@ enum PieceLessonStore {
         try encoder.encode(plan).write(to: dir.appendingPathComponent("plan.json"), options: .atomic)
     }
 
+    // MARK: Tutor progress
+
+    /// Where `learner` got to in this piece's planned lesson ("default" without a learner).
+    static func progress(_ key: String, learner: String) -> PiecePracticeEngine.Progress? {
+        guard let data = try? Data(contentsOf: progressURL(key, learner: learner)) else { return nil }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        return try? decoder.decode(PiecePracticeEngine.Progress.self, from: data)
+    }
+
+    static func save(_ progress: PiecePracticeEngine.Progress, key: String, learner: String) {
+        let url = progressURL(key, learner: learner)
+        try? FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        let encoder = JSONEncoder()
+        encoder.dateEncodingStrategy = .iso8601
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        try? encoder.encode(progress).write(to: url, options: .atomic)
+    }
+
+    static func clearProgress(_ key: String, learner: String) {
+        try? FileManager.default.removeItem(at: progressURL(key, learner: learner))
+    }
+
+    private static func progressURL(_ key: String, learner: String) -> URL {
+        folder(key).appendingPathComponent("progress-\(learner).json")
+    }
+
     // MARK: Learn pages
 
     /// Writes the plan's lesson page and its MIDI files.
