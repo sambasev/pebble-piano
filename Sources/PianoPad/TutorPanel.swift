@@ -24,6 +24,8 @@ struct TutorPanel: View {
                     current(engine)
                 }
                 Button("End tutoring") { session.endTutoring() }
+            } else if let readiness = session.tutorReadiness {
+                ReadinessCard(readiness: readiness)
             } else if session.reference?.notes.isEmpty == false {
                 if let saved = session.savedTutorProgress {
                     // A lesson under way: carry on from where it was left.
@@ -138,6 +140,7 @@ struct TutorPanel: View {
         case .listen: return "Listen"
         case .newNote: return "Find the note"
         case .perform: return "Perform"
+        case .placement: return "Play it for me"
         default: return "Start step"
         }
     }
@@ -148,8 +151,56 @@ struct TutorPanel: View {
         case .newNote: return "Press Find the note, then play the highlighted key."
         case .notes: return "Press Start step: the music waits for each note\(e.hand == nil ? "" : "—play only the \(e.hand == .left ? "left" : "right") hand")."
         case .perform: return "Press Perform, then play the whole piece after the count-in."
+        case .placement: return "Play the whole piece once, as well as you can. Parts you play cleanly are ticked off. Not ready? Skip step."
         default: return "Ready when you are: press \(startLabel(e)), then play after the count-in\(e.hand == nil ? "" : " (\(e.hand == .left ? "left" : "right") hand only)")."
         }
+    }
+}
+
+/// Before a piece: the stock lessons that teach what it needs, with Open, or carry on anyway.
+private struct ReadinessCard: View {
+    @EnvironmentObject var session: PlaySession
+    let readiness: Readiness
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Before \(session.tutorTitle)").font(.callout.weight(.semibold))
+            Text(sentence).font(.callout)
+            if let first = readiness.suggestions.first {
+                if session.learner?.kind == .child {
+                    Button { session.openStockLesson(first.pageID) } label: {
+                        Label("Learn \(first.title) first", systemImage: "book.fill").frame(maxWidth: .infinity).padding(.vertical, 6)
+                    }
+                    .buttonStyle(.borderedProminent)
+                } else {
+                    ForEach(Array(readiness.suggestions.enumerated()), id: \.element.pageID) { i, s in
+                        HStack {
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text("Unit 1 · \(s.title)").font(.caption.weight(.semibold))
+                                if let reason = s.reason { Text(reason.prefix(1).uppercased() + reason.dropFirst()).font(.caption2).foregroundColor(.secondary) }
+                            }
+                            Spacer()
+                            if i == 0 {
+                                Button("Open") { session.openStockLesson(s.pageID) }
+                                    .buttonStyle(.borderedProminent).controlSize(.small)
+                            }
+                        }
+                    }
+                }
+            }
+            Button("Teach me this piece anyway") { session.beginTutoring(planLesson: true, ignoreReadiness: true) }
+                .help("Plan the lesson now: the notes you haven't met become steps in it")
+        }
+        .padding(8)
+        .background(RoundedRectangle(cornerRadius: 8).fill(Color.secondary.opacity(0.08)))
+    }
+
+    private var sentence: String {
+        let gaps = readiness.gaps
+        let list = gaps.count <= 1 ? gaps.joined() : gaps.dropLast().joined(separator: ", ") + " and " + gaps.last!
+        let n = readiness.suggestions.count
+        return list.prefix(1).uppercased() + list.dropFirst() + ". "
+            + (n == 1 ? "This lesson in Unit 1 covers it:" : "These \(n) short Unit 1 lessons cover it, in order:")
     }
 }
 
@@ -175,6 +226,9 @@ private struct PlanChecklist: View {
                             if engine.stepIndex == i, let tip = tip(for: step) {
                                 Text(tip).font(.caption2).foregroundColor(.secondary)
                             }
+                            if let why = step.skipReason, engine.stepIndex != i, !engine.completedSteps.contains(i) {
+                                Text("Skipped: \(why.prefix(1).lowercased() + why.dropFirst())").font(.caption2).foregroundColor(.secondary)
+                            }
                         }
                     }
                     .contentShape(Rectangle())
@@ -188,7 +242,8 @@ private struct PlanChecklist: View {
     }
 
     private func icon(_ i: Int) -> String {
-        engine.stepIndex == i ? "play.circle.fill" : engine.completedSteps.contains(i) ? "checkmark.circle.fill" : "circle"
+        engine.stepIndex == i ? "play.circle.fill" : engine.completedSteps.contains(i) ? "checkmark.circle.fill"
+            : engine.skippedSteps.contains(i) ? "arrow.uturn.right.circle" : "circle"
     }
 
     private func tip(for step: PracticeExercise) -> String? {

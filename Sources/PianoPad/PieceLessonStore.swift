@@ -30,19 +30,20 @@ enum PieceLessonStore {
     // MARK: Plans
 
     /// The cached plan, unless it was made by an older planner.
-    static func plan(_ key: String) -> LessonPlan? {
-        guard let data = try? Data(contentsOf: folder(key).appendingPathComponent("plan.json")),
+    /// Plans are kept per learner: Muse Spark fits its tips to who's learning.
+    static func plan(_ key: String, learner: String) -> LessonPlan? {
+        guard let data = try? Data(contentsOf: folder(key).appendingPathComponent("plan-\(learner).json")),
               let plan = try? JSONDecoder().decode(LessonPlan.self, from: data),
               plan.version == LessonPlan.currentVersion else { return nil }
         return plan
     }
 
-    static func save(_ plan: LessonPlan, key: String) throws {
+    static func save(_ plan: LessonPlan, key: String, learner: String) throws {
         let dir = folder(key)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-        try encoder.encode(plan).write(to: dir.appendingPathComponent("plan.json"), options: .atomic)
+        try encoder.encode(plan).write(to: dir.appendingPathComponent("plan-\(learner).json"), options: .atomic)
     }
 
     // MARK: Tutor progress

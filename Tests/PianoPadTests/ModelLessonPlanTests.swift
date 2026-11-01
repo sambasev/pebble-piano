@@ -61,7 +61,7 @@ extension ModelLessonPlanTests {
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         session.loadReference(root.appendingPathComponent("Fixtures/starter/midi/ode-to-joy.midi"), remember: false)
         session.tutorPlanModel = OfflinePlanner()
-        session.beginTutoring(planLesson: true)
+        session.beginTutoring(planLesson: true, ignoreReadiness: true)
         for _ in 0..<200 where session.tutorPlanning { try await Task.sleep(nanoseconds: 10_000_000) }
         XCTAssertFalse(session.tutorPlanning)
         let engine = try XCTUnwrap(session.tutor)
@@ -69,7 +69,9 @@ extension ModelLessonPlanTests {
         XCTAssertEqual(engine.plan?.source, .fallback)
         XCTAssertEqual(engine.plan?.phrases.map(\.bars), [1...4, 5...8])
         XCTAssertEqual(engine.plan?.handsSeparately, true)
-        XCTAssertEqual(engine.exercise.kind, .listen)
+        XCTAssertEqual(engine.exercise.kind, .placement)
+        session.tutor?.skip()
+        XCTAssertEqual(session.tutor?.exercise.kind, .listen)
         // Listening moves straight on; the first note-by-note step plays one hand.
         session.startTutorExercise()
         XCTAssertNotEqual(session.tutor?.exercise.kind, .listen)

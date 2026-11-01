@@ -10,6 +10,9 @@ public struct PracticeExercise: Equatable, Codable, Sendable {
         case newNote
         /// The whole piece at full speed, for stars.
         case perform
+        /// "Show me what you can do": the whole piece once, before the lesson; phrases played
+        /// cleanly are marked done.
+        case placement
     }
     public var kind: Kind
     public var measures: ClosedRange<Int>
@@ -20,6 +23,8 @@ public struct PracticeExercise: Equatable, Codable, Sendable {
     public var note: NoteName?
     /// The phrase this step practises ("Phrase 2"), when it follows a lesson plan.
     public var label: String?
+    /// Why the plan skips this step for this learner ("You know these notes"); nil when it doesn't.
+    public var skipReason: String?
 
     public var title: String {
         let base: String
@@ -32,6 +37,7 @@ public struct PracticeExercise: Equatable, Codable, Sendable {
         case .listen: base = "Listen"
         case .newNote: base = "New note: \(note?.letter ?? "")"
         case .perform: base = "Perform"
+        case .placement: base = "Show me what you can do"
         }
         switch hand {
         case .right?: return "Right hand · " + base.lowercasedFirst
@@ -50,12 +56,12 @@ public struct PracticeExercise: Equatable, Codable, Sendable {
     /// Played in wait mode (the music waits for each note).
     public var isWaitMode: Bool { kind == .notes || kind == .newNote }
     /// Graded on the clicks.
-    public var isTimed: Bool { [.assessment, .slow, .fullSpeed, .context, .perform].contains(kind) }
+    public var isTimed: Bool { [.assessment, .slow, .fullSpeed, .context, .perform, .placement].contains(kind) }
 
     public init(kind: Kind, measures: ClosedRange<Int>, tempoPercent: Double = 100, hand: Hand? = nil,
-                note: NoteName? = nil, label: String? = nil) {
+                note: NoteName? = nil, label: String? = nil, skipReason: String? = nil) {
         self.kind = kind; self.measures = measures; self.tempoPercent = tempoPercent
-        self.hand = hand; self.note = note; self.label = label
+        self.hand = hand; self.note = note; self.label = label; self.skipReason = skipReason
     }
     public func originalMeasure(_ local: Int) -> Int { measures.lowerBound + local - 1 }
     public func printedMeasure(_ local: Int, playOrder: [Int]) -> Int {
@@ -91,8 +97,10 @@ public struct PiecePracticeEngine: Sendable {
     public private(set) var steps: [PracticeExercise] = []
     /// Where the learner is in `steps`; nil when not following the plan.
     public private(set) var stepIndex: Int?
-    /// Steps of the plan passed (or skipped) so far.
+    /// Steps of the plan passed (or skipped by the learner) so far.
     public private(set) var completedSteps: Set<Int> = []
+    /// Steps the plan leaves out for this learner (they have a `skipReason`); still clickable.
+    public var skippedSteps: Set<Int> { Set(steps.indices.filter { steps[$0].skipReason != nil }) }
     /// Stars from the last Perform run.
     public private(set) var lastStars: Int?
     private var queue: [PracticeExercise] = []
@@ -170,17 +178,21 @@ public struct PiecePracticeEngine: Sendable {
         let count = max(1, measureCount)
         let whole = 1...count
         let slow = persona.drill.slowTempoPercent
-        var out: [PracticeExercise] = [.init(kind: .listen, measures: whole)]
+        let known = plan.familiarity ?? Familiarity()
+        var out: [PracticeExercise] = [.init(kind: .placement, measures: whole), .init(kind: .listen, measures: whole)]
         for n in plan.newNotes {
             out.append(.init(kind: .newNote, measures: whole, hand: n.hand, note: n.note))
         }
-        for p in plan.phrases {
+        for (i, p) in plan.phrases.enumerated() {
             let bars = max(1, min(count, p.bars.lowerBound))...max(1, min(count, p.bars.upperBound))
+            let knowsNotes = known.knownPhrases.contains(i)
             if plan.handsSeparately {
-                out.append(.init(kind: .notes, measures: bars, hand: .right, label: p.label))
-                out.append(.init(kind: .notes, measures: bars, hand: .left, label: p.label))
+                let skip = knowsNotes && known.handsTogether ? "You know these notes and have played both hands together" : nil
+                out.append(.init(kind: .notes, measures: bars, hand: .right, label: p.label, skipReason: skip))
+                out.append(.init(kind: .notes, measures: bars, hand: .left, label: p.label, skipReason: skip))
             }
-            out.append(.init(kind: .notes, measures: bars, label: p.label))
+            out.append(.init(kind: .notes, measures: bars, label: p.label,
+                             skipReason: knowsNotes && known.tempoReached ? "You know these notes" : nil))
             out.append(.init(kind: .slow, measures: bars, tempoPercent: slow, label: p.label))
         }
         if plan.phrases.count > 1 {
@@ -204,7 +216,7 @@ public struct PiecePracticeEngine: Sendable {
         steps = Self.steps(for: plan, measureCount: measureCount, persona: persona)
         completedSteps = []
         queue = []; mastered = false; lastStars = nil
-        jump(to: 0)
+        jump(to: steps.indices.first { steps[$0].skipReason == nil } ?? 0)
     }
 
     /// Goes to step `index` of the plan (the checklist).
@@ -228,10 +240,11 @@ public struct PiecePracticeEngine: Sendable {
         reassess()
     }
 
+    /// The next step not yet done and not skipped for this learner.
     private mutating func nextStep() {
         guard let i = stepIndex else { return }
-        if i + 1 < steps.count {
-            jump(to: i + 1)
+        if let next = steps.indices.first(where: { $0 > i && !completedSteps.contains($0) && steps[$0].skipReason == nil }) {
+            jump(to: next)
         } else {
             stepIndex = nil
             exercise = .init(kind: .assessment, measures: 1...measureCount)
@@ -254,6 +267,7 @@ public struct PiecePracticeEngine: Sendable {
     /// Records a graded run of the current exercise. `stars`: the Perform run's stars.
     public mutating func record(_ report: GradeReport, replays: Int = 0, completedNotes: Bool = false, stars: Int? = nil) {
         if exercise.kind == .listen { completeStep(); return }
+        if exercise.kind == .placement { place(after: report); return }
         if exercise.kind == .perform {
             lastStars = stars
             mastered = (stars ?? 0) >= 2 && report.timing != nil && replays == 0
@@ -283,6 +297,36 @@ public struct PiecePracticeEngine: Sendable {
             } else {
                 advance()
             }
+        }
+    }
+
+    /// "Show me what you can do": every step on a phrase played cleanly (no wrong, missed,
+    /// extra, early or late notes in its bars) is done, and so is a new note met only in clean
+    /// phrases. All clean and passed at full speed: straight to Perform. Then the first step
+    /// still to do.
+    private mutating func place(after report: GradeReport) {
+        guard let plan, let here = stepIndex else { return }
+        let flagged = Set(report.flags.map(\.position.measure))
+        let cleanBars = Set(plan.phrases.filter { p in !p.bars.contains { flagged.contains($0) } }.flatMap { Array($0.bars) })
+        let allClean = cleanBars.count >= measureCount && report.timing != nil
+        completedSteps.insert(here)
+        for (i, step) in steps.enumerated() where i != here {
+            switch step.kind {
+            case .notes, .slow:
+                if Set(step.measures).isSubset(of: cleanBars) { completedSteps.insert(i) }
+            case .newNote:
+                let bars = plan.newNotes.first { $0.note == step.note }?.bars ?? []
+                if !bars.isEmpty, Set(bars).isSubset(of: cleanBars) { completedSteps.insert(i) }
+            case .listen:
+                if allClean { completedSteps.insert(i) }
+            default:
+                break
+            }
+        }
+        if let first = steps.indices.first(where: { !completedSteps.contains($0) && steps[$0].skipReason == nil }) {
+            jump(to: first)
+        } else {
+            jump(to: steps.count - 1)
         }
     }
 

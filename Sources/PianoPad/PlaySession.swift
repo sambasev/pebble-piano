@@ -451,6 +451,8 @@ final class PlaySession: ObservableObject {
     var tutorSavesProgress = false
     /// Teach me this piece was asked to start the plan again from the beginning.
     var tutorStartOver = false
+    /// Stock lessons to do before this piece (shown instead of starting the lesson).
+    @Published var tutorReadiness: Readiness?
     @Published var tutorText = ""
     @Published var tutorAI = ""
     @Published var tutorBusy = false
@@ -2441,8 +2443,18 @@ extension PlaySession {
     /// Teach me this piece. `planLesson`: plan a lesson (Muse Spark, checked, else in code) and
     /// follow it; otherwise start straight away with the adaptive loop (assess, then drill).
     /// `startOver`: keep the plan but begin it again, forgetting the saved progress.
-    func beginTutoring(planLesson: Bool = false, startOver: Bool = false) {
+    /// `ignoreReadiness`: plan the lesson even though stock lessons are suggested first.
+    func beginTutoring(planLesson: Bool = false, startOver: Bool = false, ignoreReadiness: Bool = false) {
         guard tutor == nil, let reference, !reference.notes.isEmpty else { return }
+        tutorReadiness = nil
+        if planLesson && !ignoreReadiness && savedTutorProgress == nil {
+            let readiness = Readiness.check(PieceRequirements(sourceReference ?? reference), skills: learnerSkills(),
+                                            unit: Self.unitOne?.unit)
+            if !readiness.isReady {
+                tutorReadiness = readiness
+                return
+            }
+        }
         tutorStartOver = startOver
         resetAll()
         let full = sourceReference ?? reference
@@ -2466,7 +2478,7 @@ extension PlaySession {
         guard tutor != nil, let full = tutorFullReference else { return }
         tutorPlanTask?.cancel()
         let id = UUID(); tutorPlanID = id
-        if !fresh, let key = tutorPieceKey, let cached = PieceLessonStore.plan(key) {
+        if !fresh, let key = tutorPieceKey, let cached = PieceLessonStore.plan(key, learner: tutorLearnerKey) {
             applyTutorPlan(cached, save: false, resume: true)
             return
         }
@@ -2474,11 +2486,12 @@ extension PlaySession {
         let title = tutorTitle
         let known = knownNotes()
         let fingering = fingeringNotes
+        let profile = learnerSkills().summary
         tutorPlanning = true
         tutorPlanNote = model == nil ? nil : "Planning your lesson with Muse Spark…"
         tutorPlanTask = Task { @MainActor [weak self] in
             let plan = await LessonPlanner.plan(for: full, title: title, model: model, known: known, fingering: fingering,
-                                                log: { print("[LessonPlanner] \($0)") })
+                                                learner: profile, log: { print("[LessonPlanner] \($0)") })
             guard let self, !Task.isCancelled, self.tutorPlanID == id, self.tutor != nil else { return }
             self.applyTutorPlan(plan, save: true, resume: !fresh)
         }
@@ -2497,6 +2510,8 @@ extension PlaySession {
     func applyTutorPlan(_ plan: LessonPlan, save: Bool, resume: Bool) {
         guard var engine = tutor else { return }
         tutorSavesProgress = false
+        var plan = plan
+        plan.familiarity = Familiarity.of(plan, sequence: tutorFullReference ?? MIDISequence(notes: []), skills: learnerSkills())
         engine.follow(plan)
         var resumed = false
         let resumeWanted = !tutorStartOver && resume
@@ -2526,7 +2541,7 @@ extension PlaySession {
         }
         tutorContext = ""
         guard let key = tutorPieceKey, let full = tutorFullReference else { return }
-        if save { try? PieceLessonStore.save(plan, key: key) }
+        if save { try? PieceLessonStore.save(plan, key: key, learner: tutorLearnerKey) }
         do {
             try PieceLessonStore.writeLesson(plan, sequence: full, title: tutorTitle, key: key,
                                              slowPercent: engine.persona.drill.slowTempoPercent)
@@ -2537,15 +2552,43 @@ extension PlaySession {
 
     /// Notes the learner has met: middle-C position, plus every note introduced on a
     /// completed page of Unit 1.
-    func knownNotes() -> Set<Int> {
-        var known = LessonPlan.startingNotes
-        guard let learner, let folder = PlaySession.bundledResource("Lessons/unit1"),
-              let unit = try? LoadedUnit.load(folder: folder) else { return known }
-        let done = learnerStore.history(for: learner.id).completedPages(unit: unit.unit.id)
-        for page in unit.unit.pages where done.contains(page.id) {
-            known.formUnion(page.newNotes.map(\.pitch))
+    func knownNotes() -> Set<Int> { learnerSkills().knownNotes }
+
+    /// Unit 1, as bundled (nil when it can't be found).
+    static var unitOne: LoadedUnit? {
+        PlaySession.bundledResource("Lessons/unit1").flatMap { try? LoadedUnit.load(folder: $0) }
+    }
+
+    /// What this learner has shown they can do: Unit 1 pages completed, and pieces passed with
+    /// the tutor (Perform 2★+) or on their Learn page. Nothing is assumed: a new learner knows
+    /// no notes yet.
+    func learnerSkills() -> LearnerSkills {
+        let unit = Self.unitOne?.unit
+        let learnerKey = tutorLearnerKey
+        let history = learner.map { learnerStore.history(for: $0.id) }
+        let done = unit.flatMap { u in history?.completedPages(unit: u.id) } ?? []
+        var passed: [PassedPiece] = []
+        var underWay: [PieceUnderWay] = []
+        for (folder, page, _) in PieceLessonStore.pages() {
+            let progress = PieceLessonStore.progress(folder, learner: learnerKey)
+            let learnPage = history?.lessonProgress(unit: PieceLessonBuilder.unitID, page: page.id)
+            if progress?.mastered == true || learnPage?.isCompleted == true {
+                let url = PieceLessonStore.folder(folder).appendingPathComponent("whole.mid")
+                if let music = try? MIDIFile.read(url: url) {
+                    passed.append(PassedPiece(title: page.title, sequence: music, stars: progress?.lastStars ?? learnPage?.bestStars))
+                }
+            } else if let progress, progress.isUnderWay {
+                underWay.append(PieceUnderWay(title: page.title, step: "\(progress.exercise.title), \(progress.exercise.whereText)"))
+            }
         }
-        return known
+        return LearnerSkills.from(unit: unit, completedPages: done, passed: passed, underWay: underWay)
+    }
+
+    /// From the "Before this piece" card: open a stock lesson in Learn.
+    func openStockLesson(_ pageID: String) {
+        tutorReadiness = nil
+        tab = .learn
+        lessonRunner.open(pageID)
     }
 
     /// Whose progress: the learner's ID, or "default" when there's none.
@@ -2566,6 +2609,7 @@ extension PlaySession {
     }
 
     func endTutoring() {
+        tutorReadiness = nil
         guard tutor != nil else { return }
         tutorSavesProgress = false
         tutorGeneration = UUID(); tutorTask?.cancel(); tutorTask = nil; tutorBusy = false

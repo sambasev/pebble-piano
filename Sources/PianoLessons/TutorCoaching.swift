@@ -68,6 +68,8 @@ public enum TutorCoaching {
             return "Next, a new note: find \(note) on the keyboard and play it\(hand)."
         case .perform:
             return "Now perform the whole piece at full speed, after the count-in. Keep going through any slips."
+        case .placement:
+            return "First, show me what you can do: play the whole piece after the count-in. I'll skip the parts you already play well."
         }
     }
 }

@@ -163,14 +163,14 @@ final class LessonPlanTests: XCTestCase {
         let steps = PiecePracticeEngine.steps(for: plan, measureCount: 8, persona: .alex)
         let summary = steps.map { "\($0.kind.rawValue) \($0.measures.lowerBound)-\($0.measures.upperBound) \($0.hand?.rawValue ?? "")" }
         XCTAssertEqual(summary, [
-            "listen 1-8 ", "newNote 1-8 L",
+            "placement 1-8 ", "listen 1-8 ", "newNote 1-8 L",
             "notes 1-4 R", "notes 1-4 L", "notes 1-4 ", "slow 1-4 ",
             "notes 5-8 R", "notes 5-8 L", "notes 5-8 ", "slow 5-8 ",
             "slow 1-8 ", "perform 1-8 ",
         ])
         let onePhrase = LessonPlan(phrases: [.init(bars: 1...4, label: "Phrase 1")], handsSeparately: false, source: .fallback)
         XCTAssertEqual(PiecePracticeEngine.steps(for: onePhrase, measureCount: 4, persona: .alex).map(\.kind),
-                       [.listen, .notes, .slow, .perform])
+                       [.placement, .listen, .notes, .slow, .perform])
     }
 
     func testFollowingThePlanToPerformThenAdaptiveWithPhrases() {
@@ -179,6 +179,8 @@ final class LessonPlanTests: XCTestCase {
                               handsSeparately: false, source: .model)
         var engine = PiecePracticeEngine(measureCount: 8, persona: .alex, plan: plan)
         XCTAssertTrue(engine.isFollowingPlan)
+        XCTAssertEqual(engine.exercise.kind, .placement)
+        engine.skip()
         XCTAssertEqual(engine.exercise.kind, .listen)
         engine.completeStep()
         XCTAssertEqual(engine.exercise.kind, .notes)
@@ -188,7 +190,7 @@ final class LessonPlanTests: XCTestCase {
         engine.record(clean, completedNotes: true)
         XCTAssertEqual(engine.exercise.kind, .slow)
         XCTAssertEqual(engine.exercise.measures, 1...4)
-        XCTAssertEqual(engine.completedSteps, [0, 1])
+        XCTAssertEqual(engine.completedSteps, [0, 1, 2])
         // Jump to Perform; a weak performance goes to the adaptive drills, on the phrase.
         engine.jump(to: engine.steps.count - 1)
         XCTAssertEqual(engine.exercise.kind, .perform)
@@ -265,6 +267,84 @@ final class LessonPlanTests: XCTestCase {
         XCTAssertFalse(try XCTUnwrap(engine.progress).isUnderWay)
         engine.completeStep()
         XCTAssertTrue(try XCTUnwrap(engine.progress).isUnderWay)
+    }
+
+    // MARK: The learner
+
+    /// Unit 1's shape: pages that introduce C D E (with finger numbers), F, G, timed at 60.
+    func unitOne() -> LessonUnit {
+        func page(_ id: String, _ notes: [Int], finger: Bool = false) -> LessonPage {
+            var blocks: [Block] = [.timed(.init(midi: "x.mid", tempo: 60))]
+            if finger { blocks = [.concept(.init(card: "fingerNumbers", text: "Fingers"))] }
+            return LessonPage(id: id, title: id, newNotes: notes.map { NoteName(pitch: $0) }, blocks: blocks)
+        }
+        return LessonUnit(id: "u1", title: "Unit 1", pages: [page("p1", [60]), page("p2", [62]), page("p3", [], finger: true),
+                                                           page("p4", [64]), page("p5", [65]), page("p6", [67])])
+    }
+
+    func testABeginnerIsSentToUnitOneInOrder() {
+        let needs = PieceRequirements(twoHandPiece(bars: 4))   // right hand E F G
+        let r = Readiness.check(needs, skills: .none, unit: unitOne())
+        XCTAssertFalse(r.isReady)
+        XCTAssertEqual(r.suggestions.map(\.pageID), ["p1", "p2", "p3", "p4", "p5", "p6"], "pages open one after another")
+        XCTAssertEqual(r.suggestions.first { $0.pageID == "p6" }?.reason, "teaches G")
+        XCTAssertTrue(r.gaps.contains("this piece uses finger numbers"))
+    }
+
+    func testAUnitOneGraduateIsReadyAndKnowsTheRightHand() {
+        let skills = LearnerSkills.from(unit: unitOne(), completedPages: ["p1", "p2", "p3", "p4", "p5", "p6"], passed: [])
+        XCTAssertEqual(skills.notesRight, [60, 62, 64, 65, 67])
+        XCTAssertTrue(skills.knowsFingerNumbers)
+        XCTAssertEqual(skills.fastestTempo, 60)
+        XCTAssertFalse(skills.playedHandsTogether)
+        XCTAssertTrue(Readiness.check(PieceRequirements(twoHandPiece(bars: 4)), skills: skills, unit: unitOne()).isReady)
+        // Halfway: only the pages still to do, up to the one that teaches G.
+        let half = LearnerSkills.from(unit: unitOne(), completedPages: ["p1", "p2", "p3", "p4"], passed: [])
+        XCTAssertEqual(Readiness.check(PieceRequirements(twoHandPiece(bars: 4)), skills: half, unit: unitOne()).suggestions.map(\.pageID), ["p5", "p6"])
+        XCTAssertTrue(half.summary.contains("Right-hand notes met: C4 D4 E4"))
+    }
+
+    func testStepsTheLearnerKnowsAreSkipped() {
+        let piece = twoHandPiece(bars: 8)      // tempo 120
+        let passed = PassedPiece(title: "Earlier", sequence: piece, stars: 3)
+        let skills = LearnerSkills.from(unit: unitOne(), completedPages: ["p1", "p2", "p3", "p4", "p5", "p6"], passed: [passed])
+        XCTAssertTrue(skills.playedHandsTogether)
+        XCTAssertEqual(skills.notesLeft, [48, 43])
+        var plan = LessonPlan(phrases: [.init(bars: 1...4, label: "Phrase 1"), .init(bars: 5...8, label: "Phrase 2")],
+                              handsSeparately: true, source: .model)
+        plan.familiarity = Familiarity.of(plan, sequence: piece, skills: skills)
+        XCTAssertEqual(plan.familiarity, Familiarity(knownPhrases: [0, 1], handsTogether: true, tempoReached: true))
+        let engine = PiecePracticeEngine(measureCount: 8, plan: plan)
+        let skipped = engine.steps.filter { $0.skipReason != nil }.map { "\($0.kind.rawValue) \($0.hand?.rawValue ?? "")" }
+        XCTAssertEqual(skipped, ["notes R", "notes L", "notes ", "notes R", "notes L", "notes "])
+        XCTAssertEqual(engine.exercise.kind, .placement)
+        // A newcomer to the left hand keeps every step.
+        let newcomer = LearnerSkills.from(unit: unitOne(), completedPages: ["p1", "p2", "p3", "p4", "p5", "p6"], passed: [])
+        plan.familiarity = Familiarity.of(plan, sequence: piece, skills: newcomer)
+        XCTAssertTrue(PiecePracticeEngine(measureCount: 8, plan: plan).steps.allSatisfy { $0.skipReason == nil })
+    }
+
+    func testShowMeWhatYouCanDoTicksOffCleanPhrases() {
+        let piece = twoHandPiece(bars: 8)
+        var plan = LessonPlan(phrases: [.init(bars: 1...4, label: "Phrase 1"), .init(bars: 5...8, label: "Phrase 2")],
+                              handsSeparately: true, source: .model)
+        plan.newNotes = LessonPlan.newNotes(in: piece, known: [64, 65, 67, 48])   // G2: bars 2, 4, 6, 8
+        var engine = PiecePracticeEngine(measureCount: 8, plan: plan)
+        XCTAssertEqual(engine.exercise.kind, .placement)
+        var take = piece
+        take.notes.removeAll { $0.onsetBeats >= 24 && $0.onsetBeats < 28 } // bar 7 missing
+        engine.record(Grader().grade(reference: piece, take: take))
+        let done = engine.completedSteps.map { engine.steps[$0] }
+        XCTAssertTrue(done.contains { $0.kind == .notes && $0.measures == 1...4 && $0.hand == .right })
+        XCTAssertTrue(done.contains { $0.kind == .slow && $0.measures == 1...4 })
+        XCTAssertFalse(done.contains { $0.measures == 5...8 }, "phrase 2 had the slip")
+        XCTAssertFalse(done.contains { $0.kind == .newNote }, "G2 is also played in phrase 2")
+        XCTAssertEqual(engine.exercise.kind, .listen, "next: the first step still to do")
+        engine.completeStep()
+        XCTAssertEqual(engine.exercise.kind, .newNote)
+        engine.completeStep()
+        XCTAssertEqual(engine.exercise.measures, 5...8, "phrase 1 is done: on to phrase 2")
+        XCTAssertEqual(engine.exercise.hand, .right)
     }
 
     // MARK: Learn page
