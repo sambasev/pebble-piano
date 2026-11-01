@@ -613,12 +613,15 @@ struct ContentView: View {
             }
             KnobView(title: "Piano", value: $session.pianoVolume, range: 0...2, defaultValue: 1.4,
                      systemImage: "pianokeys")
-            if session.mode == .playAlong {
+            // Always here, so they can be set before playing along; dimmed in Wait, where
+            // neither sound plays.
+            Group {
                 KnobView(title: "Click", value: $session.clickVolume, range: 0...1, defaultValue: 0.6,
                          systemImage: "metronome")
                 KnobView(title: "Backing", value: $session.backingVolume, range: 0...1, defaultValue: 0.8,
                          systemImage: "waveform")
             }
+            .opacity(session.mode == .playAlong ? 1 : 0.55)
             Toggle("Sound", isOn: $session.soundOn)
                 .toggleStyle(PPChipToggleStyle())
             Toggle("Guide", isOn: $session.showGuide)

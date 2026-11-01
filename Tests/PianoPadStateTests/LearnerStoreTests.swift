@@ -195,6 +195,14 @@ final class LearnerStoreTests: XCTestCase {
         XCTAssertTrue(settings.showsDancers, "the dancers are on unless a grown-up turns them off")
     }
 
+    func testPracticeModeRoundTrips() throws {
+        let store = makeStore()
+        let a = try store.add(name: "A", kind: .adult)
+        XCTAssertNil(store.settings(for: a.id).practiceMode)
+        try store.save(LearnerSettings(practiceMode: "playAlong"), for: a.id)
+        XCTAssertEqual(makeStore().settings(for: a.id).practiceMode, "playAlong")
+    }
+
     func testDancersSwitchRoundTrips() throws {
         let store = makeStore()
         let a = try store.add(name: "A", kind: .child)

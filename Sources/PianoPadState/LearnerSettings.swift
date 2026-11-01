@@ -44,6 +44,9 @@ public struct LearnerSettings: Codable, Equatable, Sendable {
     /// Lesson pages: the Pebbles dance under the keyboard. nil: on (the default); the learner,
     /// or a grown-up for a child, can turn them off.
     public var dancers: Bool?
+    /// The Practice tab's mode as last chosen in its picker: "wait" or "playAlong".
+    /// nil: not chosen yet (Wait).
+    public var practiceMode: String?
 
     public var showsDancers: Bool { dancers ?? true }
 
@@ -54,7 +57,7 @@ public struct LearnerSettings: Codable, Equatable, Sendable {
     public init(strictness: String = LearnerSettings.defaultStrictness, customPlayAlong: Data? = nil,
                 missMode: String = LearnerSettings.defaultMissMode, recentPieces: [RecentPiece] = [],
                 persona: String? = nil, goalSong: String? = nil, inputSource: String? = nil, onboardedAt: Date? = nil,
-                dancers: Bool? = nil) {
+                dancers: Bool? = nil, practiceMode: String? = nil) {
         self.strictness = strictness
         self.customPlayAlong = customPlayAlong
         self.missMode = missMode
@@ -64,10 +67,11 @@ public struct LearnerSettings: Codable, Equatable, Sendable {
         self.inputSource = inputSource
         self.onboardedAt = onboardedAt
         self.dancers = dancers
+        self.practiceMode = practiceMode
     }
 
     private enum CodingKeys: String, CodingKey {
-        case strictness, customPlayAlong, missMode, recentPieces, persona, goalSong, inputSource, onboardedAt, dancers
+        case strictness, customPlayAlong, missMode, recentPieces, persona, goalSong, inputSource, onboardedAt, dancers, practiceMode
     }
 
     public init(from decoder: Decoder) throws {
@@ -81,6 +85,7 @@ public struct LearnerSettings: Codable, Equatable, Sendable {
         inputSource = try c.decodeIfPresent(String.self, forKey: .inputSource)
         onboardedAt = try c.decodeIfPresent(Date.self, forKey: .onboardedAt)
         dancers = try c.decodeIfPresent(Bool.self, forKey: .dancers)
+        practiceMode = try c.decodeIfPresent(String.self, forKey: .practiceMode)
     }
 
     /// Moves `piece` to the front (replacing any entry with the same ID) and keeps the newest

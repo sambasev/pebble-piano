@@ -9,6 +9,7 @@ final class TutorPlayerTests: XCTestCase {
         player.learner = nil // Player tests must never save into a real learner history.
         player.learners = [Learner(name: "Test", kind: .adult)]
         player.needsLearnerPick = false
+        player.setModeNow(.wait) // Whatever the real learner last chose.
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         player.loadReference(root.appendingPathComponent("Examples/ode-to-joy-c.mid"), remember: false)
         return player
@@ -186,6 +187,27 @@ extension TutorPlayerTests {
         session.endTutoring()
         XCTAssertEqual(session.mode, originalMode)
         XCTAssertEqual(session.tempoPercent, originalTempo)
+    }
+
+    func testPickerRemembersModeButTutorDoesNot() {
+        let session = player()
+        session.mode = .playAlong
+        RunLoop.main.run(until: Date().addingTimeInterval(0.05))
+        XCTAssertEqual(session.learnerSettings.practiceMode, "playAlong")
+
+        session.beginTutoring()
+        session.tutor?.learnNotes()
+        session.startTutorExercise()
+        XCTAssertEqual(session.mode, .wait)
+        XCTAssertEqual(session.learnerSettings.practiceMode, "playAlong")
+        session.endTutoring()
+        XCTAssertEqual(session.mode, .playAlong)
+    }
+
+    func testPracticeModeDefaultsToWait() {
+        XCTAssertEqual(PlaySession.practiceMode(from: LearnerSettings()), .wait)
+        XCTAssertEqual(PlaySession.practiceMode(from: LearnerSettings(practiceMode: "playAlong")), .playAlong)
+        XCTAssertEqual(PlaySession.practiceMode(from: LearnerSettings(practiceMode: "nonsense")), .wait)
     }
 
     func testClickVolumePersistence() {

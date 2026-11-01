@@ -113,6 +113,7 @@ extension PlaySession {
         customPlayAlong = Self.customPlayAlong(from: learnerSettings)
         missMode = Self.missMode(from: learnerSettings)
         applyingLearnerSettings = false
+        setModeNow(Self.practiceMode(from: learnerSettings))
         configureJudge()
         rebuildPieces()
         applyInputChoice()

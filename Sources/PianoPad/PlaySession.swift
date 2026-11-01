@@ -254,6 +254,11 @@ final class PlaySession: ObservableObject {
     @Published var mode: PracticeMode = .wait {
         didSet {
             guard mode != oldValue, !settingModeDirectly else { return }
+            // Remember the learner's own choice; lessons and the tutor only borrow the session.
+            if tutor == nil, !isInLesson {
+                learnerSettings.practiceMode = mode.rawValue
+                saveLearnerSettings()
+            }
             DispatchQueue.main.async { [weak self] in self?.modeChanged() }
         }
     }
@@ -577,6 +582,7 @@ final class PlaySession: ObservableObject {
         strictness = Self.strictness(from: learnerSettings)
         customPlayAlong = Self.customPlayAlong(from: learnerSettings)
         missMode = Self.missMode(from: learnerSettings)
+        mode = Self.practiceMode(from: learnerSettings)
         synth?.volume = pianoVolume
         guard startServices else { return }
         try? LegacyTutorKeyMigration.run()
@@ -2290,6 +2296,10 @@ extension PlaySession {
 
     static func missMode(from settings: LearnerSettings) -> MissMode {
         MissMode(rawValue: settings.missMode) ?? .replayBar
+    }
+
+    static func practiceMode(from settings: LearnerSettings) -> PracticeMode {
+        settings.practiceMode.flatMap(PracticeMode.init(rawValue:)) ?? .wait
     }
 
     // MARK: Backing-track links
