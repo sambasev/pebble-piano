@@ -355,6 +355,7 @@ public struct PiecePracticeEngine: Sendable {
             lastStars = stars
             mastered = (stars ?? 0) >= 2 && report.timing != nil && replays == 0
             if let i = stepIndex { completedSteps.insert(i) }
+            if mastered { completedSteps = Set(steps.indices) }
             stepIndex = nil
             if mastered {
                 exercise = .init(kind: .assessment, measures: 1...measureCount)
@@ -366,7 +367,8 @@ public struct PiecePracticeEngine: Sendable {
         }
         if exercise.kind == .assessment {
             mastered = report.passed && report.timing != nil && replays == 0
-            guard !mastered else { return }
+            // Passed: the plan's steps are all done (the checklist shouldn't look like a restart).
+            guard !mastered else { completedSteps = Set(steps.indices); return }
             planDrills(after: report)
             return
         }
@@ -396,7 +398,16 @@ public struct PiecePracticeEngine: Sendable {
         guard let plan, let here = stepIndex else { return }
         completedSteps.insert(here)
         var graded: [Int: PhraseGrade] = [:]
-        for (i, p) in plan.phrases.enumerated() { graded[i] = PhraseGrade.grade(p.bars, in: report) }
+        // A run the grader passes at full speed counts as clean wherever it's at least close
+        // (a slip or two, or uneven timing): straight on to Perform, not back into the lesson.
+        let passedRun = report.passed && report.timing != nil
+        for (i, p) in plan.phrases.enumerated() {
+            let grade = PhraseGrade.grade(p.bars, in: report)
+            switch grade {
+            case .minor, .timing: graded[i] = passedRun ? .clean : grade
+            default: graded[i] = grade
+            }
+        }
         grades = graded
         rebuild()
         let cleanBars = Set(plan.phrases.enumerated().filter { graded[$0.offset] == .clean }.flatMap { Array($0.element.bars) })

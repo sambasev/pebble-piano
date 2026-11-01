@@ -382,6 +382,21 @@ final class LessonPlanTests: XCTestCase {
         XCTAssertFalse(planned.steps.contains { $0.hand != nil && $0.skipReason == nil }, "no hands-separately steps")
     }
 
+    func testAPassedRunThroughGoesStraightToPerform() {
+        let piece = twoHandPiece(bars: 8)
+        var plan = LessonPlan(phrases: [.init(bars: 1...4, label: "Phrase 1"), .init(bars: 5...8, label: "Phrase 2")],
+                              handsSeparately: true, source: .model)
+        plan.newNotes = LessonPlan.newNotes(in: piece, known: [64, 65, 67])
+        var engine = PiecePracticeEngine(measureCount: 8, plan: plan)
+        let clean = Grader().grade(reference: piece, take: piece)
+        XCTAssertTrue(clean.passed)
+        engine.record(clean)
+        XCTAssertEqual(engine.exercise.kind, .perform)
+        engine.record(clean, stars: 3)
+        XCTAssertTrue(engine.mastered)
+        XCTAssertEqual(engine.completedSteps, Set(engine.steps.indices), "everything ticked off")
+    }
+
     func testTwoFailedRunsDropBackALevel() {
         let piece = twoHandPiece(bars: 4)
         let plan = LessonPlan(phrases: [.init(bars: 1...4, label: "Phrase 1")], handsSeparately: false, source: .model)
