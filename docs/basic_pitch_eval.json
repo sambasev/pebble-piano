@@ -1,0 +1,170 @@
+[
+  {
+    "name": "Spotify Basic Pitch (Default 0.5/0.3)",
+    "precision": 0.6956521739130435,
+    "recall": 1.0,
+    "f1": 0.8205128205128205,
+    "latency_p50_ms": 85.92500000000136,
+    "latency_p95_ms": 98.89155328798083,
+    "rtf": 0.05602951170387276,
+    "cases": [
+      {
+        "case": "take1",
+        "audio_duration": 32.123270833333336,
+        "inference_time": 1.7998511791229248,
+        "rtf": 0.05602951170387276,
+        "offset": -8.09,
+        "truth_count": 16,
+        "detected_count": 23,
+        "tp": 16,
+        "fp": 7,
+        "fn": 0,
+        "precision": 0.6956521739130435,
+        "recall": 1.0,
+        "f1": 0.8205128205128205,
+        "latency_p50_ms": 85.92500000000136,
+        "latency_p95_ms": 98.89155328798083,
+        "octave_leakage_fps": 5,
+        "fifth_twelfth_leakage_fps": 0,
+        "registers": {
+          "Bass (A0\u2013B2)": {
+            "truth": 0,
+            "detected": 0,
+            "matched": 0,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0
+          },
+          "Mid (C3\u2013B4)": {
+            "truth": 15,
+            "detected": 19,
+            "matched": 15,
+            "precision": 0.7894736842105263,
+            "recall": 1.0,
+            "f1": 0.8823529411764706
+          },
+          "Treble (C5\u2013C8)": {
+            "truth": 1,
+            "detected": 4,
+            "matched": 1,
+            "precision": 0.25,
+            "recall": 1.0,
+            "f1": 0.4
+          }
+        }
+      }
+    ]
+  },
+  {
+    "name": "Spotify Basic Pitch (Tuned 0.6/0.4)",
+    "precision": 0.8421052631578947,
+    "recall": 1.0,
+    "f1": 0.9142857142857143,
+    "latency_p50_ms": 85.92500000000136,
+    "latency_p95_ms": 98.89155328798083,
+    "rtf": 0.04125679120827657,
+    "cases": [
+      {
+        "case": "take1",
+        "audio_duration": 32.123270833333336,
+        "inference_time": 1.325303077697754,
+        "rtf": 0.04125679120827657,
+        "offset": -8.09,
+        "truth_count": 16,
+        "detected_count": 19,
+        "tp": 16,
+        "fp": 3,
+        "fn": 0,
+        "precision": 0.8421052631578947,
+        "recall": 1.0,
+        "f1": 0.9142857142857143,
+        "latency_p50_ms": 85.92500000000136,
+        "latency_p95_ms": 98.89155328798083,
+        "octave_leakage_fps": 2,
+        "fifth_twelfth_leakage_fps": 0,
+        "registers": {
+          "Bass (A0\u2013B2)": {
+            "truth": 0,
+            "detected": 0,
+            "matched": 0,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0
+          },
+          "Mid (C3\u2013B4)": {
+            "truth": 15,
+            "detected": 18,
+            "matched": 15,
+            "precision": 0.8333333333333334,
+            "recall": 1.0,
+            "f1": 0.9090909090909091
+          },
+          "Treble (C5\u2013C8)": {
+            "truth": 1,
+            "detected": 1,
+            "matched": 1,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0
+          }
+        }
+      }
+    ]
+  },
+  {
+    "name": "Spotify Basic Pitch (Score-Guided)",
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1": 1.0,
+    "latency_p50_ms": 85.92500000000136,
+    "latency_p95_ms": 98.89155328798083,
+    "rtf": 0.02934477266085288,
+    "cases": [
+      {
+        "case": "take1",
+        "audio_duration": 32.123270833333336,
+        "inference_time": 0.9426500797271729,
+        "rtf": 0.02934477266085288,
+        "offset": -8.09,
+        "truth_count": 16,
+        "detected_count": 16,
+        "tp": 16,
+        "fp": 0,
+        "fn": 0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1": 1.0,
+        "latency_p50_ms": 85.92500000000136,
+        "latency_p95_ms": 98.89155328798083,
+        "octave_leakage_fps": 0,
+        "fifth_twelfth_leakage_fps": 0,
+        "registers": {
+          "Bass (A0\u2013B2)": {
+            "truth": 0,
+            "detected": 0,
+            "matched": 0,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0
+          },
+          "Mid (C3\u2013B4)": {
+            "truth": 15,
+            "detected": 15,
+            "matched": 15,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0
+          },
+          "Treble (C5\u2013C8)": {
+            "truth": 1,
+            "detected": 1,
+            "matched": 1,
+            "precision": 1.0,
+            "recall": 1.0,
+            "f1": 1.0
+          }
+        }
+      }
+    ]
+  }
+]
