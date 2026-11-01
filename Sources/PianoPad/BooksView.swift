@@ -69,9 +69,19 @@ struct LibrarySidebar: View {
             ForEach(model.library) { book in
                 Button { model.open(book.url) } label: {
                     HStack(spacing: PP.Space.s2) {
+                        let status = model.status(ofBook: book.url)
                         Image(systemName: book.bundled ? "book.closed.fill" : "book.closed")
+                            .foregroundColor(status?.color ?? (model.wasOpened(book.url) ? PP.ink : PP.inkMuted))
                         Text(book.title).lineLimit(2).multilineTextAlignment(.leading)
                         Spacer(minLength: 0)
+                        if let status {
+                            let count = model.pieces(in: book.url).count
+                            PieceStatusTag(status: status, text: "\(count)")
+                                .help("\(count) piece\(count == 1 ? "" : "s") read from this book; furthest: \(status.label.lowercased())")
+                        } else if model.wasOpened(book.url) {
+                            Text("Opened").font(.ppCaption).foregroundColor(PP.inkMuted)
+                                .help("Opened before; no piece read from it yet")
+                        }
                     }
                     .padding(.vertical, 6).padding(.horizontal, PP.Space.s2)
                     .background(RoundedRectangle(cornerRadius: 8)
@@ -93,10 +103,16 @@ struct LibrarySidebar: View {
                 VStack(alignment: .leading, spacing: 2) {
                     ForEach(model.pieces) { piece in
                         Button { model.practise(piece) } label: {
-                            VStack(alignment: .leading, spacing: 1) {
-                                Text(piece.title).font(.ppCallout).lineLimit(1)
-                                Text("\(piece.book.replacingOccurrences(of: ".pdf", with: "")), p. \(piece.page + 1)")
-                                    .font(.ppCaption).foregroundColor(PP.inkMuted).lineLimit(1)
+                            HStack(spacing: PP.Space.s2) {
+                                let status = model.status(piece)
+                                Circle().fill(status.color).frame(width: 8, height: 8)
+                                VStack(alignment: .leading, spacing: 1) {
+                                    Text(piece.title).font(.ppCallout).lineLimit(1)
+                                    Text("\(piece.book.replacingOccurrences(of: ".pdf", with: "")), p. \(piece.page + 1)")
+                                        .font(.ppCaption).foregroundColor(PP.inkMuted).lineLimit(1)
+                                }
+                                Spacer(minLength: 0)
+                                PieceStatusTag(status: status)
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .padding(.vertical, 5).padding(.horizontal, PP.Space.s2)
@@ -130,6 +146,11 @@ struct BookPagePicker: View {
                     Button { model.show(page: model.pageIndex - 1) } label: { Image(systemName: "chevron.left") }
                         .disabled(model.pageIndex == 0)
                     Text("Page \(model.pageIndex + 1) of \(model.pageCount)").font(.ppCallout).monospacedDigit()
+                    if !model.pagesWithPieces.isEmpty {
+                        let pages = model.pagesWithPieces.sorted().map { String($0 + 1) }.joined(separator: ", ")
+                        Text("Pieces read on page\(model.pagesWithPieces.count == 1 ? "" : "s") \(pages)")
+                            .font(.ppCaption).foregroundColor(PP.inkMuted)
+                    }
                     Button { model.show(page: model.pageIndex + 1) } label: { Image(systemName: "chevron.right") }
                         .disabled(model.pageIndex + 1 >= model.pageCount)
                     Spacer()
@@ -164,10 +185,21 @@ struct BookPagePicker: View {
 
     private func systemOverlay(_ s: FoundSystem, scale: CGFloat) -> some View {
         let selected = model.selection?.contains(s.index) ?? false
+        // A line already read into a saved piece is tinted by how far that piece has got.
+        let saved = model.savedPiece(onLine: s.index)
+        let status = saved.map(model.status)
+        let tint = status?.color ?? PP.accent
         return RoundedRectangle(cornerRadius: 6)
-            .fill(selected ? PP.accent.opacity(0.18) : Color.clear)
-            .overlay(RoundedRectangle(cornerRadius: 6).stroke(selected ? PP.accent : PP.accent.opacity(0.35),
-                                                               lineWidth: selected ? 2.5 : 1))
+            .fill(selected ? PP.accent.opacity(0.18) : status != nil ? tint.opacity(0.10) : Color.clear)
+            .overlay(RoundedRectangle(cornerRadius: 6).stroke(selected ? PP.accent : status != nil ? tint.opacity(0.7) : PP.accent.opacity(0.35),
+                                                               lineWidth: selected ? 2.5 : status != nil ? 1.5 : 1))
+            .overlay(alignment: .bottomTrailing) {
+                // The piece's name and status, once per piece (on its first line).
+                if let saved, let status, saved.firstLine == s.index {
+                    PieceStatusTag(status: status, text: "\(saved.title) · \(status.label)")
+                        .padding(4)
+                }
+            }
             .overlay(alignment: .topLeading) {
                 Text("\(s.index + 1)")
                     .font(.system(size: 11, weight: .bold)).foregroundColor(PP.onAccent)
@@ -191,6 +223,12 @@ struct BookPagePicker: View {
             Text("Pick a piece").font(.ppHeadline)
             Text("Click the first line of music in the piece, then Shift-click its last line.")
                 .font(.ppCallout).foregroundColor(PP.inkMuted).fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: 4) {
+                PieceStatusTag(status: .read)
+                PieceStatusTag(status: .learning)
+                PieceStatusTag(status: .passed)
+            }
+            .help("Lines already read are tinted: read into a saved piece, being learned (tutor or Learn), or passed")
             if let s = model.selection {
                 Text(s.count == 1 ? "Line \(s.lowerBound + 1) selected" : "Lines \(s.lowerBound + 1)–\(s.upperBound + 1) selected")
                     .font(.ppCallout)

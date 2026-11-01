@@ -91,7 +91,7 @@ final class BookImportModel: ObservableObject {
     /// Applied once the page has loaded ("Read again" on a saved piece).
     private var pendingSelection: ClosedRange<Int>?
     private var pageGray: Gray?
-    private weak var session: PlaySession?
+    private(set) weak var session: PlaySession?
 
     init(session: PlaySession) {
         self.session = session
