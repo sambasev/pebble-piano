@@ -97,6 +97,8 @@ final class LessonRunner: ObservableObject, PlayerObserver {
     @Published private(set) var shownIndex = 0
     @Published private(set) var hint: HintLevel = .none
     @Published private(set) var feedback: Feedback?
+    /// The dancers' latest reaction (child pages); the view plays it out by the clock.
+    @Published private(set) var dancerReaction: GremlinReaction?
     /// The finished page's result; shown instead of the page until "Back to unit" or "Play again".
     @Published private(set) var result: PageResult?
     /// Saved progress per page ID, for the page list.
@@ -287,6 +289,22 @@ final class LessonRunner: ObservableObject, PlayerObserver {
     /// The learner is a child: stickers instead of percentages, bigger explain cards, the
     /// teacher choice with the grown-ups.
     var isChild: Bool { player.learner?.kind == .child }
+
+    /// The Pebbles dance under the keyboard: children only, unless a grown-up turned them off.
+    var showsDancers: Bool { isChild && player.learnerSettings.showsDancers }
+
+    /// Turns the dancers on or off for this learner (from For grown-ups).
+    func setDancers(_ on: Bool) {
+        objectWillChange.send()
+        player.learnerSettings.dancers = on
+        player.saveLearnerSettings()
+    }
+
+    /// The dancers' reaction to the latest note: a hop for a right one, a wobble for a slip.
+    private func react(_ kind: GremlinReaction.Kind) {
+        guard showsDancers else { return }
+        dancerReaction = GremlinReaction(kind: kind, startedAt: ProcessInfo.processInfo.systemUptime)
+    }
 
     /// The sticker a page gives (the crown for the goal song).
     func sticker(forPage id: String) -> Sticker? {
@@ -710,6 +728,7 @@ final class LessonRunner: ObservableObject, PlayerObserver {
         guard pitch == target else {
             micCandidate = nil
             feedback = Feedback(kind: .mistake, text: "That's \(NoteName(pitch: pitch).name). Try again.")
+            react(.oops)
             return
         }
         if source == .microphone {
@@ -723,21 +742,26 @@ final class LessonRunner: ObservableObject, PlayerObserver {
             micCandidate = nil
         }
         feedback = Feedback(kind: .success, text: "That's it: \(NoteName(pitch: pitch).name).")
+        react(.cheer)
         send(.notePlayed(pitch: pitch), pause: true)
     }
 
     func playerWrongNote(onChord chord: Int) {
         keyboardMistake()
+        react(.oops)
         send(.wrongNote(chord: chord))
     }
 
     func playerChordPlayed(_ chord: Int) {
         keyboardRight()
+        react(.cheer)
         send(.chordPlayed(chord: chord))
     }
 
     func playerPlayAlongNote(matched: Bool) {
         matched ? keyboardRight() : keyboardMistake()
+        // Right notes in time are what the dance itself celebrates; only a slip shows.
+        if !matched { react(.oops) }
     }
 
     func playerBarReplayed() {

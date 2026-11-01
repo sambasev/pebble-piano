@@ -71,6 +71,14 @@ struct GrownUpsView: View {
                         .font(.ppCaption).foregroundColor(PP.inkMuted)
                         .fixedSize(horizontal: false, vertical: true)
                 }
+                VStack(alignment: .leading, spacing: PP.Space.s2) {
+                    Toggle("Dancing Pebbles", isOn: Binding(get: { runner.showsDancers }, set: { runner.setDancers($0) }))
+                        .toggleStyle(.switch)
+                        .font(.ppHeadline)
+                    Text("Three little creatures dance to the beat under the keyboard: a small bob each beat, a big jump each bar. They hop when a note is right and wobble at a slip. Turn them off if they distract.")
+                        .font(.ppCaption).foregroundColor(PP.inkMuted)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
             }
             HStack {
                 Spacer()

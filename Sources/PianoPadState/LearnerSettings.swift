@@ -41,6 +41,11 @@ public struct LearnerSettings: Codable, Equatable, Sendable {
     public var inputSource: String?
     /// When setup (onboarding) was finished; nil for learners added another way.
     public var onboardedAt: Date?
+    /// Children's lesson pages: the Pebbles dance under the keyboard. nil: on (the default);
+    /// a grown-up can turn them off.
+    public var dancers: Bool?
+
+    public var showsDancers: Bool { dancers ?? true }
 
     public static let defaultStrictness = "rubric"
     public static let defaultMissMode = "replayBar"
@@ -48,7 +53,8 @@ public struct LearnerSettings: Codable, Equatable, Sendable {
 
     public init(strictness: String = LearnerSettings.defaultStrictness, customPlayAlong: Data? = nil,
                 missMode: String = LearnerSettings.defaultMissMode, recentPieces: [RecentPiece] = [],
-                persona: String? = nil, goalSong: String? = nil, inputSource: String? = nil, onboardedAt: Date? = nil) {
+                persona: String? = nil, goalSong: String? = nil, inputSource: String? = nil, onboardedAt: Date? = nil,
+                dancers: Bool? = nil) {
         self.strictness = strictness
         self.customPlayAlong = customPlayAlong
         self.missMode = missMode
@@ -57,10 +63,11 @@ public struct LearnerSettings: Codable, Equatable, Sendable {
         self.goalSong = goalSong
         self.inputSource = inputSource
         self.onboardedAt = onboardedAt
+        self.dancers = dancers
     }
 
     private enum CodingKeys: String, CodingKey {
-        case strictness, customPlayAlong, missMode, recentPieces, persona, goalSong, inputSource, onboardedAt
+        case strictness, customPlayAlong, missMode, recentPieces, persona, goalSong, inputSource, onboardedAt, dancers
     }
 
     public init(from decoder: Decoder) throws {
@@ -73,6 +80,7 @@ public struct LearnerSettings: Codable, Equatable, Sendable {
         goalSong = try c.decodeIfPresent(String.self, forKey: .goalSong)
         inputSource = try c.decodeIfPresent(String.self, forKey: .inputSource)
         onboardedAt = try c.decodeIfPresent(Date.self, forKey: .onboardedAt)
+        dancers = try c.decodeIfPresent(Bool.self, forKey: .dancers)
     }
 
     /// Moves `piece` to the front (replacing any entry with the same ID) and keeps the newest

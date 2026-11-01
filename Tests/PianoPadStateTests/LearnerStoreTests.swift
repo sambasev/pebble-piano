@@ -192,6 +192,16 @@ final class LearnerStoreTests: XCTestCase {
         XCTAssertTrue(settings.recentPieces.isEmpty)
         XCTAssertNil(settings.persona)
         XCTAssertNil(settings.onboardedAt)
+        XCTAssertTrue(settings.showsDancers, "the dancers are on unless a grown-up turns them off")
+    }
+
+    func testDancersSwitchRoundTrips() throws {
+        let store = makeStore()
+        let a = try store.add(name: "A", kind: .child)
+        try store.save(LearnerSettings(dancers: false), for: a.id)
+        let reloaded = makeStore().settings(for: a.id)
+        XCTAssertEqual(reloaded.dancers, false)
+        XCTAssertFalse(reloaded.showsDancers)
     }
 
     func testCorruptLearnersFileIsMovedAsideNotOverwritten() throws {
