@@ -93,6 +93,9 @@ final class PlaySession: ObservableObject {
         UserDefaults.standard.object(forKey: "PianoPad.volume.\(name)") as? Double ?? value
     }
     @Published var showGuide = true
+    /// The Practice tab's dancers' latest reaction: a hop for a right note in wait mode, a
+    /// wobble for a slip. (Lesson pages get theirs from the lesson runner.)
+    @Published private(set) var dancerReaction: GremlinReaction?
 
     /// Reference audition.
     @Published private(set) var isAuditioning = false
@@ -1150,7 +1153,10 @@ final class PlaySession: ObservableObject {
         let now = ProcessInfo.processInfo.systemUptime
         let chordIndex = guide.index
         let due = guide.noteOn(pitch, at: now, strict: strict)
-        if guide.wrongHeld.contains(pitch) { lessonObserver?.playerWrongNote(onChord: chordIndex) }
+        if guide.wrongHeld.contains(pitch) {
+            lessonObserver?.playerWrongNote(onChord: chordIndex)
+            dancersReact(.oops)
+        }
         if let due {
             settleWork?.cancel()
             let item = DispatchWorkItem { [weak self] in
@@ -1158,6 +1164,7 @@ final class PlaySession: ObservableObject {
                 let waitingOn = self.guide.index
                 if self.guide.settle(at: max(ProcessInfo.processInfo.systemUptime, due)) {
                     self.lessonObserver?.playerChordPlayed(waitingOn)
+                    self.dancersReact(.cheer)
                     self.updateExpected()
                     self.scheduleAutoGrade()
                 }
@@ -1742,6 +1749,23 @@ extension PlaySession {
         clock?.timeSignature ?? reference?.timeSignature ?? TimeSignature(numerator: 4, denominator: 4)
     }
 
+    /// The dancing Pebbles show under the keyboard (Learn and Practice), unless this learner
+    /// turned them off.
+    var showsDancers: Bool { learnerSettings.showsDancers }
+
+    /// Turns the dancers on or off for the active learner.
+    func setDancers(_ on: Bool) {
+        objectWillChange.send()
+        learnerSettings.dancers = on
+        saveLearnerSettings()
+    }
+
+    /// Practice tab only: lessons react through their runner, which knows the page.
+    fileprivate func dancersReact(_ kind: GremlinReaction.Kind) {
+        guard lessonObserver == nil, showsDancers else { return }
+        dancerReaction = GremlinReaction(kind: kind, startedAt: ProcessInfo.processInfo.systemUptime)
+    }
+
     /// Where the first bar starts, in quarters, so beat 1 lands on the downbeat.
     var firstBarQuarter: Double { clock?.barStart(0) ?? 0 }
 
@@ -2119,6 +2143,7 @@ extension PlaySession {
             let q = judge!.chordQuarters[chord]
             let matchedWhileWaiting = judge!.noteOn(pitch, atQuarter: q)
             lessonObserver?.playerPlayAlongNote(matched: matchedWhileWaiting)
+            if !matchedWhileWaiting { dancersReact(.oops) }
             if matchedWhileWaiting {
                 if let i = openNote[pitch] { notes[i].offset = max(notes[i].onset, time); notes[i].offsetBeats = q }
                 openNote[pitch] = notes.count
@@ -2142,6 +2167,7 @@ extension PlaySession {
         let matched = judge!.noteOn(pitch, atQuarter: q)
         if !matched { wrong.insert(pitch) }
         lessonObserver?.playerPlayAlongNote(matched: matched)
+        if !matched { dancersReact(.oops) }
         do {
             if let i = openNote[pitch] { // re-struck without a release
                 notes[i].offset = max(notes[i].onset, time)

@@ -196,6 +196,10 @@ struct ContentView: View {
             )
             .frame(height: 150)
             .ppGlass(cornerRadius: PP.Radius.xl, padding: PP.Space.s3)
+            // The Pebbles dance to the piece here too, from a book passage or a file.
+            if session.showsDancers && (session.passage != nil || session.score != nil) {
+                DancerStrip(reaction: session.dancerReaction)
+            }
             playOptions
                 .ppGlass(cornerRadius: PP.Radius.lg, padding: PP.Space.s3)
             if session.passage == nil && session.score == nil {
@@ -620,6 +624,9 @@ struct ContentView: View {
             Toggle("Guide", isOn: $session.showGuide)
                 .toggleStyle(PPChipToggleStyle())
                 .help("Highlights the next key to play, with a playhead that waits on the next note")
+            Toggle("Pebbles", isOn: Binding(get: { session.showsDancers }, set: { session.setDancers($0) }))
+                .toggleStyle(PPChipToggleStyle())
+                .help("The little dancers under the keyboard: they bob on the beat, jump on each bar and react to your notes")
             if let prompt = session.calibrationPrompt {
                 HStack(spacing: 6) {
                     ProgressView().controlSize(.small)

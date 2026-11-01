@@ -292,13 +292,12 @@ final class LessonRunner: ObservableObject, PlayerObserver {
 
     /// The Pebbles dance under the keyboard on every lesson page, for adults and children,
     /// unless the learner (or a grown-up, for a child) turned them off.
-    var showsDancers: Bool { player.learnerSettings.showsDancers }
+    var showsDancers: Bool { player.showsDancers }
 
     /// Turns the dancers on or off for this learner (the teacher menu, or For grown-ups).
     func setDancers(_ on: Bool) {
         objectWillChange.send()
-        player.learnerSettings.dancers = on
-        player.saveLearnerSettings()
+        player.setDancers(on)
     }
 
     /// The dancers' reaction to the latest note: a hop for a right one, a wobble for a slip.
