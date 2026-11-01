@@ -133,9 +133,11 @@ struct PebbleLook {
 
 /// The Pebble drawing, in 120 × 140 design units with the feet at the bottom (y = 137).
 enum Pebble {
-    /// Outlines stay dark in both themes, like the black keys, so the dancers read as
-    /// drawings on any background.
+    /// Faces (pupils, mouths) stay dark in both themes, inside the coloured body.
     static let ink = Color(hex: 0x1B1630)
+    /// Limbs, feet and outlines follow the theme's ink: dark on a light page, near-white on a
+    /// dark one, so they never disappear into the background.
+    static let line = PP.ink
 
     /// A foot in the drawing: its centre across (design units) and how far it's lifted, 0...1.
     struct Foot {
@@ -164,8 +166,8 @@ enum Pebble {
             var leg = Path()
             leg.move(to: hip)
             leg.addLine(to: ankle)
-            c.stroke(leg, with: .color(ink), style: limb)
-            c.fill(Path(ellipseIn: CGRect(x: ankle.x - 12, y: ankle.y - 3, width: 24, height: 12)), with: .color(ink))
+            c.stroke(leg, with: .color(line), style: limb)
+            c.fill(Path(ellipseIn: CGRect(x: ankle.x - 12, y: ankle.y - 3, width: 24, height: 12)), with: .color(line))
         }
 
         // Arms reaching out from the sides, with round hands: out to the side, up in a
@@ -185,11 +187,11 @@ enum Pebble {
             var arm = Path()
             arm.move(to: m(reach.shoulder))
             arm.addQuadCurve(to: hand, control: elbow)
-            c.stroke(arm, with: .color(ink), style: limb)
+            c.stroke(arm, with: .color(line), style: limb)
             let h = hand
             let palm = Path(ellipseIn: CGRect(x: h.x - 5, y: h.y - 5, width: 10, height: 10))
             c.fill(palm, with: .color(look.body))
-            c.stroke(palm, with: .color(ink), lineWidth: 3)
+            c.stroke(palm, with: .color(line), lineWidth: 3)
         }
 
         // Horns on top.
@@ -220,12 +222,12 @@ enum Pebble {
             horns.closeSubpath()
         }
         c.fill(horns, with: .color(look.body))
-        c.stroke(horns, with: .color(ink), style: outline)
+        c.stroke(horns, with: .color(line), style: outline)
 
         // Body and belly.
         let body = Path(ellipseIn: CGRect(x: 22, y: 38, width: 76, height: 80))
         c.fill(body, with: .color(look.body))
-        c.stroke(body, with: .color(ink), lineWidth: 4)
+        c.stroke(body, with: .color(line), lineWidth: 4)
         c.fill(Path(ellipseIn: CGRect(x: 38, y: 84, width: 44, height: 26)), with: .color(.white.opacity(0.5)))
 
         drawEyes(look.eyes, face: face, in: &c)
