@@ -48,6 +48,9 @@ struct TutorPanel: View {
                         .help("Plan a lesson for this piece: listen, new notes, phrase by phrase, then perform")
                 }
             }
+            if session.reference?.notes.isEmpty == false && session.score != nil {
+                MarkedBarsSection()
+            }
         }.sheet(isPresented: $settings) { AISettingsView { settings = false } }
     }
 
@@ -201,6 +204,53 @@ private struct ReadinessCard: View {
         let n = readiness.suggestions.count
         return list.prefix(1).uppercased() + list.dropFirst() + ". "
             + (n == 1 ? "This lesson in Unit 1 covers it:" : "These \(n) short Unit 1 lessons cover it, in order:")
+    }
+}
+
+/// Bars the learner marked for extra attention, and practising just those.
+private struct MarkedBarsSection: View {
+    @EnvironmentObject var session: PlaySession
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Divider()
+            Text("Bars to focus on").font(.caption.weight(.semibold)).foregroundColor(.secondary)
+            if session.markedBars.isEmpty {
+                Text("Option-click a bar on the score to mark it for extra practice.")
+                    .font(.caption).foregroundColor(.secondary).fixedSize(horizontal: false, vertical: true)
+            } else {
+                // One chip per bar; click to unmark.
+                LazyVGrid(columns: [GridItem(.adaptive(minimum: 52), spacing: 4)], alignment: .leading, spacing: 4) {
+                    ForEach(session.markedBars.sorted(), id: \.self) { bar in
+                        Button { session.toggleMark(bar: bar) } label: {
+                            Label("\(bar)", systemImage: "xmark").font(.caption.weight(.semibold))
+                                .padding(.horizontal, 6).padding(.vertical, 2)
+                                .background(Capsule().fill(Color.purple.opacity(0.18)))
+                        }
+                        .buttonStyle(.plain)
+                        .help("Unmark bar \(bar)")
+                    }
+                }
+                Button {
+                    session.practiseMarkedBars()
+                } label: {
+                    Label("Practise \(session.markedBars.count == 1 ? "this bar" : "these \(session.markedBars.count) bars")",
+                          systemImage: "scope").frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.bordered)
+                .help("Note by note, slowly, at full speed, then with the bars around them")
+            }
+            HStack {
+                if session.phase == .graded && !session.mistakeMeasures.isEmpty
+                    && !session.mistakeMeasures.isSubset(of: session.markedBars) {
+                    Button("Mark the bars I got wrong") { session.markMistakeBars() }
+                }
+                if !session.markedBars.isEmpty {
+                    Button("Clear") { session.clearMarks() }
+                }
+            }
+            .font(.caption)
+        }
     }
 }
 

@@ -343,6 +343,37 @@ public struct PiecePracticeEngine: Sendable {
         exercise = PracticeExercise(kind: .assessment, measures: 1...measureCount)
     }
     public mutating func learnNotes() { reassess(); exercise.kind = .notes }
+
+    /// The learner's own choice: work on these bars. Each run of neighbouring bars (up to four)
+    /// note by note, slowly in time, at full speed, then with the bars around it; then the
+    /// whole piece again.
+    public mutating func focus(on bars: [Int]) {
+        let marked = Set(bars).filter { (1...measureCount).contains($0) }.sorted()
+        guard !marked.isEmpty else { return }
+        var groups: [ClosedRange<Int>] = []
+        for b in marked {
+            if let last = groups.last, b == last.upperBound + 1, last.count < 4 {
+                groups[groups.count - 1] = last.lowerBound...b
+            } else {
+                groups.append(b...b)
+            }
+        }
+        stepIndex = nil; mastered = false
+        let label = Self.focusLabel
+        queue = groups.flatMap { g -> [PracticeExercise] in
+            var steps: [PracticeExercise] = [
+                .init(kind: .notes, measures: g, label: label),
+                .init(kind: .slow, measures: g, tempoPercent: persona.drill.slowTempoPercent, label: label),
+                .init(kind: .fullSpeed, measures: g, label: label),
+            ]
+            let around = max(1, g.lowerBound - 1)...min(measureCount, g.upperBound + 1)
+            if around != g { steps.append(.init(kind: .context, measures: around)) }
+            return steps
+        }
+        advance()
+    }
+
+    public static let focusLabel = "Your marked bars"
     public mutating func skip() {
         if let i = stepIndex { completedSteps.insert(i); nextStep() } else { advance() }
     }

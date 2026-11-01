@@ -118,6 +118,7 @@ extension PlaySession {
         rebuildPieces()
         applyInputChoice()
         refreshEarLearner()
+        loadMarkedBars()
     }
 
     private func stopForLearnerChange() {

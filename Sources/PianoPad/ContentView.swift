@@ -1,4 +1,5 @@
 #if os(macOS)
+import AppKit
 import PianoGraderCore
 import SwiftUI
 
@@ -172,7 +173,11 @@ struct ContentView: View {
                             .help("Show or hide finger numbers on the sheet music notes")
                         }
                         NotationView(score: score, scoreID: session.scoreID, overlay: notationOverlay,
-                                     onTapMeasure: { session.playFrom(bar: $0) },
+                                     onTapMeasure: { index in
+                                         // Option-click marks the bar to focus on; a click plays from it.
+                                         if NSEvent.modifierFlags.contains(.option) { session.toggleMark(bar: index + 1) }
+                                         else { session.playFrom(bar: index) }
+                                     },
                                      // The tempo line, in play-along only (with or without a backing track).
                                      tempoProgress: session.showsTempoDisplay
                                          ? { [session] uptime in session.tempoProgress(atUptime: uptime) } : nil,
@@ -653,7 +658,8 @@ struct ContentView: View {
             wrong: session.markedWrong,
             mistakeMeasures: session.replayMeasure.map { [$0] }
                 ?? (session.tutor != nil ? session.tutorHighlight.union(session.mistakeMeasures) : (session.phase == .graded && session.report != nil ? session.mistakeMeasures : nil)),
-            fingering: session.showFingering ? session.topStaffFingering : []
+            fingering: session.showFingering ? session.topStaffFingering : [],
+            focusMeasures: session.markedBars
         )
     }
 

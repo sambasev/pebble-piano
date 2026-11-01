@@ -26,7 +26,7 @@ struct NotationView: View {
         GeometryReader { geo in
             let width = max(320, Double(geo.size.width - 2 * Self.margin))
             let prepared = cache.prepared(score: score, id: scoreID, width: width, mistakes: overlay.mistakeMeasures,
-                                          fingering: overlay.fingering)
+                                          fingering: overlay.fingering, focus: overlay.focusMeasures)
             let currentSystem = overlay.cursorQuarter.flatMap { prepared.layout.position(atQuarter: $0)?.system }
 
             ScrollViewReader { proxy in
@@ -97,7 +97,7 @@ final class NotationCache: ObservableObject {
         let painted: PaintedDrawing
     }
 
-    private var key: (id: UUID, width: Int, mistakes: Set<Int>?, fingering: [Int])?
+    private var key: (id: UUID, width: Int, mistakes: Set<Int>?, fingering: [Int], focus: Set<Int>)?
     private var value: Prepared?
     private var playedKey: (notes: [PlayedNote], width: Int, id: UUID)?
     private var playedValue: PaintedDrawing?
@@ -115,16 +115,18 @@ final class NotationCache: ObservableObject {
         return painted
     }
 
-    func prepared(score: Score, id: UUID, width: Double, mistakes: Set<Int>?, fingering: [Int] = []) -> Prepared {
+    func prepared(score: Score, id: UUID, width: Double, mistakes: Set<Int>?, fingering: [Int] = [], focus: Set<Int> = []) -> Prepared {
         let roundedWidth = Int(width.rounded())
-        if let key, let value, key.id == id, key.width == roundedWidth, key.mistakes == mistakes, key.fingering == fingering {
+        if let key, let value, key.id == id, key.width == roundedWidth, key.mistakes == mistakes, key.fingering == fingering,
+           key.focus == focus {
             return value
         }
         let layout = ScoreLayout(score: score, width: Double(roundedWidth))
         let renderer = ScoreRenderer(layout: layout)
         let prepared = Prepared(layout: layout, renderer: renderer,
-                                painted: PaintedDrawing(renderer.renderScore(mistakeMeasures: mistakes, fingering: fingering)))
-        key = (id, roundedWidth, mistakes, fingering)
+                                painted: PaintedDrawing(renderer.renderScore(mistakeMeasures: mistakes, fingering: fingering,
+                                                                             focusMeasures: focus)))
+        key = (id, roundedWidth, mistakes, fingering, focus)
         value = prepared
         return prepared
     }

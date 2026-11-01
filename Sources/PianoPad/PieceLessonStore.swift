@@ -73,6 +73,22 @@ enum PieceLessonStore {
         folder(key).appendingPathComponent("progress-\(learner).json")
     }
 
+    // MARK: Marked bars
+
+    /// Bars `learner` marked to focus on in this piece.
+    static func marks(_ key: String, learner: String) -> Set<Int> {
+        guard let data = try? Data(contentsOf: folder(key).appendingPathComponent("marks-\(learner).json")),
+              let bars = try? JSONDecoder().decode([Int].self, from: data) else { return [] }
+        return Set(bars)
+    }
+
+    static func setMarks(_ bars: Set<Int>, key: String, learner: String) {
+        let url = folder(key).appendingPathComponent("marks-\(learner).json")
+        if bars.isEmpty { try? FileManager.default.removeItem(at: url); return }
+        try? FileManager.default.createDirectory(at: folder(key), withIntermediateDirectories: true)
+        try? JSONEncoder().encode(bars.sorted()).write(to: url, options: .atomic)
+    }
+
     // MARK: Learn pages
 
     /// Writes the plan's lesson page and its MIDI files.

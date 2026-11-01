@@ -397,6 +397,20 @@ final class LessonPlanTests: XCTestCase {
         XCTAssertEqual(engine.completedSteps, Set(engine.steps.indices), "everything ticked off")
     }
 
+    func testMarkedBarsArePractisedOnTheirOwn() {
+        var engine = PiecePracticeEngine(measureCount: 12, plan: .fallback(for: twoHandPiece(bars: 12)))
+        engine.focus(on: [9, 3, 4, 13])
+        XCTAssertFalse(engine.isFollowingPlan)
+        XCTAssertEqual(engine.exercise.kind, .notes)
+        XCTAssertEqual(engine.exercise.measures, 3...4, "neighbouring bars together; bar 13 doesn't exist")
+        XCTAssertEqual(engine.exercise.label, PiecePracticeEngine.focusLabel)
+        engine.skip(); XCTAssertEqual(engine.exercise.kind, .slow)
+        engine.skip(); XCTAssertEqual(engine.exercise.kind, .fullSpeed)
+        engine.skip(); XCTAssertEqual(engine.exercise.kind, .context)
+        XCTAssertEqual(engine.exercise.measures, 2...5)
+        engine.skip(); XCTAssertEqual(engine.exercise.measures, 9...9)
+    }
+
     func testTwoFailedRunsDropBackALevel() {
         let piece = twoHandPiece(bars: 4)
         let plan = LessonPlan(phrases: [.init(bars: 1...4, label: "Phrase 1")], handsSeparately: false, source: .model)

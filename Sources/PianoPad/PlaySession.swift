@@ -453,6 +453,9 @@ final class PlaySession: ObservableObject {
     var tutorStartOver = false
     /// Stock lessons to do before this piece (shown instead of starting the lesson).
     @Published var tutorReadiness: Readiness?
+    /// Bars of the piece open in Practice that the learner marked for extra attention
+    /// (Option-click a bar, or "Mark the bars I got wrong"). Kept per learner and piece.
+    @Published private(set) var markedBars: Set<Int> = []
     @Published var tutorText = ""
     @Published var tutorAI = ""
     @Published var tutorBusy = false
@@ -1517,6 +1520,7 @@ final class PlaySession: ObservableObject {
                 fingeringNotes = PianoFingeringModel.analyze(sequence: sequence)
             }
             message = sequence.notes.isEmpty ? "\(url.lastPathComponent) has no notes to play." : nil
+            loadMarkedBars()
             if !keepPassage && remember { rememberPiece(url, title: sequence.title) }
             setupPlayAlong()
             resetTake()
@@ -2588,6 +2592,48 @@ extension PlaySession {
             }
         }
         return LearnerSkills.from(unit: unit, completedPages: done, passed: passed, underWay: underWay)
+    }
+
+    // MARK: Marked bars
+
+    private var marksKey: String? { referenceURL.map(PieceLessonStore.key(for:)) }
+
+    func loadMarkedBars() {
+        markedBars = marksKey.map { PieceLessonStore.marks($0, learner: tutorLearnerKey) } ?? []
+    }
+
+    private func saveMarkedBars() {
+        guard let key = marksKey else { return }
+        PieceLessonStore.setMarks(markedBars, key: key, learner: tutorLearnerKey)
+    }
+
+    /// Marks bar `bar` (from 1) for extra attention, or unmarks it.
+    func toggleMark(bar: Int) {
+        if markedBars.contains(bar) { markedBars.remove(bar) } else { markedBars.insert(bar) }
+        saveMarkedBars()
+    }
+
+    func clearMarks() {
+        markedBars = []
+        saveMarkedBars()
+    }
+
+    /// Marks every bar with a mistake in the last graded take.
+    func markMistakeBars() {
+        markedBars.formUnion(mistakeMeasures)
+        saveMarkedBars()
+    }
+
+    /// Practise just the marked bars: note by note, slowly, at full speed, then in context.
+    func practiseMarkedBars() {
+        guard !markedBars.isEmpty else { return }
+        if tutor == nil { beginTutoring(planLesson: false) }
+        guard var engine = tutor else { return }
+        tutorLeaveAttempt()
+        engine.focus(on: Array(markedBars))
+        tutor = engine
+        tutorPlanning = false
+        tutorText = "Let's work on the bars you marked. " + TutorCoaching.invitation(for: engine.exercise, printedMeasures: tutorPrinted(engine.exercise))
     }
 
     /// From the "Before this piece" card: open a stock lesson in Learn.
