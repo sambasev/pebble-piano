@@ -2667,17 +2667,34 @@ extension PlaySession {
     }
     /// The checklist: go to step `index`.
     func tutorJump(to index: Int) {
-        guard phase != .recording, var engine = tutor else { return }
+        guard var engine = tutor else { return }
+        tutorLeaveAttempt()
         engine.jump(to: index)
-        tutor = engine; tutorAttempt = nil; tutorAI = ""
+        tutor = engine; tutorAI = ""
         tutorText = TutorCoaching.invitation(for: engine.exercise, printedMeasures: tutorPrinted(engine.exercise))
     }
     /// Leave the plan: play the whole piece so the tutor can find what to practise.
     func tutorAssessInstead() {
         guard var engine = tutor else { return }
+        tutorLeaveAttempt()
         engine.assessInstead()
-        tutor = engine; tutorAttempt = nil; tutorAI = ""
+        tutor = engine; tutorAI = ""
         tutorText = TutorCoaching.invitation(for: engine.exercise, printedMeasures: tutorPrinted(engine.exercise))
+    }
+    /// Skip step: on to the next one.
+    func tutorSkip() {
+        guard var engine = tutor else { return }
+        tutorLeaveAttempt()
+        engine.skip()
+        tutor = engine; tutorAI = ""
+        tutorText = TutorCoaching.invitation(for: engine.exercise, printedMeasures: tutorPrinted(engine.exercise))
+    }
+    /// Stops the step being played (a note-by-note step records until its last note), so
+    /// another step can start straight away.
+    func tutorLeaveAttempt() {
+        tutorGeneration = UUID(); tutorTask?.cancel(); tutorBusy = false
+        resetAll()
+        tutorAttempt = nil
     }
     /// Stars for the run just graded, when it was the tutor's Perform step.
     var tutorPerformStars: Int? {

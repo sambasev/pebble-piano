@@ -90,7 +90,7 @@ struct TutorPanel: View {
         HStack {
             Button("Hear it first") { session.startListening() }
             Button("Try again") { session.retryTutorExercise() }
-            Button("Skip step") { session.tutor?.skip() }
+            Button("Skip step") { session.tutorSkip() }
         }
         HStack {
             Button("What went wrong?") { session.askTutor("What went wrong?", userAsked: true) }
@@ -101,13 +101,13 @@ struct TutorPanel: View {
                 Button("Assess me instead") { session.tutorAssessInstead() }
                     .help("Play the whole piece now; the tutor drills what needs it")
             } else {
-                Button("Reassess piece") { session.tutor?.reassess(); session.startTutorExercise() }
+                Button("Reassess piece") { session.tutorLeaveAttempt(); session.tutor?.reassess(); session.startTutorExercise() }
             }
             Menu("More") {
                 if !engine.steps.isEmpty {
                     Button("Back to the lesson plan") { session.tutorJump(to: 0) }
                 }
-                Button("Learn whole piece note by note") { session.tutor?.learnNotes(); session.startTutorExercise() }
+                Button("Learn whole piece note by note") { session.tutorLeaveAttempt(); session.tutor?.learnNotes(); session.startTutorExercise() }
                 Button("Plan again with Muse Spark") { session.planTutorLesson(fresh: true) }
             }
             .menuStyle(.borderlessButton)
@@ -234,7 +234,6 @@ private struct PlanChecklist: View {
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-                .disabled(session.phase == .recording)
             }
         }
         .padding(8)
