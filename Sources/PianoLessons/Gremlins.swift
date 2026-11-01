@@ -167,49 +167,82 @@ public struct GremlinReaction: Equatable, Sendable {
 }
 
 /// A dancer's stroll around its own lane of the stage, decided by a seed so it looks random
-/// but is the same every time for the same beat. Time is split into legs of `legBeats`
-/// beats: in each leg the dancer stands for 2–4 whole beats, then walks to a new spot,
-/// arriving as the leg ends. So walking always starts and stops on a beat.
+/// but is the same every time for the same beat.
+///
+/// Time is split into legs of `legBeats` beats. In each leg the dancer walks to a new spot
+/// at an unhurried, steady pace (`speed`, the same for every dancer), easing into and out of
+/// each step, then stands and dances there for the rest of the leg. Walks start and stop on
+/// whole beats, and most of each leg is spent standing, so the movement stays subtle.
 public struct GremlinWander: Equatable, Sendable {
     public var seed: UInt64
-    /// Beats per leg (rest plus walk), at least 4.
+    /// Beats per leg (walk plus standing).
     public var legBeats: Int
+    /// Walking pace in lane widths per beat: from one side of the lane to the other
+    /// (-1 to 1) takes 2 / speed beats.
+    public var speed: Double
+    /// Shifts this dancer's legs so the dancers don't set off together.
+    public var offsetBeats: Double
 
-    public init(seed: UInt64, legBeats: Int) {
+    public static let walkingSpeed = 0.08
+
+    public init(seed: UInt64, legBeats: Int = 32, speed: Double = GremlinWander.walkingSpeed, offsetBeats: Double = 0) {
         self.seed = seed
-        self.legBeats = max(4, legBeats)
+        self.speed = max(0.01, speed)
+        // A leg always has room to cross the whole lane and still stand for a while.
+        self.legBeats = max(Int((2 / self.speed).rounded(.up)) + 4, legBeats)
+        self.offsetBeats = offsetBeats
     }
 
-    /// The usual three dancers: different seeds and leg lengths, so they never move in step.
+    /// The usual three dancers: the same pace, different seeds and starting points.
     public static func dancer(_ index: Int, seed: UInt64 = 0x5EB1E5) -> GremlinWander {
-        GremlinWander(seed: seed &+ UInt64(index) &* 0x9E37_79B9, legBeats: 6 + index % 3)
+        GremlinWander(seed: seed &+ UInt64(index) &* 0x9E37_79B9, offsetBeats: Double(index) * 11)
     }
 
     /// Position across the lane at beat time `t`, from -1 (left edge) to 1 (right edge), and
     /// the way the dancer faces: 1 right, -1 left.
     public func position(atBeat t: Double) -> (x: Double, facing: Int) {
+        let time = t + offsetBeats
         let length = Double(legBeats)
-        let leg = Int((t / length).rounded(.down))
-        let local = t - Double(leg) * length
-        let rest = restBeats(leg)
+        let leg = Int((time / length).rounded(.down))
+        let local = time - Double(leg) * length
+        let rest = Double(restBeats(leg))
         let from = target(leg - 1), to = target(leg)
-        if local < Double(rest) {
+        let walk = Double(walkBeats(leg))
+        if local < rest {
             return (from, facing(leg - 1))
         }
-        let u = (local - Double(rest)) / (length - Double(rest))
-        let eased = u * u * (3 - 2 * u)
-        return (from + (to - from) * eased, facing(leg))
+        if local >= rest + walk {
+            return (to, facing(leg))
+        }
+        let u = (local - rest) / walk
+        return (from + (to - from) * Self.stride(u, rampFraction: min(0.5, 0.75 / walk)), facing(leg))
     }
 
-    /// Beats standing still at the start of leg `leg`: 2, 3 or 4, leaving at least two to walk.
+    /// Beats standing at the start of leg `leg` before walking: 2 to 5.
     public func restBeats(_ leg: Int) -> Int {
-        min(legBeats - 2, 2 + Int(random(leg, salt: 1) * 3))
+        min(legBeats - walkBeats(leg), 2 + Int(random(leg, salt: 1) * 4))
+    }
+
+    /// Beats walking in leg `leg`: enough to cover the distance at `speed`, at least two.
+    public func walkBeats(_ leg: Int) -> Int {
+        let distance = abs(target(leg) - target(leg - 1))
+        return max(2, Int((distance / speed).rounded(.up)))
     }
 
     /// Where leg `leg` ends, -1...1.
     func target(_ leg: Int) -> Double { random(leg, salt: 2) * 2 - 1 }
 
     func facing(_ leg: Int) -> Int { target(leg) >= target(leg - 1) ? 1 : -1 }
+
+    /// Progress 0...1 through a walk at a steady pace, speeding up over the first
+    /// `rampFraction` and slowing down over the last: a trapezoidal speed profile.
+    static func stride(_ u: Double, rampFraction a: Double) -> Double {
+        let u = min(1, max(0, u))
+        let top = 1 / (1 - a)
+        if u < a { return top * u * u / (2 * a) }
+        if u > 1 - a { return 1 - top * (1 - u) * (1 - u) / (2 * a) }
+        return top * (u - a / 2)
+    }
 
     /// 0..<1, fixed for a seed, leg and salt.
     private func random(_ leg: Int, salt: UInt64) -> Double {

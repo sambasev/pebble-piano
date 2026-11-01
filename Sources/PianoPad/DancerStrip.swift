@@ -18,7 +18,7 @@ struct DancerStrip: View {
     /// Walking time, carried between frames so the stroll survives replays and restarts.
     @State private var memory = Memory()
 
-    static let height: CGFloat = 96
+    static let height: CGFloat = 116
 
     var body: some View {
         let moving = session.isPlayingAlong || session.isAuditioning
@@ -60,7 +60,7 @@ struct DancerStrip: View {
         let count = Self.looks.count
         let laneWidth = size.width / CGFloat(count)
         // The drawing is 120 × 140 design units; leave room above for the big jump.
-        let scale = (size.height * 0.62) / 140
+        let scale = (size.height * 0.68) / 140
         let bodyWidth = 120 * scale
         let ground = size.height - 2
         let reach = max(0, laneWidth / 2 - bodyWidth / 2 - 4)
@@ -108,55 +108,79 @@ struct PebbleLook {
     var eyes: Eyes
 }
 
-/// The Pebble drawing, in 120 × 140 design units with the feet at the bottom (y ≈ 137).
+/// The Pebble drawing, in 120 × 140 design units with the feet at the bottom (y = 137).
 enum Pebble {
     /// Outlines stay dark in both themes, like the black keys, so the dancers read as
     /// drawings on any background.
     static let ink = Color(hex: 0x1B1630)
 
     static func draw(_ look: PebbleLook, face: GremlinFace, in c: inout GraphicsContext) {
-        let line = StrokeStyle(lineWidth: 5, lineCap: .round, lineJoin: .round)
+        let limb = StrokeStyle(lineWidth: 6, lineCap: .round, lineJoin: .round)
         let outline = StrokeStyle(lineWidth: 3.5, lineCap: .round, lineJoin: .round)
 
-        // Feet.
-        c.fill(Path(ellipseIn: CGRect(x: 31, y: 123, width: 26, height: 14)), with: .color(ink))
-        c.fill(Path(ellipseIn: CGRect(x: 63, y: 123, width: 26, height: 14)), with: .color(ink))
+        // Legs and feet, below the body.
+        var legs = Path()
+        legs.move(to: CGPoint(x: 50, y: 112)); legs.addLine(to: CGPoint(x: 47, y: 128))
+        legs.move(to: CGPoint(x: 70, y: 112)); legs.addLine(to: CGPoint(x: 73, y: 128))
+        c.stroke(legs, with: .color(ink), style: limb)
+        c.fill(Path(ellipseIn: CGRect(x: 34, y: 125, width: 24, height: 12)), with: .color(ink))
+        c.fill(Path(ellipseIn: CGRect(x: 62, y: 125, width: 24, height: 12)), with: .color(ink))
 
-        // Arms: out to the side, up in a cheer, drooping after a slip.
-        var arms = Path()
+        // Arms reaching out from the sides, with round hands: out to the side, up in a
+        // cheer, drooping after a slip.
+        let reach: (shoulder: CGPoint, elbow: CGPoint, hand: CGPoint)
         switch face {
-        case .normal:
-            arms.move(to: CGPoint(x: 22, y: 86)); arms.addQuadCurve(to: CGPoint(x: 10, y: 64), control: CGPoint(x: 8, y: 80))
-            arms.move(to: CGPoint(x: 98, y: 86)); arms.addQuadCurve(to: CGPoint(x: 110, y: 64), control: CGPoint(x: 112, y: 80))
-        case .happy:
-            arms.move(to: CGPoint(x: 24, y: 72)); arms.addQuadCurve(to: CGPoint(x: 18, y: 38), control: CGPoint(x: 10, y: 54))
-            arms.move(to: CGPoint(x: 96, y: 72)); arms.addQuadCurve(to: CGPoint(x: 102, y: 38), control: CGPoint(x: 110, y: 54))
-        case .worried:
-            arms.move(to: CGPoint(x: 22, y: 84)); arms.addQuadCurve(to: CGPoint(x: 16, y: 106), control: CGPoint(x: 12, y: 96))
-            arms.move(to: CGPoint(x: 98, y: 84)); arms.addQuadCurve(to: CGPoint(x: 104, y: 106), control: CGPoint(x: 108, y: 96))
+        case .normal: reach = (CGPoint(x: 26, y: 84), CGPoint(x: 6, y: 86), CGPoint(x: 6, y: 66))
+        case .happy: reach = (CGPoint(x: 28, y: 70), CGPoint(x: 8, y: 58), CGPoint(x: 14, y: 34))
+        case .worried: reach = (CGPoint(x: 26, y: 88), CGPoint(x: 8, y: 96), CGPoint(x: 12, y: 112))
         }
-        c.stroke(arms, with: .color(ink), style: line)
+        for side in [false, true] {
+            let m: (CGPoint) -> CGPoint = { side ? CGPoint(x: 120 - $0.x, y: $0.y) : $0 }
+            var arm = Path()
+            arm.move(to: m(reach.shoulder))
+            arm.addQuadCurve(to: m(reach.hand), control: m(reach.elbow))
+            c.stroke(arm, with: .color(ink), style: limb)
+            let h = m(reach.hand)
+            let palm = Path(ellipseIn: CGRect(x: h.x - 5, y: h.y - 5, width: 10, height: 10))
+            c.fill(palm, with: .color(look.body))
+            c.stroke(palm, with: .color(ink), lineWidth: 3)
+        }
 
-        // Ears.
-        var ears = Path()
+        // Horns on top.
+        var horns = Path()
         switch look.ears {
         case .pair:
-            ears.addLines([CGPoint(x: 44, y: 44), CGPoint(x: 48, y: 22), CGPoint(x: 57, y: 41)]); ears.closeSubpath()
-            ears.addLines([CGPoint(x: 63, y: 41), CGPoint(x: 72, y: 22), CGPoint(x: 76, y: 44)]); ears.closeSubpath()
+            horns.move(to: CGPoint(x: 40, y: 48))
+            horns.addQuadCurve(to: CGPoint(x: 46, y: 14), control: CGPoint(x: 34, y: 26))
+            horns.addQuadCurve(to: CGPoint(x: 56, y: 42), control: CGPoint(x: 52, y: 28))
+            horns.closeSubpath()
+            horns.move(to: CGPoint(x: 80, y: 48))
+            horns.addQuadCurve(to: CGPoint(x: 74, y: 14), control: CGPoint(x: 86, y: 26))
+            horns.addQuadCurve(to: CGPoint(x: 64, y: 42), control: CGPoint(x: 68, y: 28))
+            horns.closeSubpath()
         case .single:
-            ears.addLines([CGPoint(x: 53, y: 42), CGPoint(x: 60, y: 18), CGPoint(x: 67, y: 42)]); ears.closeSubpath()
+            horns.move(to: CGPoint(x: 50, y: 44))
+            horns.addQuadCurve(to: CGPoint(x: 60, y: 8), control: CGPoint(x: 50, y: 22))
+            horns.addQuadCurve(to: CGPoint(x: 70, y: 44), control: CGPoint(x: 70, y: 22))
+            horns.closeSubpath()
         case .wide:
-            ears.addLines([CGPoint(x: 40, y: 48), CGPoint(x: 36, y: 26), CGPoint(x: 54, y: 40)]); ears.closeSubpath()
-            ears.addLines([CGPoint(x: 66, y: 40), CGPoint(x: 84, y: 26), CGPoint(x: 80, y: 48)]); ears.closeSubpath()
+            horns.move(to: CGPoint(x: 36, y: 54))
+            horns.addQuadCurve(to: CGPoint(x: 24, y: 18), control: CGPoint(x: 18, y: 36))
+            horns.addQuadCurve(to: CGPoint(x: 52, y: 42), control: CGPoint(x: 40, y: 26))
+            horns.closeSubpath()
+            horns.move(to: CGPoint(x: 84, y: 54))
+            horns.addQuadCurve(to: CGPoint(x: 96, y: 18), control: CGPoint(x: 102, y: 36))
+            horns.addQuadCurve(to: CGPoint(x: 68, y: 42), control: CGPoint(x: 80, y: 26))
+            horns.closeSubpath()
         }
-        c.fill(ears, with: .color(look.body))
-        c.stroke(ears, with: .color(ink), style: outline)
+        c.fill(horns, with: .color(look.body))
+        c.stroke(horns, with: .color(ink), style: outline)
 
         // Body and belly.
-        let body = Path(ellipseIn: CGRect(x: 18, y: 40, width: 84, height: 88))
+        let body = Path(ellipseIn: CGRect(x: 22, y: 38, width: 76, height: 80))
         c.fill(body, with: .color(look.body))
         c.stroke(body, with: .color(ink), lineWidth: 4)
-        c.fill(Path(ellipseIn: CGRect(x: 36, y: 87, width: 48, height: 30)), with: .color(.white.opacity(0.5)))
+        c.fill(Path(ellipseIn: CGRect(x: 38, y: 84, width: 44, height: 26)), with: .color(.white.opacity(0.5)))
 
         drawEyes(look.eyes, face: face, in: &c)
         drawMouth(face, in: &c)

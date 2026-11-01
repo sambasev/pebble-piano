@@ -121,19 +121,45 @@ final class GremlinTests: XCTestCase {
     func testWalksStartAndStopOnWholeBeats() {
         let w = GremlinWander.dancer(0)
         for leg in 0..<50 {
-            let start = Double(leg * w.legBeats)
-            let rest = Double(w.restBeats(leg))
-            XCTAssertTrue((2...4).contains(Int(rest)))
-            // Standing still for the rest beats, then moving.
+            let start = Double(leg * w.legBeats) - w.offsetBeats
+            let rest = Double(w.restBeats(leg)), walk = Double(w.walkBeats(leg))
+            XCTAssertGreaterThanOrEqual(rest, 2)
+            XCTAssertLessThanOrEqual(rest + walk, Double(w.legBeats))
+            // Standing for the rest beats, then walking, then standing again until the leg ends.
             XCTAssertEqual(w.position(atBeat: start + 0.01).x, w.position(atBeat: start + rest - 0.01).x, accuracy: 1e-9)
-            // Arrives as the leg ends: no jump into the next leg.
             let end = start + Double(w.legBeats)
+            XCTAssertEqual(w.position(atBeat: start + rest + walk).x, w.position(atBeat: end - 0.01).x, accuracy: 1e-9)
+            // No jump into the next leg.
             XCTAssertEqual(w.position(atBeat: end - 1e-6).x, w.position(atBeat: end).x, accuracy: 1e-4)
         }
     }
 
+    func testEveryoneWalksAtTheSameSlowPace() {
+        let dancers = (0..<3).map { GremlinWander.dancer($0) }
+        XCTAssertEqual(Set(dancers.map(\.speed)).count, 1, "one pace for everyone")
+        for w in dancers {
+            var fastest = 0.0
+            var t = 0.0
+            while t < 400 {
+                let a = w.position(atBeat: t).x, b = w.position(atBeat: t + 0.05).x
+                fastest = max(fastest, abs(b - a) / 0.05)
+                t += 0.05
+            }
+            // Easing in and out keeps the top speed a little above the average pace.
+            XCTAssertLessThanOrEqual(fastest, GremlinWander.walkingSpeed * 1.8)
+            XCTAssertGreaterThan(fastest, 0, "they do stroll")
+        }
+    }
+
+    func testStrideEasesInAndOut() {
+        XCTAssertEqual(GremlinWander.stride(0, rampFraction: 0.2), 0, accuracy: 1e-12)
+        XCTAssertEqual(GremlinWander.stride(1, rampFraction: 0.2), 1, accuracy: 1e-12)
+        XCTAssertEqual(GremlinWander.stride(0.5, rampFraction: 0.2), 0.5, accuracy: 1e-12)
+        XCTAssertLessThan(GremlinWander.stride(0.05, rampFraction: 0.2), 0.05, "slow to start")
+    }
+
     func testDancersMoveOutOfStep() {
-        XCTAssertNotEqual(GremlinWander.dancer(0).legBeats, GremlinWander.dancer(1).legBeats)
+        XCTAssertNotEqual(GremlinWander.dancer(0).offsetBeats, GremlinWander.dancer(1).offsetBeats)
         XCTAssertNotEqual(GremlinWander.dancer(0).position(atBeat: 20).x, GremlinWander.dancer(1).position(atBeat: 20).x)
     }
 
