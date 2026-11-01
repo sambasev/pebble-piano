@@ -42,6 +42,9 @@ public enum NoteheadGeometry {
         /// Bar edges, left to right: where the music starts, each bar line, and the end of the
         /// staff when the system doesn't end on a bar line. Bar i lies between edges i and i+1.
         public var barEdges: [Double]
+        /// The clefs found at the start of each staff (the caller's guess where none was found).
+        public var upperClef: SystemReading.Clef = .treble
+        public var lowerClef: SystemReading.Clef = .treble
 
         public func heads(_ staff: SystemReading.StaffName) -> [Head] { staff == .upper ? upperHeads : lowerHeads }
         public var barCount: Int { max(0, barEdges.count - 1) }
@@ -73,7 +76,9 @@ public enum NoteheadGeometry {
         }
         let upper = staves[0], lower = staves[1]
         let split = (upper.bottom + lower.top) / 2
-        let (startUpper, startLower) = headerEnds(ink, upper, lower)
+        let header = headerEnds(ink, upper, lower)
+        let (startUpper, startLower) = (header.upper, header.lower)
+        let clefs = (header.upperClef ?? clefs.0, header.lowerClef ?? clefs.1)
 
         var upperHeads: [Head] = [], lowerHeads: [Head] = []
         for h in noteheads(ink, spacing: (upper.spacing + lower.spacing) / 2).sorted(by: { ($0.x, $0.y) < ($1.x, $1.y) }) {
@@ -95,7 +100,8 @@ public enum NoteheadGeometry {
         // Drop "heads" sitting on a bar line (thick final bar lines can look like heads).
         let notOnBar: (Head) -> Bool = { h in edges.allSatisfy { abs(h.x - $0) > 0.7 * upper.spacing } }
         return System(upper: upper, lower: lower, upperHeads: upperHeads.filter(notOnBar),
-                      lowerHeads: lowerHeads.filter(notOnBar), barEdges: edges)
+                      lowerHeads: lowerHeads.filter(notOnBar), barEdges: edges,
+                      upperClef: clefs.0, lowerClef: clefs.1)
     }
 
     // MARK: Deskew
@@ -140,12 +146,25 @@ public enum NoteheadGeometry {
     static func staffLines(_ ink: Bitmap) -> [Staff] {
         let rows = (0..<ink.height).map { ink.rowCount($0) }
         let threshold = 0.45 * Double(rows.max() ?? 0)
-        var lines: [Double] = []
+        var runs: [(Int, Int)] = []
         var start: Int?
         for y in 0...ink.height {
             let on = y < ink.height && Double(rows[y]) > threshold
             if on, start == nil { start = y }
-            if !on, let s = start { lines.append(Double(s + y - 1) / 2); start = nil }
+            if !on, let s = start { runs.append((s, y)); start = nil }
+        }
+        // A beam lying on a line widens its run: centre such a run on the line's own rows.
+        let lengths = runs.map { $0.1 - $0.0 }.sorted()
+        let typical = lengths.isEmpty ? 0 : (lengths.count % 2 == 1 ? Double(lengths[lengths.count / 2])
+            : Double(lengths[lengths.count / 2 - 1] + lengths[lengths.count / 2]) / 2)
+        let lines: [Double] = runs.map { run in
+            var (a, b) = run
+            if Double(b - a) > 2 * typical + 1 {
+                let peak = Double(rows[a..<b].max()!)
+                let core = (a..<b).filter { Double(rows[$0]) >= 0.85 * peak }
+                (a, b) = (core.first!, core.last! + 1)
+            }
+            return Double(a + b - 1) / 2
         }
         var staves: [Staff] = []
         var i = 0
@@ -186,43 +205,51 @@ public enum NoteheadGeometry {
     }
 
     /// (where the clef ends, time-signature candidates) for one staff.
-    static func headerGlyphs(_ ink: Bitmap, _ staff: Staff, lineless: Bitmap) -> (Int, [Glyph]) {
+    static func headerGlyphs(_ ink: Bitmap, _ staff: Staff, lineless: Bitmap) -> (Int, [Glyph], SystemReading.Clef?) {
         let sp = staff.spacing
         let y0 = max(0, Int(staff.top - 3 * sp))
         let y1 = min(ink.height, Int(staff.bottom + 3 * sp))
         let glyphs = components(lineless, rows: y0..<y1)
         let w = Double(ink.width)
-        let clefs = glyphs.filter {
-            Double($0.height) >= 4.5 * sp && (1.5 * sp...6 * sp).contains(Double($0.width)) && Double($0.x0) < 0.2 * w
+        // A treble clef reaches well above and below the staff; a bass clef is ~3 spaces tall and
+        // hangs from the top line.
+        func kind(_ g: Glyph) -> SystemReading.Clef? {
+            guard (1.5 * sp...6 * sp).contains(Double(g.width)), Double(g.x0) < 0.3 * w else { return nil }
+            if Double(g.height) >= 4.5 * sp { return .treble }
+            if (2.4 * sp...4.2 * sp).contains(Double(g.height)), abs(Double(g.y0) - staff.top) <= 0.8 * sp,
+               Double(g.y1) <= staff.bottom + 0.6 * sp { return .bass }
+            return nil
         }
         // The leftmost: slurs joined to notes can look tall and wide too.
-        guard let clef = clefs.min(by: { ($0.x0, $0.x1) < ($1.x0, $1.x1) }) else { return (0, []) }
+        guard let clef = glyphs.filter({ kind($0) != nil }).min(by: { ($0.x0, $0.x1) < ($1.x0, $1.x1) })
+        else { return (0, [], nil) }
         let end = clef.x1
         let mid = (staff.top + staff.bottom) / 2
         let sig = glyphs.filter {
             Double($0.x0) >= Double(end) - 0.2 * sp && Double($0.x0) <= Double(end) + 3 * sp
-                && (1.4 * sp...2.8 * sp).contains(Double($0.height))
+                && (1.4 * sp...4.2 * sp).contains(Double($0.height))  // the two digits can join up
                 && (0.6 * sp...2.4 * sp).contains(Double($0.width))
                 && abs($0.centerY - mid) <= 1.2 * sp
         }
-        return (end, sig)
+        return (end, sig, kind(clef))
     }
 
     /// Where the music starts on each staff: after the clef, and after the time signature when
     /// there is one. A time signature is on both staves at the same place, so a lone "glyph"
     /// there is a note (continuation systems have no time signature). Key signatures aren't
     /// handled yet: the demo pieces are in C major.
-    static func headerEnds(_ ink: Bitmap, _ upper: Staff, _ lower: Staff) -> (Int, Int) {
+    static func headerEnds(_ ink: Bitmap, _ upper: Staff, _ lower: Staff)
+        -> (upper: Int, lower: Int, upperClef: SystemReading.Clef?, lowerClef: SystemReading.Clef?) {
         let lineless = withoutLines(ink, spacing: upper.spacing)
-        let (eu, su) = headerGlyphs(ink, upper, lineless: lineless)
-        let (el, sl) = headerGlyphs(ink, lower, lineless: lineless)
+        let (eu, su, cu) = headerGlyphs(ink, upper, lineless: lineless)
+        let (el, sl, cl) = headerGlyphs(ink, lower, lineless: lineless)
         var sigEnd = 0
         for a in su {
             for b in sl where Double(min(a.x1, b.x1) - max(a.x0, b.x0)) >= 0.5 * Double(min(a.width, b.width)) {
                 sigEnd = max(sigEnd, a.x1, b.x1)
             }
         }
-        return (max(eu, sigEnd), max(el, sigEnd))
+        return (max(eu, sigEnd), max(el, sigEnd), cu, cl)
     }
 
     /// Connected components (4-connected) within the given rows, as bounding boxes in image
@@ -260,8 +287,9 @@ public enum NoteheadGeometry {
 
     struct RawHead { var x: Double; var y: Double; var width: Double; var filled: Bool }
 
-    /// Hollow-notehead holes: small, squat, ellipse-like holes walled by ink on both sides.
-    /// Boxes between staff lines, stems and bar lines are bigger, taller or rectangular.
+    /// Hollow-notehead holes: small, squat, ellipse-like holes. Boxes between staff lines, stems
+    /// and bar lines are bigger, taller or rectangular. (LilyPond's half notes have a long
+    /// diagonal slit, almost as wide as the head, so no test of walls beside the hole.)
     static func hollowFill(_ ink: Bitmap, spacing sp: Double) -> Bitmap {
         let w = ink.width, h = ink.height
         // Background reachable from the border (4-connected); the rest of the background is holes.
@@ -284,17 +312,12 @@ public enum NoteheadGeometry {
         for y in 0..<h { for x in 0..<w where !ink[x, y] && !outside[y * w + x] { holes[x, y] = true } }
 
         var fill = Bitmap(width: w, height: h)
-        let t = max(2, Int((0.2 * sp).rounded()))
         for g in components(holes, rows: 0..<h) {
             var area = 0
             for y in g.y0..<g.y1 { for x in g.x0..<g.x1 where holes[x, y] { area += 1 } }
             let a = Double(area), hw = Double(g.width), hh = Double(g.height)
-            guard a >= 0.04 * sp * sp, a <= 0.6 * sp * sp, hw >= 0.25 * sp, hw <= 1.05 * sp, hh <= 0.85 * sp else { continue }
-            let m0 = g.y0 + g.height / 4
-            let m1 = max(m0 + 1, g.y1 - g.height / 4)
-            let left = g.x0 >= t ? ink.mean(rows: m0..<m1, cols: (g.x0 - t)..<g.x0) : 0
-            let right = g.x1 + t <= w ? ink.mean(rows: m0..<m1, cols: g.x1..<(g.x1 + t)) : 0
-            guard left >= 0.45, right >= 0.45, a / (hw * hh) <= 0.85 else { continue }
+            guard a >= 0.04 * sp * sp, a <= 0.6 * sp * sp, hw >= 0.25 * sp, hw <= 1.4 * sp, hh <= 0.95 * sp,
+                  a / (hw * hh) <= 0.85 else { continue }
             // Mark this hole's pixels (only those connected to this component's box).
             for y in g.y0..<g.y1 { for x in g.x0..<g.x1 where holes[x, y] { fill[x, y] = true } }
         }
@@ -365,6 +388,11 @@ public enum NoteheadGeometry {
             let ring = Mask(r: big.r, cells: ringCells)
             let fillOffsets = fillMask.offsets, ringOffsets = ring.offsets
             let fillCount = Double(fillOffsets.count), ringCount = Double(ringOffsets.count)
+            // In a chord of stacked thirds the heads touch above and below: then judge by the
+            // ring's sides alone.
+            let half = Int(0.45 * sp * sx)
+            let sideOffsets = ringOffsets.filter { abs($0.0) > half }
+            let sideCount = Double(max(1, sideOffsets.count))
             // Quick reject: a box inside the ellipse must be nearly all ink.
             let qa = max(1, Int(0.3 * sp * sx)), qb = max(1, Int(0.2 * sp))
             for y in 0..<h {
@@ -377,8 +405,13 @@ public enum NoteheadGeometry {
                     var around = 0
                     for (dx, dy) in ringOffsets where solid.get(x + dx, y + dy) { around += 1 }
                     let ar = Double(around) / ringCount
-                    guard ar <= 0.55 else { continue }
-                    let s = fill - 0.5 * ar
+                    if ar > 0.55 {
+                        guard fill >= 0.92 else { continue }
+                        var beside = 0
+                        for (dx, dy) in sideOffsets where solid.get(x + dx, y + dy) { beside += 1 }
+                        guard Double(beside) / sideCount <= 0.35 else { continue }
+                    }
+                    let s = fill - 0.5 * min(ar, 0.55)
                     if s > score[y * w + x] { score[y * w + x] = s }
                 }
             }
@@ -424,7 +457,61 @@ public enum NoteheadGeometry {
             for yy in (y - 2)...(y + 2) { for xx in (x - 2)...(x + 2) where hollow.get(xx, yy) { filled = false } }
             out.append(RawHead(x: Double(x), y: Double(y), width: 1.25 * sp, filled: filled))
         }
-        return out
+        return splitChords(solid, out, spacing: sp)
+    }
+
+    /// Stacked chord heads (thirds) touch and read as one tall blob, where the ellipse fit puts
+    /// heads at the wrong heights or misses one: count the heads from the blob's height instead.
+    static func splitChords(_ solid: Bitmap, _ heads: [RawHead], spacing sp: Double) -> [RawHead] {
+        let w = solid.width, h = solid.height
+        let half = Int((0.6 * sp).rounded())
+        let thin = max(1, Int((0.25 * sp).rounded()))
+        func wide(_ y: Int, _ x: Int) -> Bool {
+            var n = 0
+            for xx in max(0, x - half)..<min(w, x + half + 1) where solid[xx, y] { n += 1 }
+            return Double(n) >= 0.75 * sp
+        }
+        // Ink right across, beyond a head on both sides: a staff line, or a beam if it's thick.
+        func spans(_ y: Int, _ x: Int) -> Bool { solid[max(0, x - 2 * half), y] && solid[min(w - 1, x + 2 * half), y] }
+        func grow(_ y0: Int, _ x: Int, _ d: Int) -> Int {
+            var y = y0, run = 0
+            while y + d >= 0 && y + d < h && wide(y + d, x) {
+                y += d
+                run = spans(y, x) ? run + 1 : 0
+                if run > thin { return y - d * run }
+            }
+            return y - d * run
+        }
+        let near = 0.9 * sp
+        var out: [RawHead] = []
+        var done: [(x: Double, top: Int, bottom: Int)] = []
+        for head in heads.sorted(by: { $0.y < $1.y }) {
+            let x = Int(head.x.rounded()), y = Int(head.y.rounded())
+            if done.contains(where: { abs(head.x - $0.x) < near && ($0.top...$0.bottom).contains(y) }) { continue }
+            let top = grow(y, x, -1), bottom = grow(y, x, 1)
+            let n = Int((Double(bottom - top + 1) / sp).rounded())
+            let inBlob: (RawHead) -> Bool = { abs($0.x - head.x) < near && Double(top - 2)...Double(bottom + 2) ~= $0.y }
+            let group = heads.filter(inBlob).sorted { $0.y < $1.y }
+            let step = Double(bottom - top + 1) / Double(max(n, 1))
+            let evenlySpaced = group.count == n && group.enumerated().allSatisfy {
+                abs($0.element.y - (Double(top) + step * (Double($0.offset) + 0.5))) < 0.25 * sp
+            }
+            if n <= 1 {
+                out.append(head)
+                done.append((head.x, y, y))
+            } else if evenlySpaced {
+                out.removeAll(where: inBlob)
+                out.append(contentsOf: group)
+                done.append((head.x, top, bottom))
+            } else {
+                out.removeAll(where: inBlob)
+                for i in 0..<n {
+                    out.append(RawHead(x: head.x, y: Double(top) + step * (Double(i) + 0.5), width: head.width, filled: head.filled))
+                }
+                done.append((head.x, top, bottom))
+            }
+        }
+        return out.sorted { ($0.x, $0.y) < ($1.x, $1.y) }
     }
 
     /// A note off the staff (C4 and below, A5 and above in treble) sits on or between ledger lines.
