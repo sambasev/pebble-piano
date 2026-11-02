@@ -119,9 +119,14 @@ struct LearnerMenu: View {
     @EnvironmentObject var session: PlaySession
     @State private var adding = false
     @State private var managing = false
+    @State private var overview: Learner?
 
     var body: some View {
         Menu {
+            if let learner = session.learner {
+                Button("\(learner.name)'s progress…") { overview = learner }
+                Divider()
+            }
             ForEach(session.learners.filter { $0.id != session.learner?.id }) { learner in
                 Button("Switch to \(learner.name)") { session.switchLearner(to: learner.id) }
             }
@@ -151,6 +156,10 @@ struct LearnerMenu: View {
         }
         .sheet(isPresented: $managing) {
             ManageLearnersView { managing = false }
+                .environmentObject(session)
+        }
+        .sheet(item: $overview) { learner in
+            StudentOverviewView(learner: learner) { overview = nil }
                 .environmentObject(session)
         }
     }
@@ -274,6 +283,7 @@ struct ManageLearnersView: View {
     @State private var editing: Learner?
     @State private var deleting: Learner?
     @State private var resetting: Learner?
+    @State private var overview: Learner?
 
     var body: some View {
         VStack(alignment: .leading, spacing: PP.Space.s4) {
@@ -289,6 +299,9 @@ struct ManageLearnersView: View {
                         Spacer()
                         Button("Edit…") { editing = learner }
                             .buttonStyle(PPGlassButtonStyle())
+                        Button("Progress…") { overview = learner }
+                            .buttonStyle(PPGlassButtonStyle())
+                            .help("Lessons played and mistakes over time")
                         Menu {
                             Button("Export…") { session.exportLearner(learner.id) }
                             Button("Reset progress…") { resetting = learner }
@@ -325,6 +338,12 @@ struct ManageLearnersView: View {
                 .frame(width: 440)
                 .environmentObject(session)
         }
+        .background(
+            Color.clear.sheet(item: $overview) { learner in
+                StudentOverviewView(learner: learner) { overview = nil }
+                    .environmentObject(session)
+            }
+        )
         .background(
             // A second alert needs its own view in SwiftUI before macOS 14.
             Color.clear.alert(item: $resetting) { learner in

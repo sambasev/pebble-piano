@@ -451,6 +451,8 @@ final class PlaySession: ObservableObject {
     var tutorSavesProgress = false
     /// Teach me this piece was asked to start the plan again from the beginning.
     var tutorStartOver = false
+    /// Time with the tutor, saved as practice sessions.
+    var tutorPractice = TutorPracticeTracker()
     /// Stock lessons to do before this piece (shown instead of starting the lesson).
     @Published var tutorReadiness: Readiness?
     /// Bars of the piece open in Practice that the learner marked for extra attention
@@ -2484,6 +2486,7 @@ extension PlaySession {
         tutorSavedSetup = PracticeSnapshot(mode: mode, tempoPercent: tempoPercent, metronomeOn: metronomeOn, pieceTag: currentPieceTag)
         let persona = learnerSettings.persona == "kriti" ? Persona.kriti : Persona.alex
         tutor = PiecePracticeEngine(measureCount: full.measureCount, persona: persona)
+        if let learner { tutorPractice.activity(learner: learner.id, at: Date()) }
         tutorRecent = []; tutorContext = ""; tutorBeforeAttempt = nil; tutorAI = ""; tutorNote = nil
         tutorPieceKey = referenceURL.map(PieceLessonStore.key(for:))
         guard planLesson else {

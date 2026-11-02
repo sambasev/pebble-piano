@@ -104,3 +104,40 @@ final class PracticeSessionsTests: XCTestCase {
         XCTAssertEqual(WeeklyStreak.label(days: 3), "3 days this week")
     }
 }
+
+final class TutorPracticeTrackerTests: XCTestCase {
+    private let t0 = Date(timeIntervalSince1970: 1_800_000_000)
+    private let learner = UUID()
+
+    func testCountsTimeBetweenTakesAndCapsLongGaps() throws {
+        var tracker = TutorPracticeTracker()
+        tracker.activity(learner: learner, at: t0)
+        XCTAssertEqual(tracker.current?.takes, 0)
+        _ = tracker.take(piece: "passage:a", learner: learner, at: t0.addingTimeInterval(90))
+        let s = try XCTUnwrap(tracker.take(piece: "passage:a", learner: learner, at: t0.addingTimeInterval(90 + 600)))
+        XCTAssertEqual(s.kind, .tutor)
+        XCTAssertEqual(s.takes, 2)
+        XCTAssertEqual(s.pieces, ["passage:a"])
+        XCTAssertEqual(s.activeSeconds, 90 + TutorPracticeTracker.maxCredit)
+        XCTAssertEqual(s.minutes, 7)
+    }
+
+    func testIdleOrAnotherLearnerStartsANewSession() throws {
+        var tracker = TutorPracticeTracker()
+        let first = try XCTUnwrap(tracker.take(piece: "a", learner: learner, at: t0))
+        let later = try XCTUnwrap(tracker.take(piece: "b", learner: learner, at: t0.addingTimeInterval(TutorPracticeTracker.idleLimit)))
+        XCTAssertNotEqual(first.id, later.id)
+        XCTAssertEqual(later.pieces, ["b"])
+        let other = try XCTUnwrap(tracker.take(piece: "b", learner: UUID(), at: t0.addingTimeInterval(TutorPracticeTracker.idleLimit + 10)))
+        XCTAssertNotEqual(other.id, later.id)
+    }
+
+    func testTutorSessionsRoundTripAndUnknownKindsStillLoad() throws {
+        let s = PracticeSession(started: t0, kind: .tutor, activeSeconds: 120, pieces: ["passage:a"], takes: 3)
+        let encoder = JSONEncoder(); encoder.dateEncodingStrategy = .iso8601
+        let decoder = JSONDecoder(); decoder.dateDecodingStrategy = .iso8601
+        XCTAssertEqual(try decoder.decode(PracticeSession.self, from: encoder.encode(s)), s)
+        let future = #"{"id":"\#(UUID().uuidString)","started":"2027-01-15T08:00:00Z","kind":"somethingNew"}"#
+        XCTAssertEqual(try decoder.decode(PracticeSession.self, from: Data(future.utf8)).kind, .lesson)
+    }
+}
