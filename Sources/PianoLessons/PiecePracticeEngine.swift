@@ -388,9 +388,8 @@ public struct PiecePracticeEngine: Sendable {
         if exercise.kind == .placement { place(after: report); return }
         if exercise.kind == .perform {
             lastStars = stars
-            // Two stars, or a passing run (80%+, rhythm fine) with a few slips.
-            mastered = report.timing != nil && replays == 0
-                && ((stars ?? 0) >= 2 || RemediationPlanner.isClean(report, replays: replays))
+            // A passing run (80%+ of the notes right and on time, rhythm fine), whatever the stars.
+            mastered = report.timing != nil && RemediationPlanner.isClean(report, replays: replays)
             if let i = stepIndex { completedSteps.insert(i) }
             if mastered { completedSteps = Set(steps.indices) }
             stepIndex = nil
@@ -435,12 +434,12 @@ public struct PiecePracticeEngine: Sendable {
         guard let plan, let here = stepIndex else { return }
         completedSteps.insert(here)
         var graded: [Int: PhraseGrade] = [:]
-        // A passing run at full speed (80%+ of the notes) counts as clean on every phrase that
-        // passes by itself (a few slips, or uneven timing): straight on, not back into the lesson.
+        // A passing run at full speed (80%+ of the notes right and on time) counts as clean on
+        // every phrase that passes by itself (a few slips): straight on, not back into the lesson.
         let passedRun = RemediationPlanner.isClean(report, replays: 0) && report.timing != nil
         for (i, p) in plan.phrases.enumerated() {
             let grade = PhraseGrade.grade(p.bars, in: report)
-            let passes = passedRun && PhraseGrade.accuracy(p.bars, in: report) >= RemediationPlanner.passingScore
+            let passes = passedRun && RemediationPlanner.passScore(report, bars: p.bars) >= RemediationPlanner.passingScore
             graded[i] = passes ? .clean : grade
         }
         grades = graded

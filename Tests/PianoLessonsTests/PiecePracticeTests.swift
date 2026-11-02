@@ -87,6 +87,33 @@ final class PiecePracticeTests: XCTestCase {
         XCTAssertEqual(engine.exercise.kind, .context)
     }
 
+    func testEarlyAndLateNotesCountAgainstAPass() {
+        let ref = reference()
+        func late(_ indices: [Int]) -> GradeReport {
+            var take = ref
+            for i in indices { take.notes[i].onset += 0.22; take.notes[i].offset += 0.22 }
+            return Grader().grade(reference: ref, take: take)
+        }
+        // Four late notes of 16: every note right, the rhythm check passes, but 75% on time.
+        let four = late([3, 7, 11, 13])
+        XCTAssertEqual(four.notes.score, 1)
+        XCTAssertEqual(four.flags.filter { $0.kind == .late }.count, 4)
+        XCTAssertTrue(four.levels.allSatisfy { $0.passed ?? true }, "the grader alone would pass it")
+        XCTAssertFalse(RemediationPlanner.isClean(four, replays: 0))
+        var engine = PiecePracticeEngine(measureCount: 4)
+        engine.record(four)
+        XCTAssertFalse(engine.mastered)
+        // Two late notes is a pass, with the timing to watch out for.
+        let two = late([3, 11])
+        engine.reassess()
+        engine.record(two)
+        XCTAssertTrue(engine.mastered)
+        XCTAssertTrue(engine.lastRunPassedWithSlips)
+        let text = TutorCoaching.message(report: two, next: engine.exercise, mastered: true, printedMeasures: [],
+                                         passedWithSlips: true)
+        XCTAssertTrue(text.contains("late"), text)
+    }
+
     func testSilenceAndInsufficientTimingCannotMaster() {
         let ref = reference()
         var engine = PiecePracticeEngine(measureCount: 4)

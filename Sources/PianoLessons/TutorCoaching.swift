@@ -9,13 +9,13 @@ public enum TutorCoaching {
         if mastered {
             let earned = stars.map { " That's \($0) star\($0 == 1 ? "" : "s")." } ?? ""
             if passedWithSlips {
-                return "That's a pass—\(percent(report))% of the notes.\(earned) You've passed this piece. " + watchOut(report)
+                return "That's a pass—\(percent(report))% of the notes right and on time.\(earned) You've passed this piece. " + watchOut(report)
             }
             return "That was a good run—you kept the notes and timing together.\(earned) You've passed this piece. You can play it again to make it feel more comfortable."
         }
         let observation: String
         if passedWithSlips {
-            observation = "That's a pass—\(percent(report))% of the notes, so this step is done. " + watchOut(report)
+            observation = "That's a pass—\(percent(report))% of the notes right and on time, so this step is done. " + watchOut(report)
         } else if let stars, !mastered {
             observation = stars > 0
                 ? "That performance earned \(stars) star\(stars == 1 ? "" : "s"). Let's polish the part that slipped."
@@ -47,7 +47,7 @@ public enum TutorCoaching {
         return what + "If you'd like to revisit them, mark the bars you got wrong and practise them."
     }
 
-    private static func percent(_ report: GradeReport) -> Int { Int((min(1, max(0, report.notes.score)) * 100).rounded()) }
+    private static func percent(_ report: GradeReport) -> Int { Int((min(1, RemediationPlanner.passScore(report)) * 100).rounded()) }
 
     /// After "Show me what you can do": how each phrase went, in a sentence.
     public static func placementSummary(_ grades: [Int: PhraseGrade], plan: LessonPlan) -> String {

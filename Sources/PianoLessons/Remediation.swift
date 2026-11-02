@@ -141,21 +141,41 @@ public enum RemediationPlanner {
                         maxRunsPerStep: persona.drill.maxRunsPerStep)
     }
 
-    /// The note score (0–1) a run needs to pass a practice step. A few slips here and there
-    /// are fine: the step is done and the slips are pointed out, not drilled.
+    /// The score (0–1) a run needs to pass a practice step. A few slips here and there are
+    /// fine: the step is done and the slips are pointed out, not drilled.
     public static let passingScore = 0.80
 
-    /// Whether a run is good enough to move on: nothing was replayed, at least 80% of the
-    /// notes were right, and the grader's other checks (rhythm, tempo) passed. The grader's
-    /// own notes threshold (95% for beginners) is for a clean run, not a passing one.
+    /// The grader's note score less one note for each note played early or late: timing
+    /// slips count against a pass just like wrong notes. `bars`: only those bars.
+    public static func passScore(_ report: GradeReport, bars: ClosedRange<Int>? = nil) -> Double {
+        let timingSlips = report.flags.filter {
+            ($0.kind == .early || $0.kind == .late) && (bars?.contains($0.position.measure) ?? true)
+        }.count
+        let notes: Double, expected: Int
+        if let bars {
+            notes = PhraseGrade.accuracy(bars, in: report)
+            expected = report.results.filter { bars.contains($0.position.measure) && $0.kind != .extra }.count
+        } else {
+            notes = report.notes.score
+            expected = report.notes.expected
+        }
+        guard expected > 0 else { return timingSlips == 0 ? notes : 0 }
+        return max(0, notes - Double(timingSlips) / Double(expected))
+    }
+
+    /// Whether a run is good enough to move on: nothing was replayed, the pass score (right
+    /// notes, less those early or late) is 80% or more, and the grader's other checks (rhythm,
+    /// tempo) passed. The grader's own notes threshold (95% for beginners) is for a clean run,
+    /// not a passing one.
     public static func isClean(_ report: GradeReport, replays: Int) -> Bool {
-        replays == 0 && report.notes.score >= passingScore
+        replays == 0 && passScore(report) >= passingScore
             && report.levels.allSatisfy { $0.check == .notes || ($0.passed ?? true) }
     }
 
-    /// Passed, but with wrong, missed or extra notes worth a "just watch out for".
+    /// Passed, but with wrong, missed, extra, early or late notes worth a "just watch out for".
     public static func passedWithSlips(_ report: GradeReport, replays: Int) -> Bool {
-        isClean(report, replays: replays) && report.results.contains { $0.kind != .correct }
+        isClean(report, replays: replays)
+            && (report.results.contains { $0.kind != .correct } || report.flags.contains { $0.kind == .early || $0.kind == .late })
     }
 }
 
