@@ -19,6 +19,7 @@ extension PlaySession {
     func pickLearner(_ id: UUID) {
         switchLearner(to: id)
         needsLearnerPick = false
+        resumeLearnerPlace()
     }
 
     /// Offer the 30-second mic calibration after adding the first learner: only when the Mac
@@ -38,6 +39,7 @@ extension PlaySession {
             return
         }
         applyActiveLearner()
+        if !needsLearnerPick { resumeLearnerPlace() }
     }
 
     /// Adds a learner and switches to them. Returns nil (with a message) if it couldn't.
@@ -85,9 +87,67 @@ extension PlaySession {
         }
         if wasActive {
             applyActiveLearner()
+            if !needsLearnerPick { resumeLearnerPlace() }
         } else {
             learners = learnerStore.learners
         }
+    }
+
+    // MARK: Where they left off
+
+    /// Takes the active learner back to where they left off: their tab, their practice piece,
+    /// and the lesson page they had open. Nothing starts playing. With nothing saved they get
+    /// Practice; a saved piece or page that has gone is skipped.
+    func resumeLearnerPlace() {
+        guard let id = learner?.id else { return }
+        if let tag = learnerSettings.lastPiece {
+            restoringPlace = true
+            restorePracticePiece(tag)
+            restoringPlace = false
+        }
+        tab = learnerSettings.lastTab.flatMap(AppTab.init(rawValue:)) ?? .practice
+        guard tab == .learn, let pageID = learnerSettings.lastLessonPage else { return }
+        // After the tab change has run (it's deferred a turn), open the page.
+        DispatchQueue.main.async { [weak self] in
+            guard let self, self.learner?.id == id, self.tab == .learn else { return }
+            self.lessonRunner.resume(pageID)
+        }
+    }
+
+    private func restorePracticePiece(_ tag: String) {
+        guard tag != currentPieceTag else { return }
+        if tag.hasPrefix("passage:") {
+            let id = String(tag.dropFirst("passage:".count))
+            if book?.annotations.passages.contains(where: { $0.id == id }) == true { selectPassage(id) }
+        } else if tag.hasPrefix("file:") {
+            let url = URL(fileURLWithPath: String(tag.dropFirst("file:".count)))
+            if bookImport.restoreSavedPiece(at: url) { return }
+            if FileManager.default.fileExists(atPath: url.path) {
+                loadReference(url, remember: false)
+            } else if let example = examplePieces.first(where: { $0.lastPathComponent == url.lastPathComponent }) {
+                // A bundled example's path changes with the build.
+                loadReference(example, remember: false)
+            }
+        }
+    }
+
+    func rememberTab() {
+        guard learner != nil, learnerSettings.lastTab != tab.rawValue else { return }
+        learnerSettings.lastTab = tab.rawValue
+        saveLearnerSettings()
+    }
+
+    /// The piece the learner chose for Practice. Lesson blocks borrow the player and don't count.
+    func rememberPracticePiece() {
+        guard !restoringPlace, !isInLesson, learner != nil, learnerSettings.lastPiece != currentPieceTag else { return }
+        learnerSettings.lastPiece = currentPieceTag
+        saveLearnerSettings()
+    }
+
+    func rememberLessonPage(_ id: String?) {
+        guard learner != nil, learnerSettings.lastLessonPage != id else { return }
+        learnerSettings.lastLessonPage = id
+        saveLearnerSettings()
     }
 
     // MARK: Settings

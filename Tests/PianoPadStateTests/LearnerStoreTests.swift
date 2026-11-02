@@ -42,6 +42,22 @@ final class LearnerStoreTests: XCTestCase {
         XCTAssertNil(reloaded.learner(kid.id)?.level)
     }
 
+    func testLastPlaceRoundTripsAndOlderFilesLoad() throws {
+        let store = makeStore()
+        let sam = try store.add(name: "Sam", kind: .adult)
+        var settings = LearnerSettings()
+        settings.lastTab = "learn"
+        settings.lastPiece = "passage:ode"
+        settings.lastLessonPage = "page-3"
+        try store.save(settings, for: sam.id)
+        XCTAssertEqual(store.settings(for: sam.id), settings)
+
+        let older = try JSONDecoder().decode(LearnerSettings.self, from: Data(#"{"strictness":"rubric"}"#.utf8))
+        XCTAssertNil(older.lastTab)
+        XCTAssertNil(older.lastPiece)
+        XCTAssertNil(older.lastLessonPage)
+    }
+
     func testEmptyNameIsRejected() {
         let store = makeStore()
         XCTAssertThrowsError(try store.add(name: "   ", kind: .adult)) {

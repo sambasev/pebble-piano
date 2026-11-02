@@ -47,6 +47,14 @@ public struct LearnerSettings: Codable, Equatable, Sendable {
     /// The Practice tab's mode as last chosen in its picker: "wait" or "playAlong".
     /// nil: not chosen yet (Wait).
     public var practiceMode: String?
+    /// Where the learner left off, so the app reopens there. The tab (a `PlaySession.AppTab`
+    /// raw value); nil: nothing saved, so Practice.
+    public var lastTab: String?
+    /// The Practice tab's piece, as `PlaySession.currentPieceTag` writes it.
+    public var lastPiece: String?
+    /// The lesson page open in Learn; nil when they were on the page list. The step comes from
+    /// the page's saved progress.
+    public var lastLessonPage: String?
 
     public var showsDancers: Bool { dancers ?? true }
 
@@ -57,7 +65,8 @@ public struct LearnerSettings: Codable, Equatable, Sendable {
     public init(strictness: String = LearnerSettings.defaultStrictness, customPlayAlong: Data? = nil,
                 missMode: String = LearnerSettings.defaultMissMode, recentPieces: [RecentPiece] = [],
                 persona: String? = nil, goalSong: String? = nil, inputSource: String? = nil, onboardedAt: Date? = nil,
-                dancers: Bool? = nil, practiceMode: String? = nil) {
+                dancers: Bool? = nil, practiceMode: String? = nil, lastTab: String? = nil,
+                lastPiece: String? = nil, lastLessonPage: String? = nil) {
         self.strictness = strictness
         self.customPlayAlong = customPlayAlong
         self.missMode = missMode
@@ -68,10 +77,14 @@ public struct LearnerSettings: Codable, Equatable, Sendable {
         self.onboardedAt = onboardedAt
         self.dancers = dancers
         self.practiceMode = practiceMode
+        self.lastTab = lastTab
+        self.lastPiece = lastPiece
+        self.lastLessonPage = lastLessonPage
     }
 
     private enum CodingKeys: String, CodingKey {
         case strictness, customPlayAlong, missMode, recentPieces, persona, goalSong, inputSource, onboardedAt, dancers, practiceMode
+        case lastTab, lastPiece, lastLessonPage
     }
 
     public init(from decoder: Decoder) throws {
@@ -86,6 +99,9 @@ public struct LearnerSettings: Codable, Equatable, Sendable {
         onboardedAt = try c.decodeIfPresent(Date.self, forKey: .onboardedAt)
         dancers = try c.decodeIfPresent(Bool.self, forKey: .dancers)
         practiceMode = try c.decodeIfPresent(String.self, forKey: .practiceMode)
+        lastTab = try c.decodeIfPresent(String.self, forKey: .lastTab)
+        lastPiece = try c.decodeIfPresent(String.self, forKey: .lastPiece)
+        lastLessonPage = try c.decodeIfPresent(String.self, forKey: .lastLessonPage)
     }
 
     /// Moves `piece` to the front (replacing any entry with the same ID) and keeps the newest

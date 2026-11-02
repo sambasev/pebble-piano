@@ -184,6 +184,8 @@ final class LessonRunner: ObservableObject, PlayerObserver {
     /// Mic only: a find-it note heard once, waiting to be heard again (a stray sound can't skip).
     private var micCandidate: (pitch: Int, at: TimeInterval)?
     private var pendingWork: DispatchWorkItem?
+    /// Reopening a page as the app opens: a listen step waits for its button instead of playing.
+    private var resumingQuietly = false
     /// The learner whose first lesson note has been recorded (metrics.json) this run.
     private var firstNoteCheckedFor: UUID?
     /// How long a success shows before the next block.
@@ -444,6 +446,7 @@ final class LessonRunner: ObservableObject, PlayerObserver {
     func leave() {
         if isWarmingUp { warmUp = nil }
         closePage()
+        player.rememberLessonPage(nil)
         endSession(showSummary: true)
     }
 
@@ -451,6 +454,20 @@ final class LessonRunner: ObservableObject, PlayerObserver {
 
     func open(_ pageID: String) {
         open(pageID, atBlock: nil)
+    }
+
+    /// Back to the page the learner left off on, at its saved step. Nothing plays by itself.
+    func resume(_ pageID: String) {
+        arrive()
+        resumingQuietly = true
+        defer { resumingQuietly = false }
+        if EarLessonCourse.unit.page(pageID) != nil {
+            openEarPage(pageID)
+        } else if pageID.hasPrefix("piece-") {
+            openPiecePage(pageID)
+        } else {
+            open(pageID)
+        }
     }
 
     /// `atBlock`: start there (the warm-up) instead of the saved position.
@@ -464,6 +481,8 @@ final class LessonRunner: ObservableObject, PlayerObserver {
         loadPersona()
         engine = LessonEngine(page: page, rules: persona.rules, startAt: resume)
         self.page = page
+        // A warm-up is a detour, not a place to come back to.
+        player.rememberLessonPage(atBlock == nil ? pageID : nil)
         Usage.event("Lesson.pageOpened", ["page": pageID, "step": String(resume + 1), "warmUp": atBlock != nil ? "yes" : "no"])
         player.beginLesson(piece: .lessonPage(unit: unit.unit.id, page: pageID), observer: self)
         enterBlock()
@@ -473,6 +492,7 @@ final class LessonRunner: ObservableObject, PlayerObserver {
     func backToUnit() {
         if isWarmingUp { warmUp = nil }
         closePage()
+        player.rememberLessonPage(nil)
         if course != .piano { selectCourse(.piano) }
         refreshProgress()
     }
@@ -1162,7 +1182,7 @@ final class LessonRunner: ObservableObject, PlayerObserver {
             load(b.midi, mode: .wait, tempo: nil)
         case .listen(let b):
             load(b.midi, mode: .wait, tempo: b.tempo)
-            player.startListening()
+            if !resumingQuietly { player.startListening() }
         case .timed(let b):
             load(b.midi, mode: .playAlong, tempo: b.tempo, countIn: b.countInBeats)
         case .songChallenge(let b):
@@ -1180,7 +1200,7 @@ final class LessonRunner: ObservableObject, PlayerObserver {
             switch song.current {
             case .listen:
                 load(path, mode: .wait, tempo: nil)
-                player.startListening()
+                if !resumingQuietly { player.startListening() }
             case .learn:
                 load(path, mode: .wait, tempo: nil)
             case .practise:
@@ -1221,6 +1241,8 @@ final class LessonRunner: ObservableObject, PlayerObserver {
         } catch {
             player.message = "Couldn't save lesson progress: \(error.localizedDescription)"
         }
+        // Finished: next time they come back to the page list, with the next page suggested.
+        player.rememberLessonPage(nil)
         refreshProgress()
     }
 }

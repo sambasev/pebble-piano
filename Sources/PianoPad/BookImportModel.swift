@@ -519,6 +519,18 @@ final class BookImportModel: ObservableObject {
         }
     }
 
+    /// Loads a saved piece by its MIDI file, as it was read and checked, staying on this tab.
+    /// False if `url` isn't a saved piece (or it can't be read). A tutor lesson on it isn't
+    /// reopened: its Continue is there for when the learner wants it.
+    func restoreSavedPiece(at url: URL) -> Bool {
+        let path = url.standardizedFileURL.path
+        guard let piece = pieces.first(where: { $0.folder.appendingPathComponent("piece.mid").standardizedFileURL.path == path }),
+              let data = try? Data(contentsOf: piece.folder.appendingPathComponent("score.json")),
+              let score = try? JSONDecoder().decode(Score.self, from: data) else { return false }
+        session?.loadReference(url, remember: false, writtenScore: score)
+        return true
+    }
+
     /// Goes back to the piece's page with its lines selected, ready to read again.
     func readAgain(_ piece: SavedPiece) {
         guard let book = library.first(where: { $0.url.lastPathComponent == piece.book }) else {

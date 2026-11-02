@@ -345,7 +345,7 @@ final class PlaySession: ObservableObject {
         }
     }
 
-    enum AppTab: Hashable { case learn, practice, books, backingTracks }
+    enum AppTab: String, Hashable { case learn, practice, books, backingTracks }
 
     // PlaySession callbacks are main-thread-only. Keep the actor bridge at this boundary.
     private var earTrainingStorage: EarPracticeCoordinator?
@@ -589,6 +589,8 @@ final class PlaySession: ObservableObject {
     /// True while a learner's settings are being applied, so the property observers don't
     /// save them straight back.
     var applyingLearnerSettings = false
+    /// Default or saved pieces are loading: not the learner's choice, so not remembered.
+    var restoringPlace = false
     /// Recent files this session holds security-scoped access to, by standardized path.
     var accessedRecentFiles: [String: URL] = [:]
     /// Active time per screen, for the anonymous usage stats (Usage.swift).
@@ -671,6 +673,7 @@ final class PlaySession: ObservableObject {
     }
 
     private func loadDefaults() {
+        restoringPlace = true
         let roots = Self.resourceRoots
         let fm = FileManager.default
         if let examples = roots.map({ $0.appendingPathComponent("Examples") }).first(where: { fm.fileExists(atPath: $0.path) }),
@@ -696,6 +699,9 @@ final class PlaySession: ObservableObject {
             .first(where: { fm.fileExists(atPath: $0.path) }) {
             loadReference(example)
         }
+        restoringPlace = false
+        // With several learners, wait until someone has said who's playing.
+        if !needsLearnerPick { resumeLearnerPlace() }
     }
 
     deinit {
@@ -1524,6 +1530,7 @@ final class PlaySession: ObservableObject {
             if !keepPassage && remember { rememberPiece(url, title: sequence.title) }
             setupPlayAlong()
             resetTake()
+            rememberPracticePiece()
         } catch {
             message = "Couldn't read \(url.lastPathComponent): \(error)"
         }
@@ -2347,6 +2354,7 @@ extension PlaySession {
     }
 
     func tabChanged() {
+        rememberTab()
         // Invalidate a lease before stopping other players. A disappearing ear view's late
         // Stop can then never silence the new tab's sequence.
         if let lease = earSequenceLease { stopEarSequence(lease) }
