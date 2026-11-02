@@ -120,6 +120,7 @@ struct TutorPanel: View {
     /// playing or the tutor is still writing its comment, and not once the piece is passed.
     private func autoStarts(_ engine: PiecePracticeEngine) -> Bool {
         autoContinue && !engine.mastered && !session.isAuditioning && !session.tutorBusy && !session.tutorPlanning
+            && !session.tutorHeardNothing
             && session.phase != .recording && (session.tutorAttempt == nil || session.phase == .graded)
     }
 

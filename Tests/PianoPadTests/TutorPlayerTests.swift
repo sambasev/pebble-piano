@@ -189,6 +189,38 @@ extension TutorPlayerTests {
         XCTAssertEqual(session.tempoPercent, originalTempo)
     }
 
+    /// An empty room mustn't loop: no model call, and the next step waits until a key or Start.
+    func testSilentStepSkipsModelAndPausesAutoContinue() {
+        let session = player()
+        session.beginTutoring()
+        session.tutorFeedbackClient = DelayedTutorFeedback()
+        session.startTutorExercise()
+        session.finishTake()
+        XCTAssertEqual(session.phase, .graded)
+        XCTAssertFalse(session.tutorBusy, "nothing was played, so the model isn't asked")
+        XCTAssertTrue(session.tutorHeardNothing)
+        XCTAssertNotNil(session.tutorNote)
+
+        session.mouseDown(on: 60); session.mouseUp()
+        XCTAssertFalse(session.tutorHeardNothing, "a key press means someone is there")
+        session.endTutoring()
+    }
+
+    func testPlayedStepStillAsksModel() {
+        let session = player()
+        session.beginTutoring()
+        session.tutorFeedbackClient = DelayedTutorFeedback()
+        session.tutor?.learnNotes()
+        session.startTutorExercise()
+        guard let pitch = session.expected.first else { return XCTFail("no expected note") }
+        session.mouseDown(on: pitch); session.mouseUp()
+        session.finishTake()
+        XCTAssertEqual(session.phase, .graded)
+        XCTAssertFalse(session.tutorHeardNothing)
+        XCTAssertTrue(session.tutorBusy)
+        session.endTutoring()
+    }
+
     func testPickerRemembersModeButTutorDoesNot() {
         let session = player()
         session.mode = .playAlong

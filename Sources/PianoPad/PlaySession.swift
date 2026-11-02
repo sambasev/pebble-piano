@@ -459,6 +459,9 @@ final class PlaySession: ObservableObject {
     @Published var tutorText = ""
     @Published var tutorAI = ""
     @Published var tutorBusy = false
+    /// The last step ended with nothing played: the next one waits to be started (or for a
+    /// key) instead of starting by itself, so an empty room doesn't loop steps and model calls.
+    @Published private(set) var tutorHeardNothing = false
     var tutorTask: Task<Void, Never>?
     var tutorGeneration = UUID()
     var tutorFullReference: MIDISequence?
@@ -1102,6 +1105,7 @@ final class PlaySession: ObservableObject {
     private func noteOn(_ pitch: Int, velocity: Int, time: Double, playSound: Bool, strict: Bool = true,
                         source: InputSource) {
         guard tabPlaysNotes, !isChoosingLearner else { return }
+        tutorHeardNothing = false
         if tutor != nil && (tutorAttempt == nil || phase == .graded) { return }
         if source != judgeInput {
             judgeInput = source
@@ -2671,7 +2675,7 @@ extension PlaySession {
     func endTutoring() {
         tutorReadiness = nil
         guard tutor != nil else { return }
-        tutorSavesProgress = false
+        tutorSavesProgress = false; tutorHeardNothing = false
         tutorGeneration = UUID(); tutorTask?.cancel(); tutorTask = nil; tutorBusy = false
         tutorPlanTask?.cancel(); tutorPlanTask = nil; tutorPlanID = UUID(); tutorPlanning = false; tutorPlanNote = nil
         resetAll()
@@ -2702,6 +2706,7 @@ extension PlaySession {
     func startTutorExercise() {
         guard !tutorPlanning, let e = tutor?.exercise, let full = tutorFullReference else { return }
         tutorGeneration = UUID(); tutorTask?.cancel(); tutorBusy = false; tutorAI = ""; tutorNote = nil
+        tutorHeardNothing = false
         resetAll(); tutorBeforeAttempt = tutor; tutorAttempt = e
         let music = e.kind == .listen ? full : tutorMusic(e, full: full)
         sourceReference = music; reference = music
@@ -2752,7 +2757,7 @@ extension PlaySession {
     /// Stops the step being played (a note-by-note step records until its last note), so
     /// another step can start straight away.
     func tutorLeaveAttempt() {
-        tutorGeneration = UUID(); tutorTask?.cancel(); tutorBusy = false
+        tutorGeneration = UUID(); tutorTask?.cancel(); tutorBusy = false; tutorHeardNothing = false
         resetAll()
         tutorAttempt = nil
     }
@@ -2800,6 +2805,12 @@ extension PlaySession {
         feedbackEvidence.results = Array(mapped.results.filter { $0.kind != .correct }.prefix(8))
         let measurements = (try? JSONEncoder().encode(feedbackEvidence)).flatMap { String(data: $0, encoding: .utf8) } ?? ""
         tutorContext += " Deterministic grading evidence (measurements for interpretation, not for reciting): " + measurements
+        if lastTake.isEmpty {
+            // Nothing to talk about: keep the local guidance and wait for the learner.
+            tutorHeardNothing = true
+            tutorNote = "I didn't hear any notes, so the next step waits for you."
+            return
+        }
         askTutor("Tell me how that attempt went, like my piano teacher, and guide me into the selected exercise.")
     }
     /// `userAsked`: the learner pressed a question button, so they should hear if there's no answer.
