@@ -14,6 +14,20 @@ final class SystemReadingTests: XCTestCase {
         XCTAssertEqual(StaffPitch.midi(clef: .bass, position: 10), 60)  // middle C above the bass staff
     }
 
+    func testChosenClefsReplaceTheReadOnesAndChangeThePitches() {
+        let note = SystemReading.Note(position: 0, duration: .quarter)
+        let read = SystemReading(measureCount: 2, measures: Array(repeating: SystemReading.Measure(
+            upper: .init(clef: .treble, notes: [note]), lower: .init(clef: .treble, notes: [note])), count: 2))
+        let chosen = read.withClefs(upper: .treble, lower: .bass)
+        XCTAssertEqual(chosen.measures.map(\.lower.clef), [.bass, .bass])
+        XCTAssertEqual(chosen.measures.map(\.upper.clef), [.treble, .treble])
+        XCTAssertEqual(chosen.measures[0].lower.notes, [note])
+        let bar = BarMerge.merge(chosen, NoteheadGeometry.System(
+            upper: .init(lines: [0, 10, 20, 30, 40], spacing: 10), lower: .init(lines: [80, 90, 100, 110, 120], spacing: 10),
+            upperHeads: [], lowerHeads: [], barEdges: [0, 100, 200]))
+        XCTAssertEqual(bar.first?.lower.first?.name, "G2")
+    }
+
     func testDecodesSavedReading() throws {
         let r = try BeyerFixtures.reading("no12", .scan)
         XCTAssertEqual(r.measures.count, 8)

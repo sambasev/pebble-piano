@@ -288,23 +288,47 @@ struct BookPagePicker: View {
                  minimum: Int(max(24, 4 * s.spacing)))
     }
 
-    /// Asked before reading when the staves don't print a treble clef over a bass clef.
-    private var handsQuestion: some View {
+    /// How the selected lines' staves are read: together or one after the other, and each
+    /// staff's clef. Filled in from the page; outlined in orange when that's only a guess.
+    private var stavesSetup: some View {
         VStack(alignment: .leading, spacing: PP.Space.s2) {
-            Text("Which hand plays which staff?").font(.ppCallout.weight(.semibold))
-            Text("These staves don't show a treble clef above a bass clef, so it isn't clear. A staff with no clef is read as treble.")
-                .font(.ppCaption).foregroundColor(PP.inkMuted).fixedSize(horizontal: false, vertical: true)
-            Button { model.answerHands(.rightOnly) } label: {
-                Label("Both right hand, one line after the other", systemImage: "hand.raised")
-                    .frame(maxWidth: .infinity, alignment: .leading)
+            HStack(spacing: PP.Space.s2) {
+                Text("How to read these staves").font(.ppCallout.weight(.semibold))
+                if model.checkingClefs { ProgressView().controlSize(.mini) }
             }
-            Button { model.answerHands(.split) } label: {
-                Label("Right hand on top, left hand below, together", systemImage: "hands.clap")
-                    .frame(maxWidth: .infinity, alignment: .leading)
+            Picker("", selection: Binding(get: { model.layout }, set: { model.choose(layout: $0) })) {
+                Text("Together: top staff right hand, bottom staff left hand").tag(BookImportModel.Layout.together)
+                Text("Separately: each staff is its own line, one after the other").tag(BookImportModel.Layout.separate)
+            }
+            .pickerStyle(.radioGroup)
+            .labelsHidden()
+            .font(.ppCaption)
+            .fixedSize(horizontal: false, vertical: true)
+            clefPicker(model.layout == .together ? "Top staff" : "First staff",
+                       Binding(get: { model.upperClef }, set: { model.choose(upperClef: $0) }))
+            clefPicker(model.layout == .together ? "Bottom staff" : "Second staff",
+                       Binding(get: { model.lowerClef }, set: { model.choose(lowerClef: $0) }))
+            if model.setupUnclear && !model.setupEdited {
+                Text("The page doesn't show a treble clef above a bass clef, so this is a guess (a staff with no clef is taken as treble). Check it before reading.")
+                    .font(.ppCaption).foregroundColor(PP.inkMuted).fixedSize(horizontal: false, vertical: true)
             }
         }
         .padding(PP.Space.s3)
-        .background(RoundedRectangle(cornerRadius: PP.Radius.sm).stroke(PP.warning, lineWidth: 1.5))
+        .background(RoundedRectangle(cornerRadius: PP.Radius.sm)
+            .stroke(model.setupUnclear && !model.setupEdited ? PP.warning : PP.inkMuted.opacity(0.3), lineWidth: 1.5))
+        .disabled(model.checkingClefs)
+    }
+
+    private func clefPicker(_ label: String, _ clef: Binding<SystemReading.Clef>) -> some View {
+        HStack {
+            Text(label).font(.ppCaption).frame(width: 84, alignment: .leading)
+            Picker(label, selection: clef) {
+                Text("Treble").tag(SystemReading.Clef.treble)
+                Text("Bass").tag(SystemReading.Clef.bass)
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+        }
     }
 
     /// In place of the Read button while the piece is read: how far it's got, and Cancel.
@@ -350,13 +374,13 @@ struct BookPagePicker: View {
             if reading {
                 readingStatus
             } else {
+                if model.selection != nil { stavesSetup }
                 if let saved = model.savedForSelection, !model.freshRead {
                     Text("Already read and saved as \(saved.title).").font(.ppCallout).foregroundColor(PP.inkMuted)
                 }
                 Button(model.savedForSelection != nil && !model.freshRead ? "Open saved piece" : "Read this piece") { model.read() }
                     .buttonStyle(PPPrimaryButtonStyle(height: PP.Size.targetMin))
                     .disabled(!model.canRead)
-                if model.asksHands { handsQuestion }
                 Toggle("Ask Muse Wonder again", isOn: $model.freshRead)
                     .font(.ppCallout)
                     .help("Lines read before are reused (instant and free). Turn this on to read them again.")

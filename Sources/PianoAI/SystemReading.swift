@@ -13,6 +13,17 @@ public struct SystemReading: Codable, Equatable, Sendable {
         self.measures = measures
     }
 
+    /// The same reading with every bar's staves in the given clefs: the learner said which clefs
+    /// the music is in, so they win over what was read (positions don't change, pitches do).
+    public func withClefs(upper: Clef, lower: Clef) -> SystemReading {
+        var r = self
+        for i in r.measures.indices {
+            r.measures[i].upper.clef = upper
+            r.measures[i].lower.clef = lower
+        }
+        return r
+    }
+
     public struct Measure: Codable, Equatable, Sendable {
         public var upper: Staff
         public var lower: Staff

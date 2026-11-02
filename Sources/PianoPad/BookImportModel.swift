@@ -13,11 +13,11 @@ final class BookImportModel: ObservableObject {
     enum Phase: Equatable { case choosing, reading, review }
 
     /// How a line's two staves are played.
-    enum Hands: Equatable {
-        /// Upper staff right hand, lower staff left hand, together (a grand staff).
-        case split
-        /// Both staves right hand, one after the other (each staff is its own line).
-        case rightOnly
+    enum Layout: Equatable {
+        /// Upper staff right hand, lower staff left hand, at the same time (a grand staff).
+        case together
+        /// Each staff is a line of its own, played one after the other, top staff first.
+        case separate
     }
 
     enum Step: Equatable {
@@ -41,8 +41,11 @@ final class BookImportModel: ObservableObject {
         let gray: Gray
         let png: Data
         let image: NSImage
-        /// One staff of a line on its own (right hand only), not a pair.
+        /// One staff of a line on its own (staves read separately), not a pair.
         var singleStaff = false
+        /// The clefs the music is read in (the learner's choice, else what's printed).
+        var upperClef: SystemReading.Clef = .treble
+        var lowerClef: SystemReading.Clef = .treble
         var step: Step = .waiting
         var reading: SystemReading?
         var geometry: NoteheadGeometry.System?
@@ -102,10 +105,20 @@ final class BookImportModel: ObservableObject {
     @Published private(set) var pieces: [SavedPiece] = []
     /// Ask Muse Wonder again instead of using its saved readings of these lines.
     @Published var freshRead = false
-    /// How the selected lines' staves are played: asked when their clefs don't make it clear.
-    @Published private(set) var hands: Hands?
-    /// The selected lines don't print a treble and a bass clef: waiting for `answerHands`.
-    @Published private(set) var asksHands = false
+    /// How the selected lines' staves are read, and in which clefs: filled in from the clefs
+    /// printed on the page, and changed by the learner (`choose…`).
+    @Published private(set) var layout: Layout = .together
+    @Published private(set) var upperClef: SystemReading.Clef = .treble
+    @Published private(set) var lowerClef: SystemReading.Clef = .treble
+    /// The page doesn't print a treble clef over a bass clef on every selected line, so the
+    /// setup is a guess the learner should check.
+    @Published private(set) var setupUnclear = false
+    /// The learner changed the setup: it isn't replaced from the page, and a piece saved from
+    /// these lines (perhaps read another way) isn't reopened.
+    @Published private(set) var setupEdited = false
+    /// Looking at the selected lines' printed clefs; Read waits for it.
+    @Published private(set) var checkingClefs = false
+    private var readWhenChecked = false
     /// The read under way: a cancelled or replaced read's late results are dropped.
     private var readToken = UUID()
 
@@ -173,8 +186,7 @@ final class BookImportModel: ObservableObject {
         seekingPage = nil
         pageIndex = index
         selection = nil
-        hands = nil
-        asksHands = false
+        resetSetup()
         systems = []
         resizedLines = []
         isLoadingPage = true
@@ -202,6 +214,7 @@ final class BookImportModel: ObservableObject {
                 self.message = result.systems.isEmpty ? "No music staves found on this page." : nil
                 if let pending = self.pendingSelection, pending.upperBound < result.systems.count {
                     self.selection = pending
+                    self.checkClefs()
                 }
                 self.pendingSelection = nil
             }
@@ -285,8 +298,8 @@ final class BookImportModel: ObservableObject {
         } else {
             selection = selection == index...index ? nil : index...index
         }
-        hands = nil
-        asksHands = false
+        resetSetup()
+        checkClefs()
         let typed = title.trimmingCharacters(in: .whitespaces)
         guard typed.isEmpty || title == autoTitle else { return }
         autoTitle = savedForSelection?.title ?? selection.map { suggestedTitle(forLine: $0.lowerBound) } ?? ""
@@ -302,8 +315,7 @@ final class BookImportModel: ObservableObject {
         guard box != systems[i] else { return }
         systems[i] = box
         resizedLines.insert(index)
-        hands = nil
-        asksHands = false
+        if !setupEdited { checkClefs() }
         if let book = documentURL { BookLibrary.storeSystems(book, pageIndex, systems) }
     }
 
@@ -311,7 +323,7 @@ final class BookImportModel: ObservableObject {
     /// of reading again (unless "Ask Muse Wonder again" is on, or a line's box was just resized).
     var savedForSelection: SavedPiece? {
         guard let selection, let book = documentURL?.lastPathComponent,
-              !selection.contains(where: resizedLines.contains) else { return nil }
+              !setupEdited, !selection.contains(where: resizedLines.contains) else { return nil }
         return pieces.first {
             $0.book == book && $0.page == pageIndex && $0.firstLine == selection.lowerBound && $0.lastLine == selection.upperBound
                 && FileManager.default.fileExists(atPath: $0.folder.appendingPathComponent("score.json").path)
@@ -362,41 +374,34 @@ final class BookImportModel: ObservableObject {
             return
         }
         guard let selection, let page = pageGray else { return }
-        guard let hands else {
-            // Only a treble clef over a bass clef says plainly which hand plays which staff. Without
-            // that (two treble clefs, or none printed), ask rather than guess.
-            let crops = selection.map { SystemFinder.crop(page, systems[$0]) }
-            Task.detached(priority: .userInitiated) {
-                let clear = crops.allSatisfy { NoteheadGeometry.printedClefs($0) == (.treble, .bass) }
-                await MainActor.run {
-                    guard self.selection == selection, self.hands == nil else { return }
-                    if clear { self.answerHands(.split) } else { self.asksHands = true }
-                }
-            }
+        guard !checkingClefs else {
+            readWhenChecked = true
             return
         }
         // No key is fine as long as every line has a saved reading (see `finishReading`).
         let client = try? ModelClient.configured(.meta)
         aiKeyNote = nil
-        // Right hand only: each staff is read as a line of its own, top staff first.
-        var parts: [(found: FoundSystem, crop: FoundSystem, single: Bool)] = []
+        // Separately: each staff is read as a line of its own, top staff first, in its own clef.
+        var parts: [(found: FoundSystem, crop: FoundSystem, single: Bool, clef: SystemReading.Clef)] = []
         for i in selection {
             let s = systems[i]
-            if hands == .rightOnly {
+            if layout == .separate {
                 let middle = (s.top + s.bottom) / 2
                 var upper = s, lower = s
                 upper.bottom = middle
                 lower.top = middle
-                parts += [(s, upper, true), (s, lower, true)]
+                parts += [(s, upper, true, upperClef), (s, lower, true, lowerClef)]
             } else {
-                parts.append((s, s, false))
+                parts.append((s, s, false, upperClef))
             }
         }
         reads = parts.enumerated().compactMap { k, part -> SystemRead? in
             let crop = SystemFinder.crop(page, part.crop)
             guard let png = crop.pngData(), let cg = crop.cgImage() else { return nil }
+            // A staff read on its own is the reading's upper staff.
             return SystemRead(id: k, found: part.found, gray: crop, png: png, image: NSImage(cgImage: cg, size: .zero),
-                              singleStaff: part.single)
+                              singleStaff: part.single, upperClef: part.clef,
+                              lowerClef: part.single ? part.clef : lowerClef)
         }
         bars = []
         fixing = []
@@ -437,11 +442,57 @@ final class BookImportModel: ObservableObject {
         return bars.isEmpty ? 0.9 * Double(done) / Double(reads.count) : (fixing.isEmpty ? 1 : 0.95)
     }
 
-    /// The learner's answer to "which hand plays which staff?": reads the piece that way.
-    func answerHands(_ answer: Hands) {
-        hands = answer
-        asksHands = false
-        read()
+    // MARK: How the staves are read
+
+    func choose(layout: Layout) {
+        self.layout = layout
+        setupEdited = true
+    }
+
+    func choose(upperClef: SystemReading.Clef) {
+        self.upperClef = upperClef
+        setupEdited = true
+    }
+
+    func choose(lowerClef: SystemReading.Clef) {
+        self.lowerClef = lowerClef
+        setupEdited = true
+    }
+
+    private func resetSetup() {
+        layout = .together
+        upperClef = .treble
+        lowerClef = .treble
+        setupUnclear = false
+        setupEdited = false
+        checkingClefs = false
+        readWhenChecked = false
+    }
+
+    /// Fills in the setup from the clefs printed on the selected lines. A treble clef over a bass
+    /// clef on every line is a grand staff, read together. Anything else (two treble clefs, or none
+    /// printed: beginner books often print none) is a guess: the first line's clefs, a staff with
+    /// none taken as treble, read together, for the learner to check.
+    private func checkClefs() {
+        guard let selection, let page = pageGray else { return }
+        let crops = selection.compactMap { i in systems.indices.contains(i) ? SystemFinder.crop(page, systems[i]) : nil }
+        checkingClefs = true
+        Task.detached(priority: .userInitiated) {
+            let printed = crops.map { NoteheadGeometry.printedClefs($0) }
+            await MainActor.run {
+                guard self.selection == selection, self.checkingClefs, !self.setupEdited else { return }
+                self.checkingClefs = false
+                let grand = !printed.isEmpty && printed.allSatisfy { $0 == (.treble, .bass) }
+                self.layout = .together
+                self.upperClef = printed.first?.upper ?? .treble
+                self.lowerClef = printed.first?.lower ?? .treble
+                self.setupUnclear = !grand
+                if self.readWhenChecked {
+                    self.readWhenChecked = false
+                    self.read()
+                }
+            }
+        }
     }
 
     private func readSystem(_ id: Int, png: Data, singleStaff: Bool, client: ModelClient?, fresh: Bool, token: UUID) async {
@@ -493,7 +544,7 @@ final class BookImportModel: ObservableObject {
         var out: [ReviewBar] = []
         for r in reads {
             guard let reading = r.reading, let geometry = r.geometry else { continue }
-            let merged = BarMerge.merge(reading, geometry)
+            let merged = BarMerge.merge(reading.withClefs(upper: r.upperClef, lower: r.lowerClef), geometry)
             for bar in merged {
                 out.append(ReviewBar(id: out.count + 1, system: r.id, bar: bar,
                                      resolution: bar.isTrusted ? .trusted : .needsReview,
@@ -572,7 +623,7 @@ final class BookImportModel: ObservableObject {
     func engraving(ofSystem s: Int) -> (score: Score, flagged: Set<Int>)? {
         let mine = bars(inSystem: s)
         guard !mine.isEmpty else { return nil }
-        let piece = ScoreWriter.write(mine.map(\.bar), title: "", oneStaff: hands == .rightOnly)
+        let piece = ScoreWriter.write(mine.map(\.bar), title: "", oneStaff: layout == .separate)
         let flagged = Set(mine.enumerated().filter { $0.element.needsReview }.map { $0.offset + 1 })
         return (piece.score, flagged)
     }
@@ -646,7 +697,8 @@ final class BookImportModel: ObservableObject {
                 }) else { throw ModelError.badResponse("no bar in the reply") }
                 var oneBar = g
                 oneBar.barEdges = [g.barEdges[j], g.barEdges[j + 1]]
-                var reread = BarMerge.merge(SystemReading(measureCount: 1, measures: [measure]), oneBar)[0]
+                let one = SystemReading(measureCount: 1, measures: [measure]).withClefs(upper: r.upperClef, lower: r.lowerClef)
+                var reread = BarMerge.merge(one, oneBar)[0]
                 reread.pageBar = j
                 let merged = reread
                 await MainActor.run {
@@ -695,7 +747,7 @@ final class BookImportModel: ObservableObject {
         let name = title.trimmingCharacters(in: .whitespaces).isEmpty
             ? (reads.first.map { suggestedTitle(forLine: $0.found.index) } ?? "Piece")
             : title.trimmingCharacters(in: .whitespaces)
-        let piece = ScoreWriter.write(bars.map(\.bar), title: name, oneStaff: hands == .rightOnly)
+        let piece = ScoreWriter.write(bars.map(\.bar), title: name, oneStaff: layout == .separate)
         let saved = SavedPiece(id: Self.slug(name), title: name, book: documentURL?.lastPathComponent ?? "",
                                page: pageIndex, firstLine: reads.first?.found.index ?? 0,
                                lastLine: reads.last?.found.index ?? 0, created: Date())
