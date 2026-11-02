@@ -166,7 +166,10 @@ private struct PiecesSection: View {
                         }
                         .foregroundColor(PP.ink).padding(PP.Space.s4)
                         .frame(maxWidth: .infinity, minHeight: 170, alignment: .topLeading)
-                        .background(RoundedRectangle(cornerRadius: PP.Radius.lg).fill(PP.surfaceGlass))
+                        .background(ZStack(alignment: .leading) {
+                            RoundedRectangle(cornerRadius: PP.Radius.lg).fill(PP.surfaceGlass)
+                            ProgressFill(progress: saved, steps: page.blocks.count)
+                        }.clipShape(RoundedRectangle(cornerRadius: PP.Radius.lg)))
                         .overlay(RoundedRectangle(cornerRadius: PP.Radius.lg).strokeBorder(PP.surfaceGlassEdge))
                         .contentShape(Rectangle())
                     }.buttonStyle(.plain).help("Open the lesson for \(page.title)")
@@ -234,7 +237,10 @@ private struct EarPathSection: View {
                         }
                         .foregroundColor(PP.ink).padding(PP.Space.s4)
                         .frame(maxWidth: .infinity, minHeight: 170, alignment: .topLeading)
-                        .background(RoundedRectangle(cornerRadius: PP.Radius.lg).fill(PP.surfaceGlass))
+                        .background(ZStack(alignment: .leading) {
+                            RoundedRectangle(cornerRadius: PP.Radius.lg).fill(PP.surfaceGlass)
+                            ProgressFill(progress: saved, steps: page.blocks.count)
+                        }.clipShape(RoundedRectangle(cornerRadius: PP.Radius.lg)))
                         .overlay(RoundedRectangle(cornerRadius: PP.Radius.lg).strokeBorder(PP.surfaceGlassEdge))
                         .contentShape(Rectangle())
                     }.buttonStyle(.plain).help("Open \(page.title)")
@@ -298,8 +304,11 @@ private struct PageCard: View {
             }
             .padding(PP.Space.s4)
             .frame(maxWidth: .infinity, minHeight: 170, alignment: .topLeading)
-            .background(RoundedRectangle(cornerRadius: PP.Radius.lg, style: .continuous)
-                .fill(isNext ? PP.accent.opacity(0.10) : PP.surfaceGlass))
+            .background(ZStack(alignment: .leading) {
+                RoundedRectangle(cornerRadius: PP.Radius.lg, style: .continuous)
+                    .fill(isNext ? PP.accent.opacity(0.10) : PP.surfaceGlass)
+                ProgressFill(progress: runner.progress[page.id], steps: page.blocks.count)
+            }.clipShape(RoundedRectangle(cornerRadius: PP.Radius.lg, style: .continuous)))
             .overlay(RoundedRectangle(cornerRadius: PP.Radius.lg, style: .continuous)
                 .strokeBorder(isNext ? PP.accent : PP.surfaceGlassEdge, lineWidth: isNext ? 2 : 1))
             .contentShape(Rectangle())
@@ -332,10 +341,7 @@ private struct PageCard: View {
     private func footer(_ state: CardState) -> some View {
         switch state {
         case .inProgress(let step):
-            VStack(alignment: .leading, spacing: 4) {
-                ProgressView(value: Double(step), total: Double(max(1, page.blocks.count))).tint(PP.accent)
-                Text("Step \(step + 1) of \(page.blocks.count)").font(.ppCaption).foregroundColor(PP.inkMuted)
-            }
+            Text("Step \(step + 1) of \(page.blocks.count)").font(.ppCaption).foregroundColor(PP.inkMuted)
         case .done:
             Text("Play again").font(.ppCaption).foregroundColor(PP.inkMuted)
         case .locked:
@@ -343,6 +349,47 @@ private struct PageCard: View {
         case .next, .open:
             Text("\(page.blocks.count) steps").font(.ppCaption).foregroundColor(PP.accent)
         }
+    }
+}
+
+/// A card's progress as a wash of colour filling it from the leading edge, deepening toward a
+/// soft feathered front so the share done reads at a glance. Bright green, edged in green, once
+/// every step is passed; a finished lesson with skipped steps stays short of full until they're
+/// revisited.
+struct ProgressFill: View {
+    let progress: PageProgress?
+    let steps: Int
+
+    private var fraction: Double {
+        guard let progress, steps > 0 else { return 0 }
+        let passed = progress.isCompleted ? steps - Set(progress.flaggedBlocks).count : progress.currentBlock
+        return min(1, max(0, Double(passed) / Double(steps)))
+    }
+
+    var body: some View {
+        let fraction = self.fraction
+        let full = fraction >= 1
+        let color = full ? PP.success : PP.accent
+        GeometryReader { geo in
+            let width = geo.size.width * fraction
+            let feather = min(36, width)
+            if full {
+                LinearGradient(colors: [color.opacity(0.34), color.opacity(0.52)], startPoint: .leading, endPoint: .trailing)
+                    .overlay(RoundedRectangle(cornerRadius: PP.Radius.lg, style: .continuous)
+                        .strokeBorder(color.opacity(0.7), lineWidth: 1.5))
+            } else {
+                LinearGradient(stops: [
+                    .init(color: color.opacity(0.14), location: 0),
+                    .init(color: color.opacity(0.30), location: max(0, 1 - feather / max(1, width))),
+                    .init(color: color.opacity(0), location: 1),
+                ], startPoint: .leading, endPoint: .trailing)
+                .frame(width: width)
+            }
+        }
+        .opacity(fraction > 0 ? 1 : 0)
+        .animation(.easeOut(duration: 0.5), value: fraction)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
     }
 }
 
