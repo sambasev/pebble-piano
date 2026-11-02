@@ -1549,9 +1549,10 @@ final class PlaySession: ObservableObject {
     ///   - remember: add it to the learner's recent pieces (not for lesson files).
     /// `measures` keeps only those measures (1-based), moved to the start: a lesson's bar drill.
     /// `writtenScore` is shown instead of a transcription of the MIDI: pieces read from a book
-    /// keep their own staves and clefs (Beyer writes both hands in treble clef).
+    /// keep their own staves and clefs (Beyer writes both hands in treble clef). Its
+    /// `printedFingering` (the book's finger numbers) is kept in the fingering shown.
     func loadReference(_ url: URL, keepPassage: Bool = false, tempo: Double? = nil, remember: Bool = true,
-                       measures: ClosedRange<Int>? = nil, writtenScore: Score? = nil) {
+                       measures: ClosedRange<Int>? = nil, writtenScore: Score? = nil, printedFingering: [PrintedFinger] = []) {
         endTutoring()
         stopPlayAlong(discard: false)
         if !keepPassage {
@@ -1574,7 +1575,7 @@ final class PlaySession: ObservableObject {
             if let p = passage {
                 fingeringNotes = PianoFingeringModel.analyze(passage: p, sequence: sequence)
             } else if let s = score {
-                fingeringNotes = PianoFingeringModel.analyze(score: s)
+                fingeringNotes = PianoFingeringModel.analyze(score: s, printed: writtenScore == nil ? [] : printedFingering)
             } else {
                 fingeringNotes = PianoFingeringModel.analyze(sequence: sequence)
             }

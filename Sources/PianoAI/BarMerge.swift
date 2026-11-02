@@ -10,7 +10,7 @@ import Foundation
 /// are still checked, a bar the reading skipped appears as an empty flagged bar ("Fix this bar"
 /// reads it), and a bar that isn't on the page is flagged.
 public enum BarMerge {
-    public enum Status: Equatable, Sendable {
+    public enum Status: Codable, Equatable, Sendable {
         /// Every measured pitch agreed with the model.
         case confirmed
         /// Measured pitch replaced the model's for this many notes.
@@ -24,7 +24,7 @@ public enum BarMerge {
         }
     }
 
-    public enum Reason: Equatable, Sendable {
+    public enum Reason: Codable, Equatable, Sendable {
         /// The model read a bar that couldn't be matched to one on the page.
         case notOnPage
         /// A bar on the page that the reading skipped.
@@ -48,7 +48,7 @@ public enum BarMerge {
     }
 
     /// One merged note: the model's note, with its position replaced when measured.
-    public struct Note: Equatable, Sendable {
+    public struct Note: Codable, Equatable, Sendable {
         public var note: SystemReading.Note
         public var clef: SystemReading.Clef
         /// The measured head this note was matched to, if any.
@@ -60,12 +60,29 @@ public enum BarMerge {
             self.head = head
         }
 
+        /// "C4", or "C♯4" / "C♭4" with its printed sharp or flat (not one carried from earlier in
+        /// the bar: see `Bar.noteNames`). A natural on its own changes nothing, so it isn't shown;
+        /// readings often mark plain notes "natural".
         public var name: String {
-            note.rest ? "r" : StaffPitch.name(clef: clef, position: note.position)
+            note.rest ? "r" : Self.name(clef: clef, position: note.position, sign: Self.sign(note.accidental))
+        }
+
+        static func sign(_ accidental: SystemReading.Accidental) -> String {
+            switch accidental {
+            case .none, .natural: return ""
+            case .sharp: return "♯"
+            case .flat: return "♭"
+            }
+        }
+
+        /// "C♯4": the letter, the sign, then the octave.
+        static func name(clef: SystemReading.Clef, position: Int, sign: String) -> String {
+            let plain = StaffPitch.name(clef: clef, position: position)
+            return String(plain.prefix(1)) + sign + plain.dropFirst()
         }
     }
 
-    public struct Bar: Equatable, Sendable {
+    public struct Bar: Codable, Equatable, Sendable {
         public var upper: [Note]
         public var lower: [Note]
         public var upperStatus: Status
@@ -84,6 +101,32 @@ public enum BarMerge {
         public func notes(_ staff: SystemReading.StaffName) -> [Note] { staff == .upper ? upper : lower }
         public func status(_ staff: SystemReading.StaffName) -> Status { staff == .upper ? upperStatus : lowerStatus }
         public var isTrusted: Bool { upperStatus.isTrusted && lowerStatus.isTrusted }
+
+        /// The MIDI pitch each of a staff's notes sounds (nil for a rest), with accidentals
+        /// carried through the bar.
+        public func midiPitches(_ staff: SystemReading.StaffName) -> [Int?] {
+            var accidentals = BarAccidentals()
+            return notes(staff).map { n in
+                guard !n.note.rest else { return nil }
+                let step = StaffPitch.step(n.clef, n.note.position)
+                return StaffPitch.midi(step: step, alter: accidentals.play(step: step, accidental: n.note.accidental))
+            }
+        }
+
+        /// Each of a staff's notes as it sounds, for the review card: "F♯4" for a printed sharp
+        /// and for a later F the sharp still applies to, "F♮4" for a natural that cancels one,
+        /// "r" for a rest.
+        public func noteNames(_ staff: SystemReading.StaffName) -> [String] {
+            var accidentals = BarAccidentals()
+            return notes(staff).map { n in
+                guard !n.note.rest else { return "r" }
+                let step = StaffPitch.step(n.clef, n.note.position)
+                let cancels = n.note.accidental == .natural && accidentals.alter(atStep: step) != 0
+                let alter = accidentals.play(step: step, accidental: n.note.accidental)
+                let sign = cancels ? "♮" : alter > 0 ? "♯" : alter < 0 ? "♭" : ""
+                return Note.name(clef: n.clef, position: n.note.position, sign: sign)
+            }
+        }
     }
 
     public static func merge(_ reading: SystemReading, _ system: NoteheadGeometry.System) -> [Bar] {

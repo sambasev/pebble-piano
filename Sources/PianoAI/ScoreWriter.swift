@@ -8,6 +8,8 @@ public struct ImportedPiece: Sendable {
     public var midi: Data
     /// One per top-staff note in score order; 0 where the book prints no finger number.
     public var fingering: [Int]
+    /// Every finger number the book prints, on either staff.
+    public var printedFingering: [PrintedFinger]
     public var musicXML: String
 }
 
@@ -26,13 +28,14 @@ public enum ScoreWriter {
         var measures: [ScoreMeasure] = []
         var notes: [NoteEvent] = []
         var fingering: [Int] = []
+        var printedFingering: [PrintedFinger] = []
         var start = 0  // sixteenths from the start of the piece
         for (i, bar) in bars.enumerated() {
             var events: [ScoreEvent] = []
             var longest = 0
             for (staffIndex, staffName) in staffNames.enumerated() {
                 var at = 0
-                var altered: Set<Int> = []  // letter steps given a sharp or flat earlier in this bar
+                var accidentals = BarAccidentals()
                 let staffNotes = bar.notes(staffName)
                 for n in staffNotes {
                     let length = max(1, Int((n.note.quarters * 4).rounded()))
@@ -42,18 +45,19 @@ public enum ScoreWriter {
                                                  dots: n.note.dotted ? 1 : 0, notes: [],
                                                  isMeasureRest: staffNotes.count == 1 && length >= barLength))
                     } else {
-                        let midi = StaffPitch.midi(clef: n.clef, position: n.note.position, accidental: n.note.accidental)
-                        let step = StaffPitch.bottomLine(n.clef) + n.note.position
+                        let step = StaffPitch.step(n.clef, n.note.position)
                         let octave = Int(floor(Double(step) / 7))
-                        let alter = n.note.accidental == .sharp ? 1 : n.note.accidental == .flat ? -1 : 0
                         // C major: a natural is only worth printing to cancel an earlier sharp or flat.
+                        let cancels = accidentals.alter(atStep: step) != 0
+                        // An unmarked note keeps a sharp or flat from earlier in the bar.
+                        let alter = accidentals.play(step: step, accidental: n.note.accidental)
+                        let midi = StaffPitch.midi(step: step, alter: alter)
                         let printed: Int?
                         switch n.note.accidental {
                         case .none: printed = nil
-                        case .natural: printed = altered.contains(step) ? 0 : nil
+                        case .natural: printed = cancels ? 0 : nil
                         case .sharp, .flat: printed = alter
                         }
-                        if alter != 0 { altered.insert(step) } else if n.note.accidental == .natural { altered.remove(step) }
                         let note = ScoreNote(midi: midi, spelled: SpelledPitch(step: step - octave * 7, alter: alter, octave: octave),
                                              accidental: printed)
                         events.append(ScoreEvent(staff: staffIndex, start: at, duration: length, type: type,
@@ -63,6 +67,9 @@ public enum ScoreWriter {
                         notes.append(NoteEvent(pitch: midi, onset: beats * 60 / tempoBPM, offset: (beats + held) * 60 / tempoBPM,
                                                onsetBeats: beats, offsetBeats: beats + held, channel: staffIndex, track: staffIndex))
                         if staffIndex == 0 { fingering.append(n.note.finger ?? 0) }
+                        if let finger = n.note.finger, (1...5).contains(finger) {
+                            printedFingering.append(PrintedFinger(staff: staffIndex, quarter: beats, finger: finger))
+                        }
                     }
                     at += length
                 }
@@ -84,7 +91,8 @@ public enum ScoreWriter {
         let score = Score(title: title, tempoBPM: tempoBPM, timeSignature: timeSignature, key: KeySignature(fifths: 0),
                           staves: clefs, measures: measures)
         let midi = MIDIFile.write(notes: notes, tempoBPM: tempoBPM, timeSignature: timeSignature)
-        return ImportedPiece(score: score, midi: midi, fingering: fingering, musicXML: MusicXMLWriter.write(score))
+        return ImportedPiece(score: score, midi: midi, fingering: fingering, printedFingering: printedFingering,
+                             musicXML: MusicXMLWriter.write(score))
     }
 
     /// The metres a piece is given: anything else a page seems to have (17/4, 11/8, …) is far more

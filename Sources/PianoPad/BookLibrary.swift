@@ -1,6 +1,7 @@
 #if os(macOS)
 import Foundation
 import PianoAI
+import PianoGraderCore
 
 /// A PDF music book the Books tab can open.
 struct LibraryBook: Identifiable, Hashable {
@@ -13,7 +14,8 @@ struct LibraryBook: Identifiable, Hashable {
 
 /// A piece read from a book and saved: what it came from, so it can be read again on demand.
 struct SavedPiece: Codable, Identifiable, Hashable {
-    /// The folder name under Imported/.
+    /// The folder name under Imported/: the book, page and lines (`BookLibrary.pieceID`), so a
+    /// piece keeps its folder when it's renamed. Pieces saved before that are named after their title.
     var id: String
     var title: String
     /// The book's file name.
@@ -35,7 +37,9 @@ struct SavedPiece: Codable, Identifiable, Hashable {
 ///   "Re-scan page" redoes it;
 /// - each line's reading by Muse Wonder, by image (ReadingCache/): "Ask Muse Wonder again"
 ///   skips it;
-/// - saved pieces (Imported/<piece>/): open straight into Practice; "Read again" redoes them.
+/// - saved pieces (Imported/<piece>/): open straight into Practice. Each keeps its check
+///   (review.json, and line-N.png for each line read), so "Check and correct" reopens it as it
+///   was left; "Read again from scratch" redoes it.
 enum BookLibrary {
     /// Tests point this at a temporary folder.
     static var supportOverride: URL?
@@ -177,6 +181,44 @@ enum BookLibrary {
         encoder.dateEncodingStrategy = .iso8601
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         try encoder.encode(piece).write(to: piece.folder.appendingPathComponent("piece.json"))
+    }
+
+    /// The finger numbers printed in a saved piece's book (none for a piece saved before they were kept).
+    static func printedFingering(of piece: SavedPiece) -> [PrintedFinger] {
+        (try? Data(contentsOf: piece.folder.appendingPathComponent("fingering.json")))
+            .flatMap { try? JSONDecoder().decode([PrintedFinger].self, from: $0) } ?? []
+    }
+
+    /// The folder name for a piece read from these lines: one piece per book, page and lines.
+    static func pieceID(book: String, page: Int, lines: ClosedRange<Int>) -> String {
+        let name = (book as NSString).deletingPathExtension
+        let span = lines.count == 1 ? "line \(lines.lowerBound + 1)" : "lines \(lines.lowerBound + 1)-\(lines.upperBound + 1)"
+        return BookImportModel.slug("\(name) p\(page + 1) \(span)")
+    }
+
+    // MARK: A piece's check
+
+    /// Saves a piece's check beside it: review.json, and each line's image (line-N.png).
+    static func storeCorrection(_ correction: PieceCorrection, lineImages: [Data], in folder: URL) throws {
+        for (k, png) in lineImages.enumerated() {
+            try png.write(to: folder.appendingPathComponent("line-\(k).png"))
+        }
+        try JSONEncoder().encode(correction).write(to: folder.appendingPathComponent("review.json"))
+    }
+
+    /// A saved piece's check and its line images, or nil for a piece saved before checks were kept
+    /// (or one whose files can't be read).
+    static func correction(of piece: SavedPiece) -> (PieceCorrection, [(png: Data, gray: Gray)])? {
+        guard let data = try? Data(contentsOf: piece.folder.appendingPathComponent("review.json")),
+              let correction = try? JSONDecoder().decode(PieceCorrection.self, from: data),
+              correction.isConsistent else { return nil }
+        var images: [(Data, Gray)] = []
+        for k in correction.lines.indices {
+            guard let png = try? Data(contentsOf: piece.folder.appendingPathComponent("line-\(k).png")),
+                  let gray = Gray.decode(png) else { return nil }
+            images.append((png, gray))
+        }
+        return (correction, images)
     }
 }
 #endif

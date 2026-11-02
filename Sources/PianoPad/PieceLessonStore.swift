@@ -46,6 +46,18 @@ enum PieceLessonStore {
         try encoder.encode(plan).write(to: dir.appendingPathComponent("plan-\(learner).json"), options: .atomic)
     }
 
+    /// The piece's notes changed (corrected in Books): its plans, tutor progress and Learn page
+    /// were made from the old notes, so they go, and are made again from the new notes the next
+    /// time it's taught. Bars marked to focus on stay.
+    static func forgetLesson(_ key: String) {
+        let fm = FileManager.default
+        let dir = folder(key)
+        for file in (try? fm.contentsOfDirectory(at: dir, includingPropertiesForKeys: nil)) ?? []
+        where !file.lastPathComponent.hasPrefix("marks-") {
+            try? fm.removeItem(at: file)
+        }
+    }
+
     // MARK: Tutor progress
 
     /// Where `learner` got to in this piece's planned lesson ("default" without a learner).
