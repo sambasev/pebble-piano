@@ -88,6 +88,8 @@ final class BookImportModel: ObservableObject {
     @Published var freshRead = false
 
     private var document: PDFDocument?
+    /// Small pictures of the open book's pages, for the page strip; made as they scroll into view.
+    private let thumbnails = NSCache<NSNumber, NSImage>()
     /// Applied once the page has loaded ("Read again" on a saved piece).
     private var pendingSelection: ClosedRange<Int>?
     private var pageGray: Gray?
@@ -119,6 +121,7 @@ final class BookImportModel: ObservableObject {
         }
         aiKeyNote = nil
         document = doc
+        thumbnails.removeAllObjects()
         documentURL = url
         pageCount = doc.pageCount
         phase = .choosing
@@ -127,6 +130,15 @@ final class BookImportModel: ObservableObject {
             refreshLibrary()
         }
         show(page: page)
+    }
+
+    /// A small picture of page `index` of the open book, for the page strip.
+    func thumbnail(ofPage index: Int) -> NSImage? {
+        if let cached = thumbnails.object(forKey: index as NSNumber) { return cached }
+        guard let page = document?.page(at: index) else { return nil }
+        let image = page.thumbnail(of: CGSize(width: 240, height: 320), for: .cropBox)
+        thumbnails.setObject(image, forKey: index as NSNumber)
+        return image
     }
 
     /// Shows a page: from the page cache when it's been seen before, otherwise rendered and

@@ -141,6 +141,7 @@ struct BookPagePicker: View {
 
     var body: some View {
         HStack(alignment: .top, spacing: PP.Space.s4) {
+            PageThumbnailStrip(model: model).frame(width: 132)
             VStack(spacing: PP.Space.s2) {
                 HStack {
                     Button { model.show(page: model.pageIndex - 1) } label: { Image(systemName: "chevron.left") }
@@ -249,6 +250,74 @@ struct BookPagePicker: View {
             Spacer()
         }
         .ppGlass(cornerRadius: PP.Radius.lg, padding: PP.Space.s4)
+    }
+}
+
+/// Every page of the open book, small, like a PDF reader's sidebar: scroll to the page you
+/// want and click it. Pages with a piece read from them carry its status.
+struct PageThumbnailStrip: View {
+    @ObservedObject var model: BookImportModel
+
+    var body: some View {
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(spacing: PP.Space.s3) {
+                    ForEach(0..<model.pageCount, id: \.self) { index in
+                        PageThumbnail(model: model, index: index, current: index == model.pageIndex)
+                            .id(index)
+                    }
+                }
+                .padding(.vertical, PP.Space.s2)
+            }
+            // A fresh strip for each book, starting at the page it opened on.
+            .id(model.documentURL)
+            .onAppear { proxy.scrollTo(model.pageIndex, anchor: .center) }
+            .onChange(of: model.pageIndex) { index in
+                withAnimation { proxy.scrollTo(index, anchor: .center) }
+            }
+        }
+        .ppGlass(cornerRadius: PP.Radius.lg, padding: PP.Space.s2)
+    }
+}
+
+private struct PageThumbnail: View {
+    @ObservedObject var model: BookImportModel
+    let index: Int
+    let current: Bool
+    @State private var image: NSImage?
+
+    var body: some View {
+        Button { model.show(page: index) } label: {
+            VStack(spacing: 4) {
+                ZStack {
+                    Color.white
+                    if let image {
+                        Image(nsImage: image).resizable().interpolation(.medium).aspectRatio(contentMode: .fit)
+                    }
+                }
+                .aspectRatio(image.map { $0.size.width / max(1, $0.size.height) } ?? 0.75, contentMode: .fit)
+                .clipShape(RoundedRectangle(cornerRadius: 4))
+                .overlay(RoundedRectangle(cornerRadius: 4)
+                    .stroke(current ? PP.accent : Color.black.opacity(0.15), lineWidth: current ? 3 : 1))
+                .overlay(alignment: .topTrailing) {
+                    if let status = model.status(ofPage: index) {
+                        Image(systemName: status.icon)
+                            .font(.system(size: 9, weight: .bold)).foregroundColor(.white)
+                            .padding(4).background(Circle().fill(status.color))
+                            .padding(4)
+                            .help("A piece read from this page: \(status.label.lowercased())")
+                    }
+                }
+                Text("\(index + 1)")
+                    .font(.ppCaption.monospacedDigit())
+                    .foregroundColor(current ? PP.accent : PP.inkMuted)
+            }
+            .padding(.horizontal, 6)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help("Page \(index + 1)")
+        .task(id: index) { image = model.thumbnail(ofPage: index) }
     }
 }
 
