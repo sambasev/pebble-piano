@@ -16,6 +16,8 @@ struct KeyboardView: View {
     let keyLabel: (Int) -> String?
     /// Keys to find (a lesson's "find it" step): they pulse with an iris ring until played.
     var highlight: Set<Int> = []
+    /// The note under the pointer on the score: a steady iris ring, so you can see which key it is.
+    var hovered: Int? = nil
     /// The mouse went down on, or was dragged onto, a key. Nil: the keys don't respond to clicks.
     var onPress: ((Int) -> Void)? = nil
     /// The mouse was released, or dragged off the keys.
@@ -90,6 +92,19 @@ struct KeyboardView: View {
                         .frame(width: Self.dotSize, height: Self.dotSize)
                         .offset(x: center - Self.dotSize / 2, y: height + 2)
                         .allowsHitTesting(false)
+                }
+                if let hovered, range.contains(hovered) {
+                    if isBlack(hovered), let index = whites.firstIndex(of: hovered - 1) {
+                        findRing(radius: 9, pulse: 1)
+                            .frame(width: whiteWidth * Self.blackWidth, height: height * Self.blackHeight)
+                            .offset(x: CGFloat(index + 1) * whiteWidth - whiteWidth * Self.blackWidth / 2)
+                            .allowsHitTesting(false)
+                    } else if let index = whites.firstIndex(of: hovered) {
+                        findRing(radius: PP.Radius.key, pulse: 1)
+                            .frame(width: whiteWidth - 3, height: height)
+                            .offset(x: CGFloat(index) * whiteWidth + 1.5)
+                            .allowsHitTesting(false)
+                    }
                 }
                 if !highlight.isEmpty {
                     // A slow pulse on the keys to find, drawn above the keys so black keys show too.

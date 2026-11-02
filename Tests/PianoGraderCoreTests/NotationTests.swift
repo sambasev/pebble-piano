@@ -336,7 +336,27 @@ final class ScoreLayoutTests: XCTestCase {
         XCTAssertNil(layout.position(atQuarter: 1000))
     }
 
-    func testStaffStepsToY() throws {
+    func testFindsTheNoteUnderAPoint() throws {
+        let score = try longScore()
+        let layout = ScoreLayout(score: score, width: 2000)
+        let s = layout.metrics.spacing
+        let measure = layout.systems[0].measures[0]
+        // The first note is middle C, an eighth, on the treble staff's ledger line.
+        let event = score.measures[0].events(onStaff: 0).sorted { $0.start < $1.start }[0]
+        let x = try XCTUnwrap(measure.columns[event.start])
+        let y = layout.y(ofStep: -2, staff: 0, system: 0)
+        XCTAssertEqual(layout.note(atX: x, y: y), ScoreLayout.NoteHit(midi: 60, quarters: 0.5))
+        XCTAssertEqual(layout.note(atX: x + 0.5 * s, y: y + 0.3 * s)?.midi, 60) // a little off the head
+        XCTAssertNil(layout.note(atX: x, y: y - 3 * s))                         // empty staff above it
+        XCTAssertNil(layout.note(atX: -100, y: y))
+        // The bass staff's long G2.
+        let bass = try XCTUnwrap(score.measures[0].events(onStaff: 1).first { !$0.isRest })
+        let bx = try XCTUnwrap(measure.columns[bass.start])
+        let by = layout.y(ofStep: Clef.bass.staffStep(of: bass.notes[0].spelled), staff: 1, system: 0)
+        XCTAssertEqual(layout.note(atX: bx, y: by)?.midi, 43)
+    }
+
+        func testStaffStepsToY() throws {
         let layout = ScoreLayout(score: try longScore(), width: 800)
         let s = layout.metrics.spacing
         let top = layout.systems[0].staffTops[0]

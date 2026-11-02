@@ -36,6 +36,12 @@ struct ScoreView: View {
     var followsMusic = false
     /// A printed measure was clicked.
     var onTapMeasure: ((Int) -> Void)? = nil
+    /// The reference's notes, for finding the printed note under the pointer.
+    var referenceNotes: [NoteEvent] = []
+    /// The pointer moved onto a printed note (its pitch) or off one (nil).
+    var onHoverNote: ((Int?) -> Void)? = nil
+    /// A printed note was clicked: its pitch and length in quarters. Not also taken as a click on its measure.
+    var onTapNote: ((_ pitch: Int, _ quarters: Double) -> Void)? = nil
 
     @Environment(\.paper) private var paper
 
@@ -82,15 +88,14 @@ struct ScoreView: View {
                     }
                 }
 
-                // Click a measure to play from it.
-                if let onTapMeasure {
+                // Click a measure to hear it (the click itself is handled below, with notes first).
+                if onTapMeasure != nil {
                     ForEach(passage.measures, id: \.number) { m in
                         Rectangle()
                             .fill(Color.white.opacity(0.001))
                             .frame(width: m.box.width * scale, height: m.box.height * scale)
                             .offset(offset(of: m.box, region: region, scale: scale))
-                            .onTapGesture { onTapMeasure(m.number) }
-                            .help("Play from bar \(m.number)")
+                            .help("Click a note to hear it, or the bar to hear bar \(m.number)")
                     }
                 }
 
@@ -169,6 +174,24 @@ struct ScoreView: View {
             .frame(width: region.width * scale, height: region.height * scale, alignment: .topLeading)
             .clipped()
             .contentShape(Rectangle()) // clicks only inside the visible page region
+            .onTapGesture(coordinateSpace: .local) { point in
+                if let onTapNote, let hit = note(at: point, region: region, scale: scale) {
+                    onTapNote(hit.pitch, hit.quarters)
+                    return
+                }
+                let x = region.x + point.x / scale, y = region.maxY - point.y / scale
+                guard let onTapMeasure, let m = passage.measures.first(where: {
+                    x >= $0.box.x && x <= $0.box.x + $0.box.width && y >= $0.box.y && y <= $0.box.y + $0.box.height
+                }) else { return }
+                onTapMeasure(m.number)
+            }
+            .onContinuousHover { phase in
+                guard let onHoverNote else { return }
+                switch phase {
+                case .active(let point): onHoverNote(note(at: point, region: region, scale: scale)?.pitch)
+                case .ended: onHoverNote(nil)
+                }
+            }
             .ppPaper()
             .position(x: geo.size.width / 2, y: geo.size.height / 2)
             .animation(.linear(duration: auditioning || followsMusic ? 0 : 0.12), value: playheadQuarter)
@@ -284,6 +307,30 @@ struct ScoreView: View {
             ))
         }
         return badges
+    }
+
+    /// The reference note printed under a point of the view, if any. The page only knows where
+    /// each bar and staff is, so a note's x is estimated from its beat in the bar; the match is
+    /// a little looser across than up and down.
+    private func note(at point: CGPoint, region: PageRect, scale: Double) -> (pitch: Int, quarters: Double)? {
+        let x = region.x + point.x / scale
+        let y = region.maxY - point.y / scale
+        var best: (pitch: Int, quarters: Double, distance: Double)?
+        for note in referenceNotes {
+            guard let location = passage.location(atQuarter: note.onsetBeats),
+                  let staves = staffPlacements[location.measure.number], !staves.isEmpty else { continue }
+            let box = location.measure.box
+            guard x >= box.x, x <= box.x + box.width else { continue }
+            let index = staves.count > 1 ? (note.pitch >= 60 ? 0 : 1) : 0
+            let staff = staves[index]
+            let clef: Clef = staves.count > 1 ? (index == 0 ? .treble : .bass) : (passage.clef ?? .treble)
+            let dx = abs(x - location.x), dy = abs(y - staff.y(ofStep: clef.staffStep(of: noteKey.spell(note.pitch))))
+            guard dx <= 2.5 * staff.spacing, dy <= 0.75 * staff.spacing else { continue }
+            let distance = dy + dx / 4
+            let quarters = note.offsetBeats.map { $0 - note.onsetBeats } ?? 1
+            if best.map({ distance < $0.distance }) ?? true { best = (note.pitch, quarters, distance) }
+        }
+        return best.map { ($0.pitch, $0.quarters) }
     }
 
     /// Top-left of a page rectangle inside the view (y flips: PDF y grows upwards).

@@ -87,6 +87,35 @@ public struct ScoreLayout: Sendable {
         return system.measures.first(where: { x >= $0.x && x < $0.maxX })?.index
     }
 
+    /// A note found under a point: its pitch and written length.
+    public struct NoteHit: Equatable, Sendable {
+        public var midi: Int
+        /// Written length in quarter notes (dots included).
+        public var quarters: Double
+    }
+
+    /// The note whose head is at (or very near) a point of the drawing, or nil over rests,
+    /// staff lines and empty space. The closest head wins in a chord.
+    public func note(atX x: Double, y: Double) -> NoteHit? {
+        guard let system = systems.first(where: { y >= $0.top && y < $0.top + $0.height }),
+              let ml = system.measures.first(where: { x >= $0.x && x < $0.maxX }) else { return nil }
+        let s = metrics.spacing
+        var best: (hit: NoteHit, distance: Double)?
+        for event in score.measures[ml.index].events where !event.isRest {
+            guard let cx = ml.columns[event.start], abs(x - cx) <= 1.6 * s,
+                  event.staff < score.staves.count else { continue }
+            let clef = score.staves[event.staff]
+            for note in event.notes {
+                let dy = abs(y - self.y(ofStep: clef.staffStep(of: note.spelled), staff: event.staff, system: system.index))
+                guard dy <= 0.75 * s else { continue }
+                let distance = dy + abs(x - cx) / 4
+                let hit = NoteHit(midi: note.midi, quarters: Double(event.duration) / Double(Score.sixteenthsPerQuarter))
+                if best.map({ distance < $0.distance }) ?? true { best = (hit, distance) }
+            }
+        }
+        return best?.hit
+    }
+
     // MARK: Layout
 
     /// Width of the column for an onset, by the shortest note starting there.

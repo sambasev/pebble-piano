@@ -9,6 +9,8 @@ struct ContentView: View {
     @State private var showSettings = false
     @State private var showAISettings = false
     @State private var showInput = false
+    /// The note under the pointer on the score, ringed on the keyboard.
+    @State private var hoveredPitch: Int?
     @AppStorage(PaperStyle.storageKey) private var paperStyle = PaperStyle.matchAppearance
 
     var body: some View {
@@ -155,7 +157,10 @@ struct ContentView: View {
                             showFingering: session.showFingering,
                             replayMeasure: session.replayMeasure,
                             followsMusic: session.isPlayingAlong,
-                            onTapMeasure: { session.playFrom(printedMeasure: $0) }
+                            onTapMeasure: { session.playFrom(printedMeasure: $0) },
+                            referenceNotes: session.reference?.notes ?? [],
+                            onHoverNote: { hoveredPitch = $0 },
+                            onTapNote: { session.auditionNote(pitch: $0, quarters: $1) }
                         )
                     }
                     .frame(maxWidth: .infinity, minHeight: 300, maxHeight: .infinity)
@@ -184,7 +189,9 @@ struct ContentView: View {
                                      // The tempo wash, in play-along only (with or without a backing track).
                                      tempoProgress: session.showsTempoDisplay
                                          ? { [session] uptime in session.tempoProgress(atUptime: uptime) } : nil,
-                                     tempoAnimating: session.tempoDisplayMoves)
+                                     tempoAnimating: session.tempoDisplayMoves,
+                                     onHoverNote: { hoveredPitch = $0 },
+                                     onTapNote: { session.auditionNote(pitch: $0.midi, quarters: $0.quarters) })
                             .ppPaper()
                     }
                     .frame(maxWidth: .infinity, minHeight: 300, maxHeight: .infinity)
@@ -199,6 +206,7 @@ struct ContentView: View {
                 audition: session.auditionHeld,
                 showGuide: session.showGuide,
                 keyLabel: session.keyLabel(for:),
+                hovered: hoveredPitch,
                 onPress: { session.mouseDown(on: $0) },
                 onRelease: { session.mouseUp() }
             )
@@ -299,8 +307,8 @@ struct ContentView: View {
                 Button {
                     session.toggleAudition()
                 } label: {
-                    Label(session.isAuditioning ? "Stop" : "Listen",
-                          systemImage: session.isAuditioning ? "stop.fill" : "play.fill")
+                    Label(session.isPlayingReference ? "Stop" : "Listen",
+                          systemImage: session.isPlayingReference ? "stop.fill" : "play.fill")
                         .frame(width: 60)
                 }
                 .buttonStyle(PPPrimaryButtonStyle(height: PP.Size.compact))
@@ -726,7 +734,7 @@ struct ContentView: View {
             }
         }
         switch session.phase {
-        case .waiting where session.isAuditioning: return PP.lilac
+        case .waiting where session.isPlayingReference: return PP.lilac
         case .waiting: return PP.inkStaff
         case .recording: return PP.accent
         case .graded: return (session.report?.passed ?? false) ? PP.success : PP.warning
@@ -736,11 +744,11 @@ struct ContentView: View {
     private var statusText: String {
         if session.mode == .playAlong, let text = playAlongStatus { return text }
         switch session.phase {
-        case .waiting where session.isAuditioning: return "Playing the reference… Space or Esc to stop"
+        case .waiting where session.isPlayingReference: return "Playing the reference… Space or Esc to stop"
         case .waiting: return "Ready: recording starts on your first note"
         case .recording where session.autoGradePending: return "Passage complete. Grading in a moment… (keep playing to continue)"
         case .recording: return "Recording… \(session.noteCount) notes. Return or Grade to finish, Esc to discard"
-        case .graded where session.isAuditioning: return "Playing the reference… Space or Esc to stop"
+        case .graded where session.isPlayingReference: return "Playing the reference… Space or Esc to stop"
         case .graded: return "Graded. Play again to start a new take"
         }
     }

@@ -17,6 +17,10 @@ struct NotationView: View {
     var tempoProgress: ((TimeInterval) -> ScoreProgress?)? = nil
     /// The tempo wash is moving (music playing, or the Wait-mode preview).
     var tempoAnimating = true
+    /// The pointer moved onto a note (its pitch) or off one (nil).
+    var onHoverNote: ((Int?) -> Void)? = nil
+    /// A note was clicked (it is not also taken as a click on its measure).
+    var onTapNote: ((ScoreLayout.NoteHit) -> Void)? = nil
 
     @StateObject private var cache = NotationCache()
     @Environment(\.paper) private var paper
@@ -53,9 +57,20 @@ struct NotationView: View {
                         }
                         .contentShape(Rectangle())
                         .onTapGesture(coordinateSpace: .local) { point in
+                            if let onTapNote, let hit = prepared.layout.note(atX: point.x, y: point.y) {
+                                onTapNote(hit)
+                                return
+                            }
                             guard let onTapMeasure,
                                   let m = prepared.layout.measureIndex(atX: point.x, y: point.y) else { return }
                             onTapMeasure(m)
+                        }
+                        .onContinuousHover(coordinateSpace: .local) { phase in
+                            guard let onHoverNote else { return }
+                            switch phase {
+                            case .active(let point): onHoverNote(prepared.layout.note(atX: point.x, y: point.y)?.midi)
+                            case .ended: onHoverNote(nil)
+                            }
                         }
 
                         // Invisible rows, one per system, for scrolling to the playhead.
