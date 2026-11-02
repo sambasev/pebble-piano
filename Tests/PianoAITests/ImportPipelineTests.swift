@@ -1,3 +1,6 @@
+#if canImport(PDFKit)
+import PDFKit
+#endif
 import XCTest
 import PianoGraderCore
 @testable import PianoAI
@@ -14,6 +17,19 @@ final class ImportPipelineTests: XCTestCase {
         XCTAssertEqual(SystemFinder.find(in: try page("op101-p24")).count, 5)
         XCTAssertEqual(SystemFinder.find(in: try page("op101-p27")).count, 7)
     }
+
+    #if canImport(PDFKit)
+    func testPagesOfTextHaveNoSystems() throws {
+        // Pages 2 and 3 of the bundled Beyer are the preface, in German, English and French:
+        // evenly spaced lines of text, which were taken for staves.
+        let repo = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
+        let pdf = try XCTUnwrap(PDFDocument(url: repo.appendingPathComponent("Books/F_Beyer-Op101.pdf")))
+        for index in [1, 2] {
+            XCTAssertEqual(try XCTUnwrap(BookImporter.page(pdf, index: index)).systems.count, 0, "page \(index + 1)")
+        }
+        XCTAssertEqual(try XCTUnwrap(BookImporter.page(pdf, index: 3)).systems.count, 2)
+    }
+    #endif
 
     func testSystemsDontOverlapAndCropToPNG() throws {
         let p = try page("op101-p27")

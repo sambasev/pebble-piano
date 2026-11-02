@@ -90,13 +90,17 @@ enum BookLibrary {
 
     // MARK: Page cache
 
+    /// Bumped when finding the lines of music changes, so pages are scanned again.
+    /// 2: paragraphs of text are no longer taken for staves.
+    static let pageScanVersion = 2
+
     /// One folder per book version: its name, size and modification date.
     static func cacheFolder(for book: URL) -> URL {
         let values = try? book.resourceValues(forKeys: [.fileSizeKey, .contentModificationDateKey])
         let size = values?.fileSize ?? 0
         let stamp = Int(values?.contentModificationDate?.timeIntervalSince1970 ?? 0)
         let name = book.deletingPathExtension().lastPathComponent.filter { $0.isLetter || $0.isNumber || $0 == "-" }
-        return support.appendingPathComponent("BookCache/\(name)-\(size)-\(stamp)")
+        return support.appendingPathComponent("BookCache/\(name)-\(size)-\(stamp)-v\(pageScanVersion)")
     }
 
     struct CachedPage: Codable {
@@ -111,6 +115,12 @@ enum BookLibrary {
               let page = try? JSONDecoder().decode(CachedPage.self, from: json)
         else { return nil }
         return (gray, page.systems)
+    }
+
+    /// Just the lines found on a page, without decoding its image: for skimming many pages.
+    static func cachedSystems(_ book: URL, _ index: Int) -> [FoundSystem]? {
+        guard let json = try? Data(contentsOf: cacheFolder(for: book).appendingPathComponent("page-\(index).json")) else { return nil }
+        return (try? JSONDecoder().decode(CachedPage.self, from: json))?.systems
     }
 
     static func storePage(_ book: URL, _ index: Int, _ gray: Gray, _ systems: [FoundSystem]) {

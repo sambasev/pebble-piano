@@ -78,6 +78,9 @@ final class BookImportModel: ObservableObject {
     @Published private(set) var pageSize = CGSize.zero
     @Published private(set) var systems: [FoundSystem] = []
     @Published private(set) var isLoadingPage = false
+    /// The page being looked at while skipping to the next page with music on it.
+    @Published private(set) var seekingPage: Int?
+    private var seekTask: Task<Void, Never>?
     @Published var selection: ClosedRange<Int>?
     @Published var title = ""
     @Published private(set) var phase: Phase = .choosing
@@ -147,6 +150,8 @@ final class BookImportModel: ObservableObject {
     /// scanned for lines of music (and cached). `rescan` redoes it on demand.
     func show(page index: Int, rescan: Bool = false) {
         guard let doc = document, let book = documentURL, (0..<pageCount).contains(index) else { return }
+        seekTask?.cancel()
+        seekingPage = nil
         pageIndex = index
         selection = nil
         hands = nil
@@ -179,6 +184,45 @@ final class BookImportModel: ObservableObject {
                     self.selection = pending
                 }
                 self.pendingSelection = nil
+            }
+        }
+    }
+
+    /// Skips to the nearest page before (`step` -1) or after (+1) this one with music found on
+    /// it. Pages not seen before are scanned (and cached) on the way, so the first skip over a
+    /// long stretch of text can take a moment; `seekingPage` says where it has got to.
+    func showMusic(step: Int) {
+        guard let doc = document, let book = documentURL else { return }
+        seekTask?.cancel()
+        let start = pageIndex, count = pageCount
+        seekingPage = start + step
+        seekTask = Task.detached(priority: .userInitiated) {
+            var index = start + step
+            while (0..<count).contains(index) {
+                if Task.isCancelled { return }
+                let looking = index
+                await MainActor.run { self.seekingPage = looking }
+                let systems: [FoundSystem]
+                if let cached = BookLibrary.cachedSystems(book, index) {
+                    systems = cached
+                } else if let fresh = BookImporter.page(doc, index: index) {
+                    BookLibrary.storePage(book, index, fresh.image, fresh.systems)
+                    systems = fresh.systems
+                } else {
+                    systems = []
+                }
+                if !systems.isEmpty { break }
+                index += step
+            }
+            let found = index
+            await MainActor.run {
+                guard !Task.isCancelled else { return }
+                self.seekingPage = nil
+                if (0..<count).contains(found) {
+                    self.show(page: found)
+                } else {
+                    self.message = step > 0 ? "No more music after this page." : "No music before this page."
+                }
             }
         }
     }

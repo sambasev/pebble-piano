@@ -36,9 +36,11 @@ public struct FoundSystem: Codable, Equatable, Sendable {
 public enum SystemFinder {
     public static func find(in page: Gray) -> [FoundSystem] {
         let ink = NoteheadGeometry.deskew(page.binarized())
-        // Five evenly spaced lines of text can look like a staff: keep staves whose line spacing
-        // matches the page's usual spacing.
-        let found = NoteheadGeometry.staffLines(ink)
+        // Five evenly spaced lines of text can look like a staff. A staff line is drawn solid from
+        // end to end, a line of text has gaps between letters and words: drop "staves" whose lines
+        // are less than 60% inked between their ends. Then keep staves whose line spacing matches
+        // the page's usual spacing.
+        let found = NoteheadGeometry.staffLines(ink).filter { solidity($0, ink) >= 0.6 }
         guard !found.isEmpty else { return [] }
         let median = found.map(\.spacing).sorted()[found.count / 2]
         let staves = found.filter { abs($0.spacing - median) <= 0.25 * median }
@@ -74,6 +76,24 @@ public enum SystemFinder {
             systems[k].top = middle
         }
         return systems
+    }
+
+    /// How much of a staff's lines is inked between their left and right ends (the median line's
+    /// share, each line taken three rows thick to allow for a slight tilt). Measured on the bundled
+    /// books: printed staves 0.62 to 1, paragraphs of text 0.43 to 0.57.
+    static func solidity(_ staff: NoteheadGeometry.Staff, _ ink: Bitmap) -> Double {
+        let shares = staff.lines.map { line -> Double in
+            let y = Int(line.rounded())
+            let rows = max(0, y - 1)...min(ink.height - 1, y + 1)
+            var first = -1, last = -1, inked = 0
+            for x in 0..<ink.width where rows.contains(where: { ink[x, $0] }) {
+                if first < 0 { first = x }
+                last = x
+                inked += 1
+            }
+            return first < 0 ? 0 : Double(inked) / Double(last - first + 1)
+        }
+        return shares.sorted()[shares.count / 2]
     }
 
     public static func crop(_ page: Gray, _ s: FoundSystem) -> Gray {
