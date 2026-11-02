@@ -5,13 +5,18 @@ import PianoGraderCore
 public enum TutorCoaching {
     public static func message(report: GradeReport, next: PracticeExercise, mastered: Bool,
                                printedMeasures: [Int], notesCompleted: Bool = false, stars: Int? = nil,
-                               followingPlan: Bool = false) -> String {
+                               followingPlan: Bool = false, passedWithSlips: Bool = false) -> String {
         if mastered {
             let earned = stars.map { " That's \($0) star\($0 == 1 ? "" : "s")." } ?? ""
+            if passedWithSlips {
+                return "That's a pass—\(percent(report))% of the notes.\(earned) You've passed this piece. " + watchOut(report)
+            }
             return "That was a good run—you kept the notes and timing together.\(earned) You've passed this piece. You can play it again to make it feel more comfortable."
         }
         let observation: String
-        if let stars, !mastered {
+        if passedWithSlips {
+            observation = "That's a pass—\(percent(report))% of the notes, so this step is done. " + watchOut(report)
+        } else if let stars, !mastered {
             observation = stars > 0
                 ? "That performance earned \(stars) star\(stars == 1 ? "" : "s"). Let's polish the part that slipped."
                 : "That performance didn't earn a star yet. Let's work on the part that slipped."
@@ -34,6 +39,15 @@ public enum TutorCoaching {
         }
         return observation + " " + invitation(for: next, printedMeasures: printedMeasures)
     }
+
+    /// "Just watch out for this: …" with the run's main slips, and how to come back to them.
+    static func watchOut(_ report: GradeReport) -> String {
+        let slips = MistakeExplainer.explain(report, limit: 2)
+        let what = slips.isEmpty ? "" : "Just watch out for \(slips.count == 1 ? "this" : "these"): " + slips.joined(separator: " ") + " "
+        return what + "If you'd like to revisit them, mark the bars you got wrong and practise them."
+    }
+
+    private static func percent(_ report: GradeReport) -> Int { Int((min(1, max(0, report.notes.score)) * 100).rounded()) }
 
     /// After "Show me what you can do": how each phrase went, in a sentence.
     public static func placementSummary(_ grades: [Int: PhraseGrade], plan: LessonPlan) -> String {

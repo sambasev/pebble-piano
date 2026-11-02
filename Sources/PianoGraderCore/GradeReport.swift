@@ -21,6 +21,10 @@ public struct LevelResult: Codable, Sendable {
     public var value: Double?
     public var threshold: Double?
     public var detail: String
+
+    public init(check: Rubric.Check, passed: Bool?, value: Double?, threshold: Double?, detail: String) {
+        self.check = check; self.passed = passed; self.value = value; self.threshold = threshold; self.detail = detail
+    }
 }
 
 public struct NoteSummary: Codable, Sendable {

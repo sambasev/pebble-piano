@@ -196,7 +196,9 @@ final class LessonPlanTests: XCTestCase {
         XCTAssertEqual(engine.exercise.kind, .perform)
         var take = piece
         take.notes.removeAll { $0.onsetBeats >= 24 && $0.onsetBeats < 28 } // bar 7
+        take.notes.removeAll { $0.onsetBeats >= 8 && $0.onsetBeats < 12 && $0.track == 0 } // bar 3's right hand
         let weak = Grader().grade(reference: piece, take: take)
+        XCTAssertLessThan(weak.notes.score, RemediationPlanner.passingScore)
         engine.record(weak, stars: 1)
         XCTAssertEqual(engine.lastStars, 1)
         XCTAssertFalse(engine.mastered)
@@ -354,7 +356,7 @@ final class LessonPlanTests: XCTestCase {
         XCTAssertEqual(resumed.steps.map(\.key), engine.steps.map(\.key))
     }
 
-    func testANearlyPerfectRunIsPolishedNotRetaught() {
+    func testANearlyPerfectRunPassesOrIsPolishedNotRetaught() {
         let piece = twoHandPiece(bars: 8)
         var take = piece
         // Two single slips: one note in bar 2, one in bar 6.
@@ -362,24 +364,38 @@ final class LessonPlanTests: XCTestCase {
         take.notes.removeAll { $0.onsetBeats == 21 && $0.track == 0 }
         let report = Grader().grade(reference: piece, take: take)
         XCTAssertGreaterThanOrEqual(PhraseGrade.accuracy(1...8, in: report), 0.9)
-        // A Perform that missed the stars: polish the two bars, not note by note.
+        XCTAssertFalse(report.passed, "under the grader's 95%")
         let plan0 = LessonPlan(phrases: [.init(bars: 1...4, label: "Phrase 1"), .init(bars: 5...8, label: "Phrase 2")],
                                handsSeparately: true, source: .model)
+        // Two slips still pass the piece; they're pointed out, not drilled.
+        var passing = PiecePracticeEngine(measureCount: 8, plan: plan0)
+        passing.jump(to: passing.steps.count - 1)
+        passing.record(report, stars: 1)
+        XCTAssertTrue(passing.mastered)
+        XCTAssertTrue(passing.lastRunPassedWithSlips)
+        // A Perform that needed a replay: polish the two bars, not note by note.
         var engine = PiecePracticeEngine(measureCount: 8, plan: plan0)
         engine.jump(to: engine.steps.count - 1)
-        engine.record(report, stars: 1)
+        engine.record(report, replays: 1, stars: 1)
         XCTAssertFalse(engine.mastered)
         XCTAssertEqual(engine.exercise.kind, .fullSpeed, "polish, not note by note")
         XCTAssertEqual(engine.exercise.measures, 2...2)
         engine.record(Grader().grade(reference: piece.measures(2...2), take: piece.measures(2...2)))
-        // With a plan, "Show me what you can do" grades both phrases minor: just those bars.
+        // With a plan, "Show me what you can do" passes both phrases: their steps are skipped.
         let plan = LessonPlan(phrases: [.init(bars: 1...4, label: "Phrase 1"), .init(bars: 5...8, label: "Phrase 2")],
                               handsSeparately: true, source: .model)
         var planned = PiecePracticeEngine(measureCount: 8, plan: plan)
         planned.record(report)
-        XCTAssertEqual(planned.grades[0], .minor(bars: [2]))
-        XCTAssertEqual(planned.steps.filter { $0.label == "Phrase 1" }.map(\.kind), [.fullSpeed, .fullSpeed])
-        XCTAssertFalse(planned.steps.contains { $0.hand != nil && $0.skipReason == nil }, "no hands-separately steps")
+        XCTAssertEqual(planned.grades[0], .clean)
+        XCTAssertEqual(planned.exercise.kind, .perform)
+        // The same slips with uneven rhythm don't pass: just those bars.
+        var uneven = report
+        uneven.levels.append(LevelResult(check: .rhythm, passed: false, value: 0.4, threshold: 0.25, detail: ""))
+        var polished = PiecePracticeEngine(measureCount: 8, plan: plan)
+        polished.record(uneven)
+        XCTAssertEqual(polished.grades[0], .minor(bars: [2]))
+        XCTAssertEqual(polished.steps.filter { $0.label == "Phrase 1" }.map(\.kind), [.fullSpeed, .fullSpeed])
+        XCTAssertFalse(polished.steps.contains { $0.hand != nil && $0.skipReason == nil }, "no hands-separately steps")
     }
 
     func testAPassedRunThroughGoesStraightToPerform() {
@@ -417,7 +433,9 @@ final class LessonPlanTests: XCTestCase {
         var engine = PiecePracticeEngine(measureCount: 4, persona: .kriti, plan: plan)
         var slip = piece
         slip.notes.removeAll { $0.onsetBeats == 5 && $0.track == 0 }
-        engine.record(Grader().grade(reference: piece, take: slip))   // a slip in bar 2: polish
+        var slipped = Grader().grade(reference: piece, take: slip)
+        slipped.levels.append(LevelResult(check: .rhythm, passed: false, value: 0.4, threshold: 0.25, detail: ""))
+        engine.record(slipped)                                         // a slip in bar 2, uneven: polish
         XCTAssertEqual(engine.grades[0], .minor(bars: [2]))
         engine.completeStep()                                          // listen
         XCTAssertEqual(engine.exercise.measures, 2...2)

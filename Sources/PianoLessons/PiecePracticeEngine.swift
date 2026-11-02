@@ -116,6 +116,8 @@ public struct PiecePracticeEngine: Sendable {
     public private(set) var grades: [Int: PhraseGrade] = [:]
     /// Failed runs in a row on the current timed step.
     public private(set) var failStreak = 0
+    /// The last graded run passed (80%+ of the notes, rhythm fine) but had slips to mention.
+    public private(set) var lastRunPassedWithSlips = false
     private var queue: [PracticeExercise] = []
 
     /// Where the learner got to in a planned lesson, to save and resume.
@@ -380,11 +382,15 @@ public struct PiecePracticeEngine: Sendable {
 
     /// Records a graded run of the current exercise. `stars`: the Perform run's stars.
     public mutating func record(_ report: GradeReport, replays: Int = 0, completedNotes: Bool = false, stars: Int? = nil) {
+        lastRunPassedWithSlips = !exercise.isWaitMode && report.timing != nil
+            && RemediationPlanner.passedWithSlips(report, replays: replays)
         if exercise.kind == .listen { completeStep(); return }
         if exercise.kind == .placement { place(after: report); return }
         if exercise.kind == .perform {
             lastStars = stars
-            mastered = (stars ?? 0) >= 2 && report.timing != nil && replays == 0
+            // Two stars, or a passing run (80%+, rhythm fine) with a few slips.
+            mastered = report.timing != nil && replays == 0
+                && ((stars ?? 0) >= 2 || RemediationPlanner.isClean(report, replays: replays))
             if let i = stepIndex { completedSteps.insert(i) }
             if mastered { completedSteps = Set(steps.indices) }
             stepIndex = nil
@@ -397,7 +403,7 @@ public struct PiecePracticeEngine: Sendable {
             return
         }
         if exercise.kind == .assessment {
-            mastered = report.passed && report.timing != nil && replays == 0
+            mastered = RemediationPlanner.isClean(report, replays: replays) && report.timing != nil
             // Passed: the plan's steps are all done (the checklist shouldn't look like a restart).
             guard !mastered else { completedSteps = Set(steps.indices); return }
             planDrills(after: report)
@@ -429,15 +435,13 @@ public struct PiecePracticeEngine: Sendable {
         guard let plan, let here = stepIndex else { return }
         completedSteps.insert(here)
         var graded: [Int: PhraseGrade] = [:]
-        // A run the grader passes at full speed counts as clean wherever it's at least close
-        // (a slip or two, or uneven timing): straight on to Perform, not back into the lesson.
-        let passedRun = report.passed && report.timing != nil
+        // A passing run at full speed (80%+ of the notes) counts as clean on every phrase that
+        // passes by itself (a few slips, or uneven timing): straight on, not back into the lesson.
+        let passedRun = RemediationPlanner.isClean(report, replays: 0) && report.timing != nil
         for (i, p) in plan.phrases.enumerated() {
             let grade = PhraseGrade.grade(p.bars, in: report)
-            switch grade {
-            case .minor, .timing: graded[i] = passedRun ? .clean : grade
-            default: graded[i] = grade
-            }
+            let passes = passedRun && PhraseGrade.accuracy(p.bars, in: report) >= RemediationPlanner.passingScore
+            graded[i] = passes ? .clean : grade
         }
         grades = graded
         rebuild()

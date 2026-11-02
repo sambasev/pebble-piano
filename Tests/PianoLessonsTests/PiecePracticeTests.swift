@@ -63,6 +63,30 @@ final class PiecePracticeTests: XCTestCase {
         XCTAssertEqual(engine.exercise.kind, .fullSpeed)
     }
 
+    func testAFewMissedNotesStillPass() {
+        let ref = reference()
+        var take = ref
+        take.notes.removeAll { $0.onsetBeats == 5 || $0.onsetBeats == 10 } // 14 of 16
+        let report = Grader().grade(reference: ref, take: take)
+        XCTAssertFalse(report.passed) // under the grader's 95%
+        var engine = PiecePracticeEngine(measureCount: 4)
+        engine.record(report)
+        XCTAssertTrue(engine.mastered)
+        XCTAssertTrue(engine.lastRunPassedWithSlips)
+        let text = TutorCoaching.message(report: report, next: engine.exercise, mastered: true, printedMeasures: [],
+                                         passedWithSlips: engine.lastRunPassedWithSlips)
+        XCTAssertTrue(text.contains("That's a pass"), text)
+        XCTAssertTrue(text.contains("watch out"), text)
+
+        // A drill step at full speed is done too, and the next one starts.
+        engine.focus(on: [2])
+        engine.skip(); engine.skip() // past note by note and slowly
+        XCTAssertEqual(engine.exercise.kind, .fullSpeed)
+        engine.record(report) // 88%: passes first time
+
+        XCTAssertEqual(engine.exercise.kind, .context)
+    }
+
     func testSilenceAndInsufficientTimingCannotMaster() {
         let ref = reference()
         var engine = PiecePracticeEngine(measureCount: 4)

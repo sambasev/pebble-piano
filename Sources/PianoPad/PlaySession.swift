@@ -2780,7 +2780,12 @@ extension PlaySession {
         }
         mistakeMeasures = Set(mapped.flags.map(\.position.measure))
         var evidence = report
-        if (attempt.kind == .assessment || attempt.kind == .perform) && (tempoPercent < 99.5 || mode != .playAlong) { evidence.passed = false }
+        if (attempt.kind == .assessment || attempt.kind == .perform) && (tempoPercent < 99.5 || mode != .playAlong) {
+            // Slowed down or with wait mode: not a pass of the whole piece.
+            evidence.passed = false
+            evidence.levels.append(LevelResult(check: .tempo, passed: false, value: tempoPercent, threshold: 100,
+                                               detail: "Played slowed down or with help"))
+        }
         let stars = tutorPerformStars
         let wasFollowing = engine.isFollowingPlan
         engine.record(evidence, replays: replaysThisTake, completedNotes: passageComplete, stars: stars)
@@ -2788,7 +2793,7 @@ extension PlaySession {
         tutorText = TutorCoaching.message(report: mapped, next: engine.exercise, mastered: engine.mastered,
                                          printedMeasures: tutorPrinted(engine.exercise),
                                          notesCompleted: attempt.isWaitMode && passageComplete, stars: stars,
-                                         followingPlan: wasFollowing)
+                                         followingPlan: wasFollowing, passedWithSlips: engine.lastRunPassedWithSlips)
         if attempt.kind == .placement, let plan = engine.plan {
             tutorText = TutorCoaching.placementSummary(engine.grades, plan: plan) + TutorCoaching.invitation(for: engine.exercise, printedMeasures: tutorPrinted(engine.exercise))
         }

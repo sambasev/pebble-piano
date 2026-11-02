@@ -141,10 +141,21 @@ public enum RemediationPlanner {
                         maxRunsPerStep: persona.drill.maxRunsPerStep)
     }
 
-    /// Whether a drill run counts as clean: it passed, nothing was replayed, and at least
-    /// 90% of the notes were right.
+    /// The note score (0–1) a run needs to pass a practice step. A few slips here and there
+    /// are fine: the step is done and the slips are pointed out, not drilled.
+    public static let passingScore = 0.80
+
+    /// Whether a run is good enough to move on: nothing was replayed, at least 80% of the
+    /// notes were right, and the grader's other checks (rhythm, tempo) passed. The grader's
+    /// own notes threshold (95% for beginners) is for a clean run, not a passing one.
     public static func isClean(_ report: GradeReport, replays: Int) -> Bool {
-        report.passed && replays == 0 && report.notes.accuracy >= 0.9
+        replays == 0 && report.notes.score >= passingScore
+            && report.levels.allSatisfy { $0.check == .notes || ($0.passed ?? true) }
+    }
+
+    /// Passed, but with wrong, missed or extra notes worth a "just watch out for".
+    public static func passedWithSlips(_ report: GradeReport, replays: Int) -> Bool {
+        isClean(report, replays: replays) && report.results.contains { $0.kind != .correct }
     }
 }
 

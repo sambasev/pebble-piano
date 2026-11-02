@@ -92,7 +92,13 @@ final class RemediationTests: XCTestCase {
     func testCleanRun() throws {
         XCTAssertTrue(RemediationPlanner.isClean(try report(passed: true, accuracy: 0.95), replays: 0))
         XCTAssertFalse(RemediationPlanner.isClean(try report(passed: true, accuracy: 0.95), replays: 1))
-        XCTAssertFalse(RemediationPlanner.isClean(try report(passed: false, accuracy: 0.95), replays: 0))
+        // A few slips under the grader's 95% still pass a step at 80%…
+        XCTAssertTrue(RemediationPlanner.isClean(try report(passed: false, accuracy: 0.82), replays: 0))
+        XCTAssertFalse(RemediationPlanner.isClean(try report(passed: false, accuracy: 0.78), replays: 0))
+        // …but not when the rhythm failed.
+        var uneven = try report(passed: false, accuracy: 0.95)
+        uneven.levels = [LevelResult(check: .rhythm, passed: false, value: 0.4, threshold: 0.25, detail: "")]
+        XCTAssertFalse(RemediationPlanner.isClean(uneven, replays: 0))
     }
 
     // MARK: Explaining
