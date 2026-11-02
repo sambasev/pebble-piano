@@ -99,7 +99,9 @@ final class PianoFingeringModelTests: XCTestCase {
     }
 
     func testOdeToJoyFingering() throws {
-        let odeURL = URL(fileURLWithPath: "/Users/me/Developer/PerfectPiano-fingering-overlay/Examples/ode-to-joy-c.mid")
+        let odeURL = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+            .deletingLastPathComponent().deletingLastPathComponent()
+            .appendingPathComponent("Examples/ode-to-joy-c.mid")
         let seq = try MIDIFile.read(url: odeURL)
         let score = Transcriber().transcribe(seq, title: "Ode to Joy")
         let fingered = PianoFingeringModel.analyze(score: score)

@@ -216,7 +216,7 @@ final class LessonPlanTests: XCTestCase {
         engine.record(Grader().grade(reference: piece, take: piece), stars: 3)
         XCTAssertTrue(engine.mastered)
         XCTAssertEqual(engine.lastStars, 3)
-        XCTAssertEqual(engine.completedSteps, [engine.steps.count - 1])
+        XCTAssertEqual(engine.completedSteps, Set(engine.steps.indices), "passing the piece ticks off every step")
     }
 
     func testAssessInsteadLeavesThePlan() {
