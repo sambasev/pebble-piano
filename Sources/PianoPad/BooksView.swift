@@ -28,8 +28,8 @@ struct BooksView: View {
                     emptyState
                 } else {
                     switch model.phase {
-                    case .choosing: BookPagePicker(model: model)
-                    case .reading: ReadingProgressView(model: model)
+                    // A piece is read in place, on its page; the check view opens only if a bar needs a look.
+                    case .choosing, .reading: BookPagePicker(model: model)
                     case .review: ReviewView(model: model)
                     }
                 }
@@ -142,6 +142,7 @@ struct BookPagePicker: View {
     var body: some View {
         HStack(alignment: .top, spacing: PP.Space.s4) {
             PageThumbnailStrip(model: model).frame(width: 132)
+                .disabled(reading)
             VStack(spacing: PP.Space.s2) {
                 HStack {
                     Button { model.showMusic(step: -1) } label: { musicSkipLabel(back: true) }
@@ -169,6 +170,7 @@ struct BookPagePicker: View {
                     Button("Re-scan page") { model.show(page: model.pageIndex, rescan: true) }
                         .help("Find the lines of music on this page again (the result is saved, so pages open instantly)")
                 }
+                .disabled(reading)
                 ZStack {
                     if let image = model.pageImage, !model.isLoadingPage {
                         GeometryReader { geo in
@@ -194,6 +196,8 @@ struct BookPagePicker: View {
         }
     }
 
+    private var reading: Bool { model.phase == .reading }
+
     private func musicSkipLabel(back: Bool) -> some View {
         HStack(spacing: 1) {
             if back { Image(systemName: "chevron.left.2") }
@@ -212,9 +216,14 @@ struct BookPagePicker: View {
             .fill(selected ? PP.accent.opacity(0.18) : status != nil ? tint.opacity(0.10) : Color.clear)
             .overlay(RoundedRectangle(cornerRadius: 6).stroke(selected ? PP.accent : status != nil ? tint.opacity(0.7) : PP.accent.opacity(0.35),
                                                                lineWidth: selected ? 2.5 : status != nil ? 1.5 : 1))
+            .overlay {
+                if let step = model.readingStep(onLine: s.index) {
+                    ReadingLineOverlay(step: step)
+                }
+            }
             .overlay(alignment: .bottomTrailing) {
                 // The piece's name and status, once per piece (on its first line).
-                if let saved, let status, saved.firstLine == s.index {
+                if !reading, let saved, let status, saved.firstLine == s.index {
                     PieceStatusTag(status: status, text: "\(saved.title) · \(status.label)")
                         .padding(4)
                 }
@@ -256,6 +265,24 @@ struct BookPagePicker: View {
         .background(RoundedRectangle(cornerRadius: PP.Radius.sm).stroke(PP.warning, lineWidth: 1.5))
     }
 
+    /// In place of the Read button while the piece is read: how far it's got, and Cancel.
+    private var readingStatus: some View {
+        VStack(alignment: .leading, spacing: PP.Space.s2) {
+            HStack(spacing: PP.Space.s2) {
+                ProgressView().controlSize(.small)
+                Text("Reading the piece…").font(.ppCallout.weight(.semibold))
+                Spacer()
+                Button("Cancel") { model.startOver() }
+            }
+            ProgressView(value: model.readingProgress)
+                .animation(.easeInOut, value: model.readingProgress)
+            Text(model.fixing.isEmpty
+                 ? "It opens in Practice when it's done. If a bar needs a look, you'll check it first."
+                 : "Reading again the bar\(model.fixing.count == 1 ? "" : "s") the first reading skipped…")
+                .font(.ppCaption).foregroundColor(PP.inkMuted).fixedSize(horizontal: false, vertical: true)
+        }
+    }
+
     private var sidePanel: some View {
         VStack(alignment: .leading, spacing: PP.Space.s3) {
             Text("Pick a piece").font(.ppHeadline)
@@ -273,16 +300,21 @@ struct BookPagePicker: View {
             }
             TextField("Name (filled in from the page)", text: $model.title)
                 .textFieldStyle(.roundedBorder)
-            if let saved = model.savedForSelection, !model.freshRead {
-                Text("Already read and saved as \(saved.title).").font(.ppCallout).foregroundColor(PP.inkMuted)
+                .disabled(reading)
+            if reading {
+                readingStatus
+            } else {
+                if let saved = model.savedForSelection, !model.freshRead {
+                    Text("Already read and saved as \(saved.title).").font(.ppCallout).foregroundColor(PP.inkMuted)
+                }
+                Button(model.savedForSelection != nil && !model.freshRead ? "Open saved piece" : "Read this piece") { model.read() }
+                    .buttonStyle(PPPrimaryButtonStyle(height: PP.Size.targetMin))
+                    .disabled(!model.canRead)
+                if model.asksHands { handsQuestion }
+                Toggle("Ask Muse Wonder again", isOn: $model.freshRead)
+                    .font(.ppCallout)
+                    .help("Lines read before are reused (instant and free). Turn this on to read them again.")
             }
-            Button(model.savedForSelection != nil && !model.freshRead ? "Open saved piece" : "Read this piece") { model.read() }
-                .buttonStyle(PPPrimaryButtonStyle(height: PP.Size.targetMin))
-                .disabled(!model.canRead)
-            if model.asksHands { handsQuestion }
-            Toggle("Ask Muse Wonder again", isOn: $model.freshRead)
-                .font(.ppCallout)
-                .help("Lines read before are reused (instant and free). Turn this on to read them again.")
             Text("Muse Wonder reads each line; PerfectPiano measures every note's pitch on the page and flags any bar it isn't sure of.")
                 .font(.ppCaption).foregroundColor(PP.inkMuted).fixedSize(horizontal: false, vertical: true)
             Spacer()
@@ -361,43 +393,49 @@ private struct PageThumbnail: View {
 
 // MARK: - Reading
 
-struct ReadingProgressView: View {
-    @ObservedObject var model: BookImportModel
+/// Over a line of the page while it's read: a sweep of light, and how far it has got.
+private struct ReadingLineOverlay: View {
+    let step: BookImportModel.Step
+    @State private var sweep = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: PP.Space.s3) {
-            HStack {
-                Text("Reading “\(model.title)”").font(.ppHeadline)
-                Spacer()
-                Button("Cancel") { model.startOver() }
-            }
-            let done = model.reads.filter { $0.step == .done }.count
-            ProgressView(value: Double(done), total: Double(max(1, model.reads.count)))
-            ScrollView {
-                VStack(alignment: .leading, spacing: PP.Space.s3) {
-                    ForEach(model.reads) { r in
-                        VStack(alignment: .leading, spacing: PP.Space.s1) {
-                            HStack(spacing: PP.Space.s2) {
-                                stepIcon(r.step)
-                                Text("Line \(r.id + 1): \(r.step.label)").font(.ppCallout)
-                            }
-                            Image(nsImage: r.image).resizable().aspectRatio(contentMode: .fit)
-                                .frame(maxHeight: 160).background(Color.white)
-                        }
+        let done = step == .done
+        let failed: Bool = { if case .failed = step { return true } else { return false } }()
+        let tint = failed ? PP.warning : done ? PP.success : PP.accent
+        RoundedRectangle(cornerRadius: 6)
+            .fill(tint.opacity(0.12))
+            .overlay {
+                if !done && !failed {
+                    GeometryReader { geo in
+                        LinearGradient(colors: [.clear, PP.accent.opacity(0.35), .clear], startPoint: .leading, endPoint: .trailing)
+                            .frame(width: geo.size.width * 0.3)
+                            .offset(x: sweep ? geo.size.width : -geo.size.width * 0.3)
+                    }
+                    .clipShape(RoundedRectangle(cornerRadius: 6))
+                    .onAppear {
+                        withAnimation(.linear(duration: 1.6).repeatForever(autoreverses: false)) { sweep = true }
                     }
                 }
             }
-        }
-    }
-
-    @ViewBuilder
-    private func stepIcon(_ step: BookImportModel.Step) -> some View {
-        switch step {
-        case .done: Image(systemName: "checkmark.circle.fill").foregroundColor(PP.success)
-        case .failed: Image(systemName: "exclamationmark.triangle.fill").foregroundColor(PP.warning)
-        case .waiting: Image(systemName: "circle").foregroundColor(PP.inkMuted)
-        default: ProgressView().controlSize(.small)
-        }
+            .overlay(alignment: .bottomTrailing) {
+                HStack(spacing: 4) {
+                    if done {
+                        Image(systemName: "checkmark.circle.fill")
+                    } else if failed {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                    } else {
+                        ProgressView().controlSize(.mini)
+                    }
+                    Text(done ? "Read" : failed ? "Couldn't read it" : step.label)
+                }
+                .font(.ppCaption.weight(.semibold))
+                .foregroundColor(done || failed ? PP.onAccent : PP.ink)
+                .padding(.horizontal, 8).padding(.vertical, 3)
+                .background(Capsule().fill(done || failed ? tint : PP.surface))
+                .padding(4)
+            }
+            .allowsHitTesting(false)
+            .animation(.easeInOut, value: done)
     }
 }
 

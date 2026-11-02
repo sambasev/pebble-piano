@@ -103,6 +103,8 @@ final class BookImportModel: ObservableObject {
     @Published private(set) var hands: Hands?
     /// The selected lines don't print a treble and a bass clef: waiting for `answerHands`.
     @Published private(set) var asksHands = false
+    /// The read under way: a cancelled or replaced read's late results are dropped.
+    private var readToken = UUID()
 
     private var document: PDFDocument?
     /// Small pictures of the open book's pages, for the page strip; made as they scroll into view.
@@ -137,6 +139,7 @@ final class BookImportModel: ObservableObject {
             return
         }
         aiKeyNote = nil
+        if phase == .reading { startOver() }
         document = doc
         thumbnails.removeAllObjects()
         documentURL = url
@@ -162,7 +165,7 @@ final class BookImportModel: ObservableObject {
     /// Shows a page: from the page cache when it's been seen before, otherwise rendered and
     /// scanned for lines of music (and cached). `rescan` redoes it on demand.
     func show(page index: Int, rescan: Bool = false) {
-        guard let doc = document, let book = documentURL, (0..<pageCount).contains(index) else { return }
+        guard let doc = document, let book = documentURL, (0..<pageCount).contains(index), phase != .reading else { return }
         seekTask?.cancel()
         seekingPage = nil
         pageIndex = index
@@ -218,7 +221,7 @@ final class BookImportModel: ObservableObject {
     /// the first skip over a long stretch of text can take a moment; `seekingPage` says where
     /// it has got to.
     func showMusic(step: Int) {
-        guard let book = documentURL else { return }
+        guard let book = documentURL, phase != .reading else { return }
         seekTask?.cancel()
         let start = pageIndex, count = pageCount
         seekingPage = start + step
@@ -272,6 +275,7 @@ final class BookImportModel: ObservableObject {
     /// The name fills in from the page (the heading above the first line) unless the learner
     /// typed their own.
     func tapSystem(_ index: Int, extend: Bool) {
+        guard phase != .reading else { return }
         if extend, let s = selection {
             selection = min(s.lowerBound, index)...max(s.upperBound, index)
         } else {
@@ -329,7 +333,7 @@ final class BookImportModel: ObservableObject {
         return (3...80).contains(name.count) && best.size >= 11 ? name : fallback
     }
 
-    var canRead: Bool { selection != nil }
+    var canRead: Bool { selection != nil && phase != .reading }
 
     // MARK: Reading
 
@@ -376,18 +380,42 @@ final class BookImportModel: ObservableObject {
                               singleStaff: part.single)
         }
         bars = []
+        fixing = []
         message = nil
+        // Read in place, on the page: the check view opens only if a bar needs a look.
         phase = .reading
+        let token = UUID()
+        readToken = token
         let jobs = reads.map { ($0.id, $0.png, $0.singleStaff) }
         let fresh = freshRead
         Task {
             await withTaskGroup(of: Void.self) { group in
                 for (id, png, single) in jobs {
-                    group.addTask { await self.readSystem(id, png: png, singleStaff: single, client: client, fresh: fresh) }
+                    group.addTask { await self.readSystem(id, png: png, singleStaff: single, client: client, fresh: fresh, token: token) }
                 }
             }
-            await MainActor.run { self.finishReading() }
+            await MainActor.run { self.finishReading(token) }
         }
+    }
+
+    /// How far the read of one line of the page has got, while reading: nil for a line not
+    /// being read. A line read as two staves (right hand only) is as far as its slower staff.
+    func readingStep(onLine index: Int) -> Step? {
+        guard phase == .reading else { return nil }
+        let steps = reads.filter { $0.found.index == index }.map(\.step)
+        guard !steps.isEmpty else { return nil }
+        if let failed = steps.first(where: { if case .failed = $0 { return true } else { return false } }) { return failed }
+        for step in [Step.waiting, .measuring, .reading] where steps.contains(step) { return step }
+        // Read: what's left is reading again any bars the first reading skipped.
+        return fixing.isEmpty ? .done : .reading
+    }
+
+    /// The read's progress, 0...1, for the bar under the Read button.
+    var readingProgress: Double {
+        guard !reads.isEmpty else { return 0 }
+        let done = reads.filter { $0.step == .done }.count
+        // The lines take most of it; bars read again take the rest.
+        return bars.isEmpty ? 0.9 * Double(done) / Double(reads.count) : (fixing.isEmpty ? 1 : 0.95)
     }
 
     /// The learner's answer to "which hand plays which staff?": reads the piece that way.
@@ -397,35 +425,40 @@ final class BookImportModel: ObservableObject {
         read()
     }
 
-    private func readSystem(_ id: Int, png: Data, singleStaff: Bool, client: ModelClient?, fresh: Bool) async {
-        await setStep(id, .measuring)
+    private func readSystem(_ id: Int, png: Data, singleStaff: Bool, client: ModelClient?, fresh: Bool, token: UUID) async {
+        await setStep(id, .measuring, token: token)
         do {
             // Measure first (under a second): the bar count tells the model how many bars to read.
             let measured = try await Task.detached(priority: .userInitiated) {
                 try NoteheadGeometry.measure(png: png, singleStaff: singleStaff)
             }.value
-            await setStep(id, .reading)
+            await setStep(id, .reading, token: token)
             let reading = try await Self.cachedReading(png: png, client: client, expectedMeasures: measured.barCount,
                                                        singleStaff: singleStaff, fresh: fresh)
             await MainActor.run {
+                guard self.readToken == token else { return }
                 self.reads[id].reading = reading
                 self.reads[id].geometry = measured
                 self.reads[id].step = .done
             }
         } catch ModelError.missingKey(_) {
-            await setStep(id, .failed(Self.keyNeededReason))
+            await setStep(id, .failed(Self.keyNeededReason), token: token)
         } catch {
-            await setStep(id, .failed((error as? LocalizedError)?.errorDescription ?? "\(error)"))
+            await setStep(id, .failed((error as? LocalizedError)?.errorDescription ?? "\(error)"), token: token)
         }
     }
 
-    private func setStep(_ id: Int, _ step: Step) async {
-        await MainActor.run { self.reads[id].step = step }
+    private func setStep(_ id: Int, _ step: Step, token: UUID) async {
+        await MainActor.run {
+            guard self.readToken == token else { return }
+            self.reads[id].step = step
+        }
     }
 
     private static let keyNeededReason = "it needs a Meta key"
 
-    private func finishReading() {
+    private func finishReading(_ token: UUID) {
+        guard readToken == token else { return }
         if reads.contains(where: { $0.step == .failed(Self.keyNeededReason) }) {
             reads = []
             phase = .choosing
@@ -433,7 +466,9 @@ final class BookImportModel: ObservableObject {
             return
         }
         guard reads.allSatisfy({ $0.step == .done }) else {
-            message = "Some lines couldn't be read. Check your connection and try again."
+            let why = reads.lazy.compactMap { r -> String? in if case .failed(let why) = r.step { return why } else { return nil } }.first
+            message = "Some lines couldn't be read\(why.map { " (\($0))" } ?? ""). Check your connection and try again."
+            startOver()
             return
         }
         var out: [ReviewBar] = []
@@ -448,12 +483,25 @@ final class BookImportModel: ObservableObject {
             engravingIDs[r.id] = UUID()
         }
         bars = out
-        phase = .review
-        // Bars the reading skipped are read again one at a time, straight away.
-        let skipped = out.filter { $0.bar.upperStatus == .flagged(.skippedByReading) }.map(\.id)
-        if !skipped.isEmpty {
-            message = "The first reading skipped \(skipped.count) bar\(skipped.count == 1 ? "" : "s"): reading \(skipped.count == 1 ? "it" : "them") one at a time…"
-            for id in skipped { fix(id) }
+        // Bars the reading skipped are read again one at a time, straight away, before deciding
+        // whether anything needs the learner's eye.
+        let rereads = out.filter { $0.bar.upperStatus == .flagged(.skippedByReading) }.compactMap { fix($0.id) }
+        guard !rereads.isEmpty else { return finishChecking(token) }
+        Task {
+            for task in rereads { await task.value }
+            await MainActor.run { self.finishChecking(token) }
+        }
+    }
+
+    /// Every bar measured and read: saved and opened in Practice straight away when none needs a
+    /// look, otherwise the check view opens on the bars that do.
+    private func finishChecking(_ token: UUID) {
+        guard readToken == token, phase == .reading else { return }
+        if toReview == 0, save() {
+            // Back to the page, the piece's lines now tinted as read, for when the learner returns.
+            startOver()
+        } else {
+            phase = .review
         }
     }
 
@@ -501,7 +549,7 @@ final class BookImportModel: ObservableObject {
     // MARK: Review
 
     var toReview: Int { bars.filter(\.needsReview).count }
-    var canSave: Bool { phase == .review && !bars.isEmpty && toReview == 0 }
+    var canSave: Bool { phase != .choosing && !bars.isEmpty && toReview == 0 }
 
     func bars(inSystem s: Int) -> [ReviewBar] { bars.filter { $0.system == s } }
 
@@ -550,17 +598,18 @@ final class BookImportModel: ObservableObject {
     }
 
     /// Asks Muse Wonder to read just this bar again (zoomed in), then measures and merges it.
-    func fix(_ id: Int) {
+    /// The task doing it, if it started.
+    @discardableResult
+    func fix(_ id: Int) -> Task<Void, Never>? {
         guard let b = bars.first(where: { $0.id == id }), let r = reads.first(where: { $0.id == b.system }),
-              let g = r.geometry else { return }
+              let g = r.geometry else { return nil }
         guard let j = b.bar.pageBar, j + 1 < g.barEdges.count else {
             message = "Bar \(id) couldn't be found on the page, so it can't be read again. Nudge its notes or tap That's right."
-            return
+            return nil
         }
         guard let client = try? ModelClient.configured(.meta) else {
             aiKeyNote = "Reading a bar again needs a Meta key, which you can add in AI settings. You can still nudge its notes or tap That's right."
-            if message?.hasPrefix("The first reading skipped") == true { message = nil }
-            return
+            return nil
         }
         aiKeyNote = nil
         // The bar alone, with its clefs' context lost: zoom by cropping just this bar.
@@ -569,9 +618,10 @@ final class BookImportModel: ObservableObject {
         let x1 = min(r.gray.width, Int(g.barEdges[j + 1]) + pad)
         let crop = SystemFinder.crop(r.gray, FoundSystem(index: 0, left: x0, top: 0, right: x1, bottom: r.gray.height,
                                                          spacing: g.upper.spacing))
-        guard let png = crop.pngData() else { return }
+        guard let png = crop.pngData() else { return nil }
         fixing.insert(id)
-        Task {
+        let token = readToken
+        return Task {
             do {
                 let reading = try await SystemReader(client: client, reasoningEffort: "high")
                     .read(png: png, expectedMeasures: 1, singleStaff: r.singleStaff)
@@ -585,18 +635,19 @@ final class BookImportModel: ObservableObject {
                 reread.pageBar = j
                 let merged = reread
                 await MainActor.run {
+                    guard self.readToken == token else { return }
                     self.fixing.remove(id)
-                    if self.fixing.isEmpty, self.message?.hasPrefix("The first reading skipped") == true { self.message = nil }
                     self.update(id) { rb in
                         rb.bar = merged
                         rb.resolution = merged.isTrusted ? .fixed : .needsReview
                     }
-                    if self.bars.first(where: { $0.id == id })?.needsReview == true {
+                    if self.phase == .review, self.bars.first(where: { $0.id == id })?.needsReview == true {
                         self.message = "Bar \(id) still needs a look: nudge any wrong note, then tap That's right."
                     }
                 }
             } catch {
                 await MainActor.run {
+                    guard self.readToken == token else { return }
                     self.fixing.remove(id)
                     self.message = "Couldn't re-read bar \(id): \((error as? LocalizedError)?.errorDescription ?? "\(error)")"
                 }
@@ -610,18 +661,22 @@ final class BookImportModel: ObservableObject {
         engravingIDs[bars[i].system] = UUID()
     }
 
+    /// Back to picking (cancelling a read under way), the lines still selected.
     func startOver() {
+        readToken = UUID()
         aiKeyNote = nil
         phase = .choosing
         reads = []
         bars = []
+        fixing = []
     }
 
     // MARK: Saving
 
-    /// Writes the piece (MIDI, MusicXML, score) and opens it in Practice.
-    func save() {
-        guard canSave else { return }
+    /// Writes the piece (MIDI, MusicXML, score) and opens it in Practice. False if it couldn't.
+    @discardableResult
+    func save() -> Bool {
+        guard canSave else { return false }
         let name = title.trimmingCharacters(in: .whitespaces).isEmpty
             ? (reads.first.map { suggestedTitle(forLine: $0.found.index) } ?? "Piece")
             : title.trimmingCharacters(in: .whitespaces)
@@ -639,8 +694,10 @@ final class BookImportModel: ObservableObject {
             message = nil
             refreshLibrary()
             practise(saved)
+            return true
         } catch {
             message = "Couldn't save the piece: \(error.localizedDescription)"
+            return false
         }
     }
 
