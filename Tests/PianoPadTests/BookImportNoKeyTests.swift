@@ -5,6 +5,11 @@ import PianoAI
 
 /// Reading a book without a Meta key: saved readings still work, new ones ask for a key.
 final class BookImportNoKeyTests: XCTestCase {
+    private var sandbox: AppDataSandbox!
+
+    override func setUp() { sandbox = AppDataSandbox("BookImportNoKey") }
+    override func tearDown() { sandbox.remove() }
+
     private func uniqueImage() -> Data { Data(UUID().uuidString.utf8) }
 
     func testNewLineWithoutAKeyAsksForOne() async {

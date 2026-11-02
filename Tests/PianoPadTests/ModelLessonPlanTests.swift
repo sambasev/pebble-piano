@@ -58,10 +58,9 @@ private struct OfflinePlanner: LessonPlanModel {
 extension ModelLessonPlanTests {
     /// Teach me this piece, offline: a quick plan, followed step by step, and its Learn page.
     @MainActor func testPlannedLessonOfflineAndLearnPage() async throws {
-        let temp = FileManager.default.temporaryDirectory.appendingPathComponent("PieceLessons-\(UUID().uuidString)")
-        PieceLessonStore.rootOverride = temp
-        defer { PieceLessonStore.rootOverride = nil; try? FileManager.default.removeItem(at: temp) }
-        let session = PlaySession(startServices: false)
+        let sandbox = AppDataSandbox("ModelLessonPlan")
+        defer { sandbox.remove() }
+        let session = sandbox.session()
         session.learner = nil
         let root = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
         session.loadReference(root.appendingPathComponent("Fixtures/starter/midi/ode-to-joy.midi"), remember: false)

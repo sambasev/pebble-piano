@@ -4,9 +4,14 @@ import PianoPadState
 @testable import PianoPad
 
 final class TutorPlayerTests: XCTestCase {
+    private var sandbox: AppDataSandbox!
+
+    override func setUp() { sandbox = AppDataSandbox("TutorPlayer") }
+    override func tearDown() { sandbox.remove() }
+
     func player() -> PlaySession {
-        let player = PlaySession(startServices: false)
-        player.learner = nil // Player tests must never save into a real learner history.
+        let player = sandbox.session()
+        player.learner = nil
         player.learners = [Learner(name: "Test", kind: .adult)]
         player.needsLearnerPick = false
         player.setModeNow(.wait) // Whatever the real learner last chose.

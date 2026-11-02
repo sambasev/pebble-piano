@@ -37,8 +37,10 @@ struct SavedPiece: Codable, Identifiable, Hashable {
 ///   skips it;
 /// - saved pieces (Imported/<piece>/): open straight into Practice; "Read again" redoes them.
 enum BookLibrary {
+    /// Tests point this at a temporary folder.
+    static var supportOverride: URL?
     static var support: URL {
-        (FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+        supportOverride ?? (FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
             ?? FileManager.default.temporaryDirectory).appendingPathComponent("PianoPad")
     }
 

@@ -540,11 +540,7 @@ final class BookImportModel: ObservableObject {
         return cacheFolder.appendingPathComponent("\(key).json")
     }
 
-    static var cacheFolder: URL {
-        let base = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
-            ?? FileManager.default.temporaryDirectory
-        return base.appendingPathComponent("PianoPad/ReadingCache")
-    }
+    static var cacheFolder: URL { BookLibrary.support.appendingPathComponent("ReadingCache") }
 
     // MARK: Review
 
