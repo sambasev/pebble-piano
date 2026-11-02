@@ -50,6 +50,19 @@ final class GraderTests: XCTestCase {
         XCTAssertEqual(report.flags.first?.message, "m2 b1: missed G4")
     }
 
+    func testSkippedBarIsMissedWhereItWasEvenWhenItsNotesRepeat() {
+        // Bar 2 ends E G, and bar 3 (skipped) repeats them: the take's E G are bar 2's, played
+        // in time, so only bar 3 is missed.
+        let bars: [[Int]] = [[60, 62, 64, 65], [60, 62, 64, 67], [64, 67, 64, 67], [60, 60, 60, 60]]
+        let events = bars.enumerated().flatMap { bar, pitches in
+            pitches.enumerated().map { ([$0.element], Double(bar * 4 + $0.offset)) }
+        }
+        let take = events.filter { $0.1 < 8 || $0.1 >= 12 }
+        let report = Grader().grade(reference: sequence(events), take: sequence(take))
+        XCTAssertEqual(report.notes.missed, 4)
+        XCTAssertEqual(Set(report.results.filter { $0.kind == .missed }.map(\.position.measure)), [3])
+    }
+
     func testExtraNoteInTheMiddleIsPenalised() {
         var take = fiveFinger
         take.insert(([66], 4.5), at: 5) // stray F# between G and F

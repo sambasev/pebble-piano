@@ -51,11 +51,30 @@ public enum Aligner {
         return 1.0 - Double(a.intersection(b).count) / Double(union)
     }
 
+    /// Where each event falls in its passage, 0 at the first onset to 1 at the last.
+    static func relativePositions(_ events: [ChordEvent]) -> [Double] {
+        guard let first = events.first?.onset, let last = events.last?.onset, last > first else {
+            return events.map { _ in 0 }
+        }
+        return events.map { ($0.onset - first) / (last - first) }
+    }
+
     /// Global alignment (Needleman–Wunsch) of reference and performance chord events.
+    ///
+    /// When pitches alone allow several equally good alignments (a skipped bar whose notes
+    /// also occur in the bar before), pairs are preferred whose events fall at the same point
+    /// of their passages. That tie-break adds at most 0.01 in all, less than any real
+    /// difference in pitch cost, so it never changes how many notes match.
     public static func align(reference: [ChordEvent], performance: [ChordEvent]) -> [AlignmentStep] {
         let n = reference.count, m = performance.count
+        let refPositions = relativePositions(reference)
+        let perfPositions = relativePositions(performance)
+        let tieWeight = 0.01 / Double(max(1, n, m))
         let refSets = reference.map(\.pitches)
         let perfSets = performance.map(\.pitches)
+        func pairCost(_ i: Int, _ j: Int) -> Double {
+            substitutionCost(refSets[i], perfSets[j]) + tieWeight * abs(refPositions[i] - perfPositions[j])
+        }
 
         // cost[i][j] = best cost aligning ref[0..<i] with perf[0..<j]
         var cost = Array(repeating: Array(repeating: 0.0, count: m + 1), count: n + 1)
@@ -64,7 +83,7 @@ public enum Aligner {
         if n > 0 && m > 0 {
             for i in 1...n {
                 for j in 1...m {
-                    let diag = cost[i - 1][j - 1] + substitutionCost(refSets[i - 1], perfSets[j - 1])
+                    let diag = cost[i - 1][j - 1] + pairCost(i - 1, j - 1)
                     let up = cost[i - 1][j] + gapCost
                     let left = cost[i][j - 1] + gapCost
                     cost[i][j] = min(diag, up, left)
@@ -78,7 +97,7 @@ public enum Aligner {
         let eps = 1e-9
         while i > 0 || j > 0 {
             if i > 0, j > 0,
-               abs(cost[i][j] - (cost[i - 1][j - 1] + substitutionCost(refSets[i - 1], perfSets[j - 1]))) < eps {
+               abs(cost[i][j] - (cost[i - 1][j - 1] + pairCost(i - 1, j - 1))) < eps {
                 steps.append(.pair(ref: i - 1, perf: j - 1))
                 i -= 1; j -= 1
             } else if i > 0, abs(cost[i][j] - (cost[i - 1][j] + gapCost)) < eps {
