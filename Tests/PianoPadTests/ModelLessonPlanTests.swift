@@ -20,7 +20,12 @@ final class ModelLessonPlanTests: XCTestCase {
             let wrapped = try JSONSerialization.data(withJSONObject: ["choices": [["message": ["content": reply]]]])
             return (wrapped, HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!)
         })
-        let piece = MIDISequence(notes: (0..<8).map { NoteEvent(pitch: 60 + $0 % 3, onset: Double($0) * 0.5, offset: Double($0) * 0.5 + 0.45, onsetBeats: Double($0), offsetBeats: Double($0) + 1) })
+        var notes: [NoteEvent] = []
+        for i in 0..<8 {
+            let beat = Double(i)
+            notes.append(NoteEvent(pitch: 60 + i % 3, onset: beat * 0.5, offset: beat * 0.5 + 0.45, onsetBeats: beat, offsetBeats: beat + 1))
+        }
+        let piece = MIDISequence(notes: notes)
         let plan = await LessonPlanner.plan(for: piece, title: "Two bars", model: ModelLessonPlanModel(client: client, model: "planner"), known: [])
         XCTAssertEqual(plan.source, .model)
         XCTAssertEqual(plan.phrases.first?.tip, "Lift at the end.")
