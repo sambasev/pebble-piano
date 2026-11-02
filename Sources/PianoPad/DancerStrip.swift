@@ -15,10 +15,13 @@ struct DancerStrip: View {
     var reaction: GremlinReaction?
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.ppCompact) private var compact
     /// Walking time, carried between frames so the stroll survives replays and restarts.
     @State private var memory = Memory()
 
     static let height: CGFloat = 116
+    /// In a short window: the Pebbles are drawn smaller so the music keeps its room.
+    static let compactHeight: CGFloat = 84
 
     var body: some View {
         let moving = session.isPlayingAlong || session.isAuditioning
@@ -30,7 +33,7 @@ struct DancerStrip: View {
                 draw(in: &context, size: size, beat: beat, walkTime: walk, uptime: uptime)
             }
         }
-        .frame(height: Self.height)
+        .frame(height: compact ? Self.compactHeight : Self.height)
         .allowsHitTesting(false)
         .accessibilityHidden(true)
     }

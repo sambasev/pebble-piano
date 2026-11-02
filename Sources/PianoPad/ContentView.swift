@@ -10,6 +10,7 @@ struct ContentView: View {
     @State private var showAISettings = false
     @State private var showInput = false
     @AppStorage(PaperStyle.storageKey) private var paperStyle = PaperStyle.matchAppearance
+    @Environment(\.ppCompact) private var compact
 
     var body: some View {
         VStack(spacing: 0) {
@@ -107,7 +108,7 @@ struct ContentView: View {
     }
 
     private var practice: some View {
-        VStack(alignment: .leading, spacing: PP.Space.s3) {
+        VStack(alignment: .leading, spacing: compact ? PP.Space.s2 : PP.Space.s3) {
             toolbar
                 .ppGlass(cornerRadius: PP.Radius.lg, padding: PP.Space.s3)
             if let engine = session.tutor, !session.tutorPlanning {
@@ -158,7 +159,7 @@ struct ContentView: View {
                             onTapMeasure: { session.playFrom(printedMeasure: $0) }
                         )
                     }
-                    .frame(maxWidth: .infinity, minHeight: 300, maxHeight: .infinity)
+                    .frame(maxWidth: .infinity, minHeight: 200, maxHeight: .infinity)
                     reportPanel
                 }
             } else if let score = session.score {
@@ -187,7 +188,7 @@ struct ContentView: View {
                                      tempoAnimating: session.tempoDisplayMoves)
                             .ppPaper()
                     }
-                    .frame(maxWidth: .infinity, minHeight: 300, maxHeight: .infinity)
+                    .frame(maxWidth: .infinity, minHeight: 200, maxHeight: .infinity)
                     reportPanel
                 }
             }
@@ -202,8 +203,8 @@ struct ContentView: View {
                 onPress: { session.mouseDown(on: $0) },
                 onRelease: { session.mouseUp() }
             )
-            .frame(height: 150)
-            .ppGlass(cornerRadius: PP.Radius.xl, padding: PP.Space.s3)
+            .frame(height: compact ? PP.Size.keyboardCompact : PP.Size.keyboard)
+            .ppGlass(cornerRadius: PP.Radius.xl, padding: compact ? PP.Space.s2 : PP.Space.s3)
             // The Pebbles dance to the piece here too, from a book passage or a file.
             if session.showsDancers && (session.passage != nil || session.score != nil) {
                 DancerStrip(reaction: session.dancerReaction)
@@ -217,7 +218,7 @@ struct ContentView: View {
                 Spacer(minLength: 0)
             }
         }
-        .padding(PP.Space.s4)
+        .padding(compact ? PP.Space.s3 : PP.Space.s4)
     }
 
     /// The grade, or how a take works, on a glass panel beside the music.
