@@ -20,9 +20,13 @@ public struct DetectedNote: Equatable, Sendable {
     public var strength: Double
     /// Which strike the note came from: notes of one strike share it (on events only).
     public var strike: Int
+    /// For a key the score didn't expect, held back for `Settings.sustainCheck`: its activation
+    /// then as a share of when it was judged (a piano note rings on; a cough or knock fades).
+    /// nil: reported at once (expected keys, and free play).
+    public var sustain: Double?
 
     public init(kind: Kind, pitch: Int, time: Double, reportedAt: Double, confidence: Double = 1,
-                strength: Double = .infinity, strike: Int = 0) {
+                strength: Double = .infinity, strike: Int = 0, sustain: Double? = nil) {
         self.kind = kind
         self.pitch = pitch
         self.time = time
@@ -30,6 +34,7 @@ public struct DetectedNote: Equatable, Sendable {
         self.confidence = confidence
         self.strength = strength
         self.strike = strike
+        self.sustain = sustain
     }
 }
 
@@ -49,7 +54,11 @@ public struct DetectedNote: Equatable, Sendable {
 ///    spectral flux (and in loudness, above the room's measured background). `evaluationDelay`
 ///    after the strike, keys whose activation rose enough are reported. Sympathetic resonance
 ///    and ringing notes don't strike, so they can't re-trigger.
-/// 5. **Releases.** A sounding key is reported off when its activation fades well below its peak.
+/// 5. **Sustain check.** A key the score didn't expect is held back `sustainCheck` longer and
+///    only reported if it is still sounding: a cough, voice or knock can pass the onset gate and
+///    lift some keys for a moment, but only a struck string rings on. Expected keys (and free
+///    play) are reported at once, so their latency is unchanged.
+/// 6. **Releases.** A sounding key is reported off when its activation fades well below its peak.
 public final class PianoNoteDetector {
     public struct Settings: Sendable {
         /// Time between analyses.
@@ -96,6 +105,12 @@ public final class PianoNoteDetector {
         public var minimumRise: Double = 0.5
         /// How long after a strike to decide which keys it was.
         public var evaluationDelay: Double = 0.05
+        /// How much longer to hold an unexpected key before reporting it (0: report at once).
+        public var sustainCheck: Double = 0.1
+        /// …and the share of its activation it must keep over that time.
+        public var sustainRatio: Double = 0.5
+        /// Hold expected keys too (for measuring how real notes sustain; adds their latency).
+        public var sustainCheckExpected = false
         /// Lowest frequency counted in the onset flux (hammer strikes are bright).
         public var fluxLowFrequency: Double = 800
         /// Onset threshold: flux must exceed the recent median by this many times its spread.
@@ -174,6 +189,10 @@ public final class PianoNoteDetector {
     private var lastOnsetFrame = -100
     private var pendingOnset: (frame: Int, before: [Float])?
     private var active: [Int: (peak: Float, since: Int)] = [:]
+    /// Unexpected keys waiting for the sustain check: the note to report, its activation when
+    /// judged, and the hop to check it on.
+    private var held: [(note: DetectedNote, level: Float, due: Int)] = []
+    private var faded: [DetectedNote] = []
     private var backgroundLevel: Float = 0
     private var recentLevels: [Float] = []
     private var calibrationLevels: [Float] = []
@@ -276,6 +295,12 @@ public final class PianoNoteDetector {
         return events
     }
 
+    /// Unexpected keys that failed the sustain check since the last call (for logs and tuning).
+    public func takeFaded() -> [DetectedNote] {
+        defer { faded = [] }
+        return faded
+    }
+
     /// Forgets the sound so far (not the room measurement).
     public func reset() {
         for i in buffer.indices { buffer[i] = 0 }
@@ -284,6 +309,8 @@ public final class PianoNoteDetector {
         previousLog = []
         pendingOnset = nil
         active = [:]
+        held = []
+        faded = []
         lastFlux = 0
         fluxEdge = nil
         noiseFloor = []
@@ -380,6 +407,7 @@ public final class PianoNoteDetector {
         if history.count > 12 { history.removeFirst() }
 
         var events = trackReleases(at: now)
+        events += confirmHeld(now: now)
 
         let threshold = onsetThreshold()
         fluxHistory.append(flux)
@@ -507,14 +535,45 @@ public final class PianoNoteDetector {
             }
         }
         var events: [DetectedNote] = []
+        let holdHops = Int((settings.sustainCheck * sampleRate / Double(hopLength)).rounded())
         for r in picked {
+            let note = DetectedNote(kind: .on, pitch: r.pitch, time: onsetTime, reportedAt: now,
+                                    confidence: min(1, r.rise / strongest),
+                                    strength: r.rise / max(noiseTotal, 1e-12), strike: frameIndex)
+            // A new strike replaces a check still waiting on the same key.
+            held.removeAll { $0.note.pitch == r.pitch }
+            if holdHops > 0, !expected.isEmpty, settings.sustainCheckExpected || !expected.contains(r.pitch) {
+                held.append((note, r.level, frameIndex + holdHops))
+                continue
+            }
             if active[r.pitch] != nil {
                 events.append(DetectedNote(kind: .off, pitch: r.pitch, time: onsetTime, reportedAt: now))
             }
             active[r.pitch] = (r.level, frameIndex)
-            events.append(DetectedNote(kind: .on, pitch: r.pitch, time: onsetTime, reportedAt: now,
-                                       confidence: min(1, r.rise / strongest),
-                                       strength: r.rise / max(noiseTotal, 1e-12), strike: frameIndex))
+            events.append(note)
+        }
+        return events
+    }
+
+    /// Reports held keys that are still sounding once their sustain check is due.
+    private func confirmHeld(now: Double) -> [DetectedNote] {
+        var events: [DetectedNote] = []
+        held.removeAll { h in
+            guard frameIndex >= h.due else { return false }
+            guard let j = pitches.firstIndex(of: h.note.pitch) else { return true }
+            var note = h.note
+            note.reportedAt = now
+            note.sustain = Double(activations[j]) / Double(max(h.level, 1e-12))
+            guard note.sustain! >= settings.sustainRatio else {
+                if faded.count < 64 { faded.append(note) }
+                return true
+            }
+            if active[h.note.pitch] != nil {
+                events.append(DetectedNote(kind: .off, pitch: h.note.pitch, time: h.note.time, reportedAt: now))
+            }
+            active[h.note.pitch] = (max(h.level, activations[j]), frameIndex)
+            events.append(note)
+            return true
         }
         return events
     }

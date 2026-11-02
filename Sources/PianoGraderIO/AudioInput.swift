@@ -308,15 +308,20 @@ public final class AudioInput {
         let capturing = capture != nil
         if capturing { capture!.append(contentsOf: samples) }
         let heard = detector.process(samples)
+        let faded = detector.takeFaded()
         if let recorder, !capturing {
             for e in heard {
                 recorder.log(e.kind == .on
                     ? "on \(e.pitch) " + String(format: "t=%.3f conf=%.2f str=%.1f", e.time, e.confidence, e.strength)
+                        + (e.sustain.map { String(format: " sus=%.2f", $0) } ?? "")
                     : "off \(e.pitch) " + String(format: "t=%.3f", e.time))
+            }
+            for e in faded {
+                recorder.log("drop \(e.pitch) faded " + String(format: "t=%.3f sus=%.2f", e.time, e.sustain ?? 0))
             }
         }
         let events = capturing ? [] : strikeFilter.filter(heard, expected: detector.expected) { [recorder] e, why in
-            recorder?.log("drop \(e.pitch) " + (why == .spill ? "spill" : "weak"))
+            recorder?.log("drop \(e.pitch) \(why)")
         }
         let level = detector.level
         let gate = detector.gateLevel

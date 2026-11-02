@@ -70,6 +70,91 @@ final class StrikeFilterTests: XCTestCase {
         XCTAssertEqual(filter.filter([off(65)], expected: [64]).count, 1)
     }
 
+    func testDropsSpillReportedAfterItsStrike() {
+        // The detector holds unexpected keys for its sustain check, so they arrive in a later batch.
+        var filter = StrikeFilter()
+        XCTAssertEqual(filter.filter([on(64, conf: 1, strike: 5)], expected: [64]).map(\.pitch), [64])
+        var held = on(65, conf: 0.5, strike: 5)
+        held.sustain = 0.9
+        var reasons: [StrikeFilter.Verdict] = []
+        XCTAssertTrue(filter.filter([held], expected: [64]) { reasons.append($1) }.isEmpty)
+        XCTAssertEqual(reasons, [.spill])
+    }
+
+    func testDropsAHeldKeyWhoseChordCameDueMeanwhile() {
+        // E4 and F4 struck together, E4 expected; by the time F4 passes its sustain check the
+        // guide expects F4. It was struck early, so it mustn't count as playing F4.
+        var filter = StrikeFilter()
+        _ = filter.filter([on(64, conf: 1, strike: 5)], expected: [64])
+        var held = on(65, conf: 0.9, strike: 5)
+        held.sustain = 0.9
+        var reasons: [StrikeFilter.Verdict] = []
+        XCTAssertTrue(filter.filter([held], expected: [65]) { reasons.append($1) }.isEmpty)
+        XCTAssertEqual(reasons, [.late])
+    }
+
+    /// A struck tone at `pitch` from `start`; `length` cuts it off (a blip, not a string ringing).
+    private func tone(_ pitch: Int, start: Double, length: Double = 10, into audio: inout [Float], rate: Double) {
+        let f0 = 440 * pow(2, Double(pitch - 69) / 12)
+        let first = Int(start * rate), last = min(audio.count, Int((start + length) * rate))
+        for h in 1...8 {
+            for i in first..<last {
+                let t = Double(i - first) / rate
+                audio[i] += Float(0.06 / Double(h) * exp(-t * 2) * sin(2 * Double.pi * Double(h) * f0 * t))
+            }
+        }
+    }
+
+    private func detect(_ audio: [Float], rate: Double, expected: Set<Int>) -> (ons: [DetectedNote], faded: [DetectedNote]) {
+        let detector = PianoNoteDetector(sampleRate: rate)
+        detector.expected = expected
+        var ons: [DetectedNote] = [], faded: [DetectedNote] = []
+        var i = 0
+        while i < audio.count {
+            let end = min(audio.count, i + 256)
+            ons += detector.process(Array(audio[i..<end])).filter { $0.kind == .on }
+            faded += detector.takeFaded()
+            i = end
+        }
+        return (ons, faded)
+    }
+
+    private func quietNoise(seconds: Double, rate: Double) -> [Float] {
+        (0..<Int(seconds * rate)).map { Float(($0 * 7919) % 1000) / 1000 * 0.0004 - 0.0002 }
+    }
+
+    func testHoldsAnUnexpectedKeyUntilItRingsOn() {
+        let rate = 48000.0
+        var audio = quietNoise(seconds: 1.2, rate: rate)
+        tone(67, start: 0.5, into: &audio, rate: rate)
+        let heard = detect(audio, rate: rate, expected: [60])
+        let g4 = heard.ons.first { $0.pitch == 67 }
+        XCTAssertNotNil(g4)
+        XCTAssertGreaterThanOrEqual(g4?.sustain ?? 0, 0.5)
+        // Reported after the sustain check, but timed at the strike.
+        XCTAssertGreaterThan((g4?.reportedAt ?? 0) - (g4?.time ?? 0), 0.14)
+        XCTAssertEqual(g4?.time ?? 0, 0.5, accuracy: 0.03)
+    }
+
+    func testDropsAnUnexpectedBlipThatDoesNotRing() {
+        let rate = 48000.0
+        var audio = quietNoise(seconds: 1.2, rate: rate)
+        tone(67, start: 0.5, length: 0.07, into: &audio, rate: rate)
+        let heard = detect(audio, rate: rate, expected: [60])
+        XCTAssertFalse(heard.ons.contains { $0.pitch == 67 })
+        XCTAssertTrue(heard.faded.contains { $0.pitch == 67 })
+    }
+
+    func testReportsAnExpectedKeyAtOnce() {
+        let rate = 48000.0
+        var audio = quietNoise(seconds: 1.2, rate: rate)
+        tone(60, start: 0.5, length: 0.07, into: &audio, rate: rate)
+        let c4 = detect(audio, rate: rate, expected: [60]).ons.first { $0.pitch == 60 }
+        XCTAssertNotNil(c4)
+        XCTAssertNil(c4?.sustain)
+        XCTAssertLessThan((c4?.reportedAt ?? 1) - (c4?.time ?? 0), 0.1)
+    }
+
     func testDetectorTagsStrikesAndStrength() {
         let rate = 48000.0
         var audio = [Float](repeating: 0, count: Int(1.2 * rate))

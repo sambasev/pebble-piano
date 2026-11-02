@@ -33,6 +33,9 @@ struct Listen: ParsableCommand {
 
     @Option(help: .hidden) var spillRatio: Double?
     @Option(help: .hidden) var minimumStrength: Double?
+    @Option(help: .hidden) var sustainCheck: Double?
+    @Option(help: .hidden) var sustainRatio: Double?
+    @Flag(help: .hidden) var sustainCheckExpected = false
 
     @Option(help: .hidden) var evalDelay: Double?
     @Option(help: .hidden) var maxWindow: Double?
@@ -82,6 +85,9 @@ struct Listen: ParsableCommand {
         if let levelRise { s.levelRise = levelRise }
         if let bassGuard { s.bassGuardThreshold = bassGuard }
         if let neighbourDominance { s.neighbourDominance = neighbourDominance }
+        if let sustainCheck { s.sustainCheck = sustainCheck }
+        if let sustainRatio { s.sustainRatio = sustainRatio }
+        s.sustainCheckExpected = sustainCheckExpected
         s.profile = profile
         return s
     }
@@ -174,11 +180,25 @@ struct Listen: ParsableCommand {
         var filter = StrikeFilter(settings: filterSettings)
         var next = 0
         var position = 0
-        var kept = (expected: 0, other: 0), spill = 0, weak = 0
+        var kept = (expected: 0, other: 0)
+        var drops: [StrikeFilter.Verdict: Int] = [:], fadedCount = 0
+        // What was expected when each note was struck (a held note is reported later).
+        var expectations: [(time: Double, pitches: Set<Int>)] = [(0, [])]
+        func wasExpected(_ e: DetectedNote) -> Bool {
+            (expectations.last { $0.time <= e.time + 0.01 } ?? expectations[0]).pitches.contains(e.pitch)
+        }
+        func show(_ e: DetectedNote, _ what: String) {
+            print(String(format: "%8.3f  %@ %@ %@  conf %.2f  strength %.1f", e.time, what,
+                         PitchName.of(e.pitch).padding(toLength: 4, withPad: " ", startingAt: 0),
+                         wasExpected(e) ? "expected" : "other   ", e.confidence, e.strength)
+                  + (e.sustain.map { String(format: "  sustain %.2f", $0) } ?? ""))
+        }
         while position < audio.samples.count {
             while next < changes.count && changes[next].position <= position {
                 switch changes[next].change {
-                case .expect(let pitches): detector.expected = pitches
+                case .expect(let pitches):
+                    detector.expected = pitches
+                    expectations.append((Double(position) / audio.sampleRate, pitches))
                 case .gate(let value): detector.fixedGate = value
                 }
                 next += 1
@@ -186,22 +206,22 @@ struct Listen: ParsableCommand {
             let expected = detector.expected
             let end = min(audio.samples.count, position + 256)
             let events = detector.process(Array(audio.samples[position..<end]))
+            for e in detector.takeFaded() {
+                fadedCount += 1
+                show(e, "drop faded")
+            }
             let passed = filter.filter(events, expected: expected) { e, why in
-                if why == .spill { spill += 1 } else { weak += 1 }
-                print(String(format: "%8.3f  drop %@  %@  conf %.2f  strength %.1f", e.time,
-                             PitchName.of(e.pitch).padding(toLength: 4, withPad: " ", startingAt: 0),
-                             why == .spill ? "spill" : "weak ", e.confidence, e.strength))
+                drops[why, default: 0] += 1
+                show(e, "drop \(why)".padding(toLength: 10, withPad: " ", startingAt: 0))
             }
             for e in passed where e.kind == .on {
-                let isExpected = expected.contains(e.pitch)
-                if isExpected { kept.expected += 1 } else { kept.other += 1 }
-                print(String(format: "%8.3f  keep %@  %@  conf %.2f  strength %.1f", e.time,
-                             PitchName.of(e.pitch).padding(toLength: 4, withPad: " ", startingAt: 0),
-                             isExpected ? "expected" : "other   ", e.confidence, e.strength))
+                if wasExpected(e) { kept.expected += 1 } else { kept.other += 1 }
+                show(e, "keep      ")
             }
             position = end
         }
-        print("kept \(kept.expected) expected, \(kept.other) unexpected; dropped \(spill) spill, \(weak) weak")
+        print("kept \(kept.expected) expected, \(kept.other) unexpected; dropped \(fadedCount) faded, "
+              + "\(drops[.spill, default: 0]) spill, \(drops[.late, default: 0]) late, \(drops[.weak, default: 0]) weak")
     }
 
     private func shifted(_ n: NoteEvent) -> NoteEvent {
