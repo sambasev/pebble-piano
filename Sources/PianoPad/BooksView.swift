@@ -144,6 +144,9 @@ struct BookPagePicker: View {
             PageThumbnailStrip(model: model).frame(width: 132)
             VStack(spacing: PP.Space.s2) {
                 HStack {
+                    Button { model.showMusic(step: -1) } label: { musicSkipLabel(back: true) }
+                        .disabled(model.pageIndex == 0 || model.seekingPage != nil)
+                        .help("Previous page with music on it")
                     Button { model.show(page: model.pageIndex - 1) } label: { Image(systemName: "chevron.left") }
                         .disabled(model.pageIndex == 0)
                     Text("Page \(model.pageIndex + 1) of \(model.pageCount)").font(.ppCallout).monospacedDigit()
@@ -154,6 +157,13 @@ struct BookPagePicker: View {
                     }
                     Button { model.show(page: model.pageIndex + 1) } label: { Image(systemName: "chevron.right") }
                         .disabled(model.pageIndex + 1 >= model.pageCount)
+                    Button { model.showMusic(step: 1) } label: { musicSkipLabel(back: false) }
+                        .disabled(model.pageIndex + 1 >= model.pageCount || model.seekingPage != nil)
+                        .help("Next page with music on it")
+                    if let seeking = model.seekingPage {
+                        ProgressView().controlSize(.small)
+                        Text("Looking at page \(seeking + 1)…").font(.ppCaption).foregroundColor(PP.inkMuted).monospacedDigit()
+                    }
                     Spacer()
                     Text(model.documentURL?.lastPathComponent ?? "").font(.ppCaption).foregroundColor(PP.inkMuted)
                     Button("Re-scan page") { model.show(page: model.pageIndex, rescan: true) }
@@ -181,6 +191,14 @@ struct BookPagePicker: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             sidePanel.frame(width: 280)
+        }
+    }
+
+    private func musicSkipLabel(back: Bool) -> some View {
+        HStack(spacing: 1) {
+            if back { Image(systemName: "chevron.left.2") }
+            Image(systemName: "music.note")
+            if !back { Image(systemName: "chevron.right.2") }
         }
     }
 

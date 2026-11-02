@@ -90,13 +90,17 @@ enum BookLibrary {
 
     // MARK: Page cache
 
+    /// Bumped when finding the lines of music changes, so pages are scanned again.
+    /// 2: paragraphs of text are no longer taken for staves.
+    static let pageScanVersion = 2
+
     /// One folder per book version: its name, size and modification date.
     static func cacheFolder(for book: URL) -> URL {
         let values = try? book.resourceValues(forKeys: [.fileSizeKey, .contentModificationDateKey])
         let size = values?.fileSize ?? 0
         let stamp = Int(values?.contentModificationDate?.timeIntervalSince1970 ?? 0)
         let name = book.deletingPathExtension().lastPathComponent.filter { $0.isLetter || $0.isNumber || $0 == "-" }
-        return support.appendingPathComponent("BookCache/\(name)-\(size)-\(stamp)")
+        return support.appendingPathComponent("BookCache/\(name)-\(size)-\(stamp)-v\(pageScanVersion)")
     }
 
     struct CachedPage: Codable {
@@ -111,6 +115,28 @@ enum BookLibrary {
               let page = try? JSONDecoder().decode(CachedPage.self, from: json)
         else { return nil }
         return (gray, page.systems)
+    }
+
+    /// Deletes the book's other cache folders: left by an earlier copy of the book (a different
+    /// size or date) or an earlier `pageScanVersion`. Nothing reads them again.
+    static func pruneCaches(for book: URL) {
+        let current = cacheFolder(for: book)
+        let parent = current.deletingLastPathComponent()
+        let name = book.deletingPathExtension().lastPathComponent.filter { $0.isLetter || $0.isNumber || $0 == "-" }
+        let folders = (try? FileManager.default.contentsOfDirectory(atPath: parent.path)) ?? []
+        for folder in folders where folder != current.lastPathComponent && folder.hasPrefix(name + "-") {
+            // Only <name>-<size>-<date>[-v<n>], so "book" doesn't take "book-2"'s folders.
+            let rest = folder.dropFirst(name.count + 1).split(separator: "-", omittingEmptySubsequences: false)
+            let isOurs = (rest.count == 2 || (rest.count == 3 && rest[2].hasPrefix("v")))
+                && rest.prefix(2).allSatisfy { !$0.isEmpty && $0.allSatisfy(\.isNumber) }
+            if isOurs { try? FileManager.default.removeItem(at: parent.appendingPathComponent(folder)) }
+        }
+    }
+
+    /// Just the lines found on a page, without decoding its image: for skimming many pages.
+    static func cachedSystems(_ book: URL, _ index: Int) -> [FoundSystem]? {
+        guard let json = try? Data(contentsOf: cacheFolder(for: book).appendingPathComponent("page-\(index).json")) else { return nil }
+        return (try? JSONDecoder().decode(CachedPage.self, from: json))?.systems
     }
 
     static func storePage(_ book: URL, _ index: Int, _ gray: Gray, _ systems: [FoundSystem]) {

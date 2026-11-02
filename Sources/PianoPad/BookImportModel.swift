@@ -78,6 +78,9 @@ final class BookImportModel: ObservableObject {
     @Published private(set) var pageSize = CGSize.zero
     @Published private(set) var systems: [FoundSystem] = []
     @Published private(set) var isLoadingPage = false
+    /// The page being looked at while skipping to the next page with music on it.
+    @Published private(set) var seekingPage: Int?
+    private var seekTask: Task<Void, Never>?
     @Published var selection: ClosedRange<Int>?
     @Published var title = ""
     @Published private(set) var phase: Phase = .choosing
@@ -143,6 +146,7 @@ final class BookImportModel: ObservableObject {
             BookLibrary.remember(url)
             refreshLibrary()
         }
+        Task.detached(priority: .utility) { BookLibrary.pruneCaches(for: url) }
         show(page: page)
     }
 
@@ -159,6 +163,8 @@ final class BookImportModel: ObservableObject {
     /// scanned for lines of music (and cached). `rescan` redoes it on demand.
     func show(page index: Int, rescan: Bool = false) {
         guard let doc = document, let book = documentURL, (0..<pageCount).contains(index) else { return }
+        seekTask?.cancel()
+        seekingPage = nil
         pageIndex = index
         selection = nil
         hands = nil
@@ -191,6 +197,73 @@ final class BookImportModel: ObservableObject {
                     self.selection = pending
                 }
                 self.pendingSelection = nil
+            }
+        }
+    }
+
+    /// Pages scanned at once while skipping to music: one per performance core, at most 8 (each
+    /// page being scanned holds a few tens of MB). Not the efficiency cores: a batch waits for
+    /// its slowest page. An M1 has 4.
+    static let seekLanes: Int = {
+        var cores: Int32 = 0
+        var size = MemoryLayout<Int32>.size
+        if sysctlbyname("hw.perflevel0.physicalcpu", &cores, &size, nil, 0) != 0 || cores < 1 {
+            cores = Int32(ProcessInfo.processInfo.activeProcessorCount)
+        }
+        return min(8, max(1, Int(cores)))
+    }()
+
+    /// Skips to the nearest page before (`step` -1) or after (+1) this one with music found on
+    /// it. Pages not seen before are scanned (and cached) on the way, `seekLanes` at a time, so
+    /// the first skip over a long stretch of text can take a moment; `seekingPage` says where
+    /// it has got to.
+    func showMusic(step: Int) {
+        guard let book = documentURL else { return }
+        seekTask?.cancel()
+        let start = pageIndex, count = pageCount
+        seekingPage = start + step
+        seekTask = Task.detached(priority: .userInitiated) {
+            // PDFKit isn't safe to draw from on several threads at once: each lane has its own copy.
+            let docs = (0..<Self.seekLanes).compactMap { _ in PDFDocument(url: book) }
+            var found: Int?
+            var next = start + step
+            while found == nil, (0..<count).contains(next), !docs.isEmpty {
+                if Task.isCancelled { return }
+                let batch = (0..<docs.count).map { next + $0 * step }.filter { (0..<count).contains($0) }
+                let furthest = batch.last!
+                await MainActor.run { self.seekingPage = furthest }
+                let withMusic = await withTaskGroup(of: Int?.self) { group in
+                    for (lane, index) in batch.enumerated() {
+                        group.addTask {
+                            let systems: [FoundSystem]
+                            if let cached = BookLibrary.cachedSystems(book, index) {
+                                systems = cached
+                            } else if let fresh = BookImporter.page(docs[lane], index: index) {
+                                BookLibrary.storePage(book, index, fresh.image, fresh.systems)
+                                systems = fresh.systems
+                            } else {
+                                systems = []
+                            }
+                            return systems.isEmpty ? nil : index
+                        }
+                    }
+                    var pages: Set<Int> = []
+                    for await page in group { if let page { pages.insert(page) } }
+                    return pages
+                }
+                // The nearest one in the batch, not the first to finish.
+                found = batch.first(where: withMusic.contains)
+                next += batch.count * step
+            }
+            let hit = found
+            await MainActor.run {
+                guard !Task.isCancelled else { return }
+                self.seekingPage = nil
+                if let hit {
+                    self.show(page: hit)
+                } else {
+                    self.message = step > 0 ? "No more music after this page." : "No music before this page."
+                }
             }
         }
     }
