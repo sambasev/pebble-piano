@@ -125,6 +125,21 @@ public enum SystemFinder {
         }
         return Gray(width: s.width, height: s.height, pixels: pixels)
     }
+
+    /// Images of the same height side by side, left to right, with `gap` white columns between.
+    public static func beside(_ parts: [Gray], gap: Int = 0) -> Gray {
+        let height = parts.map(\.height).max() ?? 0
+        let width = parts.reduce(0) { $0 + $1.width } + gap * max(0, parts.count - 1)
+        var pixels = [UInt8](repeating: 255, count: width * height)
+        var left = 0
+        for part in parts {
+            for y in 0..<part.height {
+                for x in 0..<part.width { pixels[y * width + left + x] = part.pixels[y * part.width + x] }
+            }
+            left += part.width + gap
+        }
+        return Gray(width: width, height: height, pixels: pixels)
+    }
 }
 
 #if canImport(CoreGraphics)

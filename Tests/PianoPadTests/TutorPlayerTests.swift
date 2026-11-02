@@ -175,6 +175,24 @@ extension TutorPlayerTests {
 
 #if os(macOS)
 extension TutorPlayerTests {
+    /// Time with the tutor is saved as a practice session, and its takes show in the progress overview.
+    func testTutorTakeRecordsATutorSession() throws {
+        let session = player()
+        let learner = try XCTUnwrap(session.learners.first)
+        session.learner = learner
+        session.beginTutoring()
+        session.tutorFeedbackClient = FailingTutorFeedback()
+        session.startTutorExercise()
+        session.finishTake()
+        XCTAssertEqual(session.phase, .graded)
+        session.endTutoring()
+        let history = session.learnerStore.history(for: learner.id)
+        let tutorSessions = history.sessions().filter { $0.kind == .tutor }
+        XCTAssertEqual(tutorSessions.count, 1)
+        XCTAssertEqual(tutorSessions.first?.takes, 1)
+        XCTAssertEqual(history.overviewTakes().filter(\.tutored).count, 1)
+    }
+
     func testSilentAssessmentOffersDrillAndRestoresPractice() throws {
         let session = player()
         let originalMode = session.mode

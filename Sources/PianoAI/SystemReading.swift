@@ -116,12 +116,42 @@ public enum StaffPitch {
         return letters[s - octave * 7] + String(octave)
     }
 
-    /// MIDI note number, with the accidental applied.
+    /// MIDI note number, with the accidental applied. Only this note's own accidental: in a bar,
+    /// use `BarAccidentals` (or `BarMerge.Bar.midiPitches`) so earlier ones carry.
     public static func midi(clef: SystemReading.Clef, position: Int,
                             accidental: SystemReading.Accidental = .none) -> Int {
-        let s = step(clef, position)
-        let octave = Int(floor(Double(s) / 7))
         let shift = accidental == .sharp ? 1 : accidental == .flat ? -1 : 0
-        return (octave + 1) * 12 + semitones[s - octave * 7] + shift
+        return midi(step: step(clef, position), alter: shift)
+    }
+
+    /// MIDI note number of a diatonic step from C0, raised or lowered by `alter` semitones.
+    static func midi(step s: Int, alter: Int) -> Int {
+        let octave = Int(floor(Double(s) / 7))
+        return (octave + 1) * 12 + semitones[s - octave * 7] + alter
+    }
+}
+
+/// The accidentals in force in one bar of one staff, read left to right: a sharp, flat or natural
+/// lasts for the rest of the bar on its own line or space (that octave only), as printed music
+/// does. Key signatures aren't read yet, so everything else is C major.
+public struct BarAccidentals: Sendable {
+    /// Diatonic step from C0 → semitones up (+1) or down (−1); 0 once a natural cancels it.
+    private var inForce: [Int: Int] = [:]
+
+    public init() {}
+
+    /// The alteration in force on this step before the next note there.
+    public func alter(atStep step: Int) -> Int { inForce[step] ?? 0 }
+
+    /// A note on `step` with its printed `accidental`: remembers that accidental for the rest of
+    /// the bar and returns the note's alteration (−1, 0 or +1).
+    public mutating func play(step: Int, accidental: SystemReading.Accidental) -> Int {
+        switch accidental {
+        case .sharp: inForce[step] = 1
+        case .flat: inForce[step] = -1
+        case .natural: inForce[step] = 0
+        case .none: break
+        }
+        return alter(atStep: step)
     }
 }

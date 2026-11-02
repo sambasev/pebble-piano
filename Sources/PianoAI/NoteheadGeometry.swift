@@ -11,7 +11,7 @@ public enum NoteheadGeometry {
 
     // MARK: Results
 
-    public struct Staff: Equatable, Sendable {
+    public struct Staff: Codable, Equatable, Sendable {
         /// The five line heights, top to bottom, in pixels.
         public var lines: [Double]
         /// Distance between lines.
@@ -20,7 +20,7 @@ public enum NoteheadGeometry {
         public var bottom: Double { lines[4] }
     }
 
-    public struct Head: Equatable, Sendable {
+    public struct Head: Codable, Equatable, Sendable {
         public var x: Double
         public var y: Double
         /// Steps above the bottom line (0 = bottom line, −2 = first ledger line below).
@@ -34,7 +34,7 @@ public enum NoteheadGeometry {
         public var isClear: Bool { abs(offset) <= 0.3 }
     }
 
-    public struct System: Sendable {
+    public struct System: Codable, Equatable, Sendable {
         public var upper: Staff
         public var lower: Staff
         public var upperHeads: [Head]

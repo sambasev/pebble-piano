@@ -114,4 +114,26 @@ final class ImportPipelineTests: XCTestCase {
                        TimeSignature(numerator: 6, denominator: 8))
         XCTAssertEqual(ScoreWriter.timeSignature(of: [bar([.quarter, .quarter, .quarter])]), TimeSignature(numerator: 3, denominator: 4))
     }
+
+    func testPrintedFingeringIsKeptOnBothStaves() {
+        func note(_ position: Int, _ finger: Int?, _ clef: SystemReading.Clef) -> BarMerge.Note {
+            BarMerge.Note(note: .init(position: position, duration: .quarter, finger: finger), clef: clef, head: nil)
+        }
+        // Treble D4 F4 A4 C5 with a 3 printed on the C (the model alone would end on 5); bass a 1 on its third note.
+        let bar = BarMerge.Bar(upper: [note(-1, nil, .treble), note(1, nil, .treble), note(3, nil, .treble), note(5, 3, .treble)],
+                               lower: [note(2, nil, .bass), note(4, nil, .bass), note(6, 1, .bass), note(8, nil, .bass)],
+                               upperStatus: .confirmed, lowerStatus: .confirmed, pageBar: 0)
+        let piece = ScoreWriter.write([bar], title: "")
+        XCTAssertEqual(piece.printedFingering, [PrintedFinger(staff: 0, quarter: 3, finger: 3),
+                                                PrintedFinger(staff: 1, quarter: 2, finger: 1)])
+        XCTAssertEqual(piece.fingering, [0, 0, 0, 3])
+
+        let fingered = PianoFingeringModel.analyze(score: piece.score, printed: piece.printedFingering)
+        let right = fingered.filter { $0.hand == .right }.map(\.finger)
+        let left = fingered.filter { $0.hand == .left }.map(\.finger)
+        XCTAssertEqual(right.last, 3)
+        XCTAssertEqual(left[2], 1)
+        XCTAssertNotEqual(PianoFingeringModel.analyze(score: piece.score).filter { $0.hand == .right }.map(\.finger).last, 3,
+                          "the book's finger is the one shown, not the model's own choice")
+    }
 }

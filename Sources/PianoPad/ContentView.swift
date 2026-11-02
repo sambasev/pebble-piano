@@ -9,6 +9,8 @@ struct ContentView: View {
     @State private var showSettings = false
     @State private var showAISettings = false
     @State private var showInput = false
+    /// The note under the pointer on the score, ringed on the keyboard.
+    @State private var hoveredPitch: Int?
     @AppStorage(PaperStyle.storageKey) private var paperStyle = PaperStyle.matchAppearance
     @Environment(\.ppCompact) private var compact
 
@@ -156,7 +158,10 @@ struct ContentView: View {
                             showFingering: session.showFingering,
                             replayMeasure: session.replayMeasure,
                             followsMusic: session.isPlayingAlong,
-                            onTapMeasure: { session.playFrom(printedMeasure: $0) }
+                            onTapMeasure: { session.playFrom(printedMeasure: $0) },
+                            referenceNotes: session.reference?.notes ?? [],
+                            onHoverNote: { hoveredPitch = $0 },
+                            onTapNote: { session.auditionNote(pitch: $0, quarters: $1) }
                         )
                     }
                     .frame(maxWidth: .infinity, minHeight: 200, maxHeight: .infinity)
@@ -182,10 +187,12 @@ struct ContentView: View {
                                          if NSEvent.modifierFlags.contains(.option) { session.toggleMark(bar: index + 1) }
                                          else { session.playFrom(bar: index) }
                                      },
-                                     // The tempo line, in play-along only (with or without a backing track).
+                                     // The tempo wash, in play-along only (with or without a backing track).
                                      tempoProgress: session.showsTempoDisplay
                                          ? { [session] uptime in session.tempoProgress(atUptime: uptime) } : nil,
-                                     tempoAnimating: session.tempoDisplayMoves)
+                                     tempoAnimating: session.tempoDisplayMoves,
+                                     onHoverNote: { hoveredPitch = $0 },
+                                     onTapNote: { session.auditionNote(pitch: $0.midi, quarters: $0.quarters) })
                             .ppPaper()
                     }
                     .frame(maxWidth: .infinity, minHeight: 200, maxHeight: .infinity)
@@ -200,6 +207,7 @@ struct ContentView: View {
                 audition: session.auditionHeld,
                 showGuide: session.showGuide,
                 keyLabel: session.keyLabel(for:),
+                hovered: hoveredPitch,
                 onPress: { session.mouseDown(on: $0) },
                 onRelease: { session.mouseUp() }
             )
@@ -300,8 +308,8 @@ struct ContentView: View {
                 Button {
                     session.toggleAudition()
                 } label: {
-                    Label(session.isAuditioning ? "Stop" : "Listen",
-                          systemImage: session.isAuditioning ? "stop.fill" : "play.fill")
+                    Label(session.isPlayingReference ? "Stop" : "Listen",
+                          systemImage: session.isPlayingReference ? "stop.fill" : "play.fill")
                         .frame(width: 60)
                 }
                 .buttonStyle(PPPrimaryButtonStyle(height: PP.Size.compact))
@@ -662,6 +670,9 @@ struct ContentView: View {
             wrong: session.markedWrong,
             mistakeMeasures: session.replayMeasure.map { [$0] }
                 ?? (session.tutor != nil ? session.tutorHighlight.union(session.mistakeMeasures) : (session.phase == .graded && session.report != nil ? session.mistakeMeasures : nil)),
+            // The Tutor keeps its tints up during the next take: drop the green while the tempo
+            // wash runs, so the two don't stack. Red bars stay as the ones to fix.
+            cleanTints: !(session.showsTempoDisplay && session.tempoDisplayMoves),
             fingering: session.showFingering ? session.topStaffFingering : [],
             focusMeasures: session.markedBars
         )
@@ -724,7 +735,7 @@ struct ContentView: View {
             }
         }
         switch session.phase {
-        case .waiting where session.isAuditioning: return PP.lilac
+        case .waiting where session.isPlayingReference: return PP.lilac
         case .waiting: return PP.inkStaff
         case .recording: return PP.accent
         case .graded: return (session.report?.passed ?? false) ? PP.success : PP.warning
@@ -734,11 +745,11 @@ struct ContentView: View {
     private var statusText: String {
         if session.mode == .playAlong, let text = playAlongStatus { return text }
         switch session.phase {
-        case .waiting where session.isAuditioning: return "Playing the reference… Space or Esc to stop"
+        case .waiting where session.isPlayingReference: return "Playing the reference… Space or Esc to stop"
         case .waiting: return "Ready: recording starts on your first note"
         case .recording where session.autoGradePending: return "Passage complete. Grading in a moment… (keep playing to continue)"
         case .recording: return "Recording… \(session.noteCount) notes. Return or Grade to finish, Esc to discard"
-        case .graded where session.isAuditioning: return "Playing the reference… Space or Esc to stop"
+        case .graded where session.isPlayingReference: return "Playing the reference… Space or Esc to stop"
         case .graded: return "Graded. Play again to start a new take"
         }
     }

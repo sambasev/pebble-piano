@@ -336,7 +336,27 @@ final class ScoreLayoutTests: XCTestCase {
         XCTAssertNil(layout.position(atQuarter: 1000))
     }
 
-    func testStaffStepsToY() throws {
+    func testFindsTheNoteUnderAPoint() throws {
+        let score = try longScore()
+        let layout = ScoreLayout(score: score, width: 2000)
+        let s = layout.metrics.spacing
+        let measure = layout.systems[0].measures[0]
+        // The first note is middle C, an eighth, on the treble staff's ledger line.
+        let event = score.measures[0].events(onStaff: 0).sorted { $0.start < $1.start }[0]
+        let x = try XCTUnwrap(measure.columns[event.start])
+        let y = layout.y(ofStep: -2, staff: 0, system: 0)
+        XCTAssertEqual(layout.note(atX: x, y: y), ScoreLayout.NoteHit(midi: 60, quarters: 0.5))
+        XCTAssertEqual(layout.note(atX: x + 0.5 * s, y: y + 0.3 * s)?.midi, 60) // a little off the head
+        XCTAssertNil(layout.note(atX: x, y: y - 3 * s))                         // empty staff above it
+        XCTAssertNil(layout.note(atX: -100, y: y))
+        // The bass staff's long G2.
+        let bass = try XCTUnwrap(score.measures[0].events(onStaff: 1).first { !$0.isRest })
+        let bx = try XCTUnwrap(measure.columns[bass.start])
+        let by = layout.y(ofStep: Clef.bass.staffStep(of: bass.notes[0].spelled), staff: 1, system: 0)
+        XCTAssertEqual(layout.note(atX: bx, y: by)?.midi, 43)
+    }
+
+        func testStaffStepsToY() throws {
         let layout = ScoreLayout(score: try longScore(), width: 800)
         let s = layout.metrics.spacing
         let top = layout.systems[0].staffTops[0]
@@ -501,6 +521,28 @@ final class ScoreRendererTests: XCTestCase {
         // The two eighths share a beam rather than having flags.
         XCTAssertFalse(glyphs.contains(.flag8thUp) || glyphs.contains(.flag8thDown))
         XCTAssertTrue(drawing.items.contains { if case .shape = $0 { return true } else { return false } })
+    }
+
+    func testCleanTintsCanBeLeftOut() throws {
+        let score = try score()
+        let renderer = ScoreRenderer(layout: ScoreLayout(score: score, width: 800))
+        let bars = score.measures.count
+        let wrong = try XCTUnwrap(score.measures.first?.number)
+        func tints(_ drawing: Drawing) -> (clean: Int, mistake: Int) {
+            var clean = 0, mistake = 0
+            for case let .rect(_, _, _, _, _, color) in drawing.items {
+                if color == .cleanTint { clean += 1 }
+                if color == .mistakeTint { mistake += 1 }
+            }
+            return (clean, mistake)
+        }
+        let all = tints(renderer.renderScore(mistakeMeasures: [wrong]))
+        XCTAssertEqual(all.clean, bars - 1)
+        XCTAssertEqual(all.mistake, 1)
+        // Without clean tints, only the bar with a mistake is tinted.
+        let redOnly = tints(renderer.renderScore(mistakeMeasures: [wrong], cleanTints: false))
+        XCTAssertEqual(redOnly.clean, 0)
+        XCTAssertEqual(redOnly.mistake, 1)
     }
 
     /// Centres of the see-through circles marking held wrong keys.

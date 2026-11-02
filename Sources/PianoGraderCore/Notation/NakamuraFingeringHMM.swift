@@ -403,6 +403,20 @@ public struct NakamuraFingeringHMM: Sendable {
     }
 }
 
+/// A finger number printed in the music, for the note starting at `quarter` on `staff` (0 is the
+/// top staff).
+public struct PrintedFinger: Codable, Equatable, Sendable {
+    public var staff: Int
+    public var quarter: Double
+    public var finger: Int
+
+    public init(staff: Int, quarter: Double, finger: Int) {
+        self.staff = staff
+        self.quarter = quarter
+        self.finger = finger
+    }
+}
+
 /// High-level model for analyzing transcribed music and computing piano fingering.
 public enum PianoFingeringModel {
 
@@ -452,8 +466,9 @@ public enum PianoFingeringModel {
         return out
     }
 
-    /// Analyzes a `Score` and produces fingered notes.
-    public static func analyze(score: Score) -> [FingeredNote] {
+    /// Analyzes a `Score` and produces fingered notes. `printed` fingers (from the book) are kept,
+    /// and the notes around them fingered to fit.
+    public static func analyze(score: Score, printed: [PrintedFinger] = []) -> [FingeredNote] {
         var results: [FingeredNote] = []
         let sixteenthsPerQuarter = Double(Score.sixteenthsPerQuarter)
 
@@ -472,6 +487,8 @@ public enum PianoFingeringModel {
             }
 
             guard !staffNotes.isEmpty else { continue }
+            let marked = printed.filter { $0.staff == staffIndex && (1...5).contains($0.finger) }
+            func printedFinger(_ quarter: Double) -> Int? { marked.first { abs($0.quarter - quarter) < 0.05 }?.finger }
             // Group by onset for monophonic vs chord
             var chordGroups: [[(pitch: Int, quarter: Double, durationQuarters: Double, measure: Int)]] = []
             var currentGroup: [(pitch: Int, quarter: Double, durationQuarters: Double, measure: Int)] = []
@@ -489,7 +506,9 @@ public enum PianoFingeringModel {
             // If monophonic: solve with HMM
             if chordGroups.allSatisfy({ $0.count == 1 }) {
                 let pitches = chordGroups.map { $0[0].pitch }
-                let fingers = NakamuraFingeringHMM.solveMonophonic(pitches: pitches, hand: hand)
+                var anchors: [Int: Int] = [:]
+                for (i, group) in chordGroups.enumerated() { anchors[i] = printedFinger(group[0].quarter) }
+                let fingers = NakamuraFingeringHMM.solveMonophonic(pitches: pitches, hand: hand, anchors: anchors)
                 for (i, group) in chordGroups.enumerated() {
                     let n = group[0]
                     results.append(FingeredNote(pitch: n.pitch, quarter: n.quarter, durationQuarters: n.durationQuarters,

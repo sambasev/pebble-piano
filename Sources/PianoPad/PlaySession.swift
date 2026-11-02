@@ -99,6 +99,10 @@ final class PlaySession: ObservableObject {
 
     /// Reference audition.
     @Published private(set) var isAuditioning = false
+    /// The audition is one clicked note, too short to show as "playing the reference".
+    @Published private(set) var auditionIsNote = false
+    /// Playing the reference (all of it or a bar), as the Listen button and status line show it.
+    var isPlayingReference: Bool { isAuditioning && !auditionIsNote }
     @Published private(set) var auditionHeld: Set<Int> = []
     @Published var auditionSpeed: Double = 1.0
 
@@ -451,6 +455,8 @@ final class PlaySession: ObservableObject {
     var tutorSavesProgress = false
     /// Teach me this piece was asked to start the plan again from the beginning.
     var tutorStartOver = false
+    /// Time with the tutor, saved as practice sessions.
+    var tutorPractice = TutorPracticeTracker()
     /// Stock lessons to do before this piece (shown instead of starting the lesson).
     @Published var tutorReadiness: Readiness?
     /// Bars of the piece open in Practice that the learner marked for extra attention
@@ -1361,21 +1367,16 @@ final class PlaySession: ObservableObject {
     // MARK: Audition
 
     func toggleAudition() {
-        if isAuditioning { stopAudition() } else { startAudition() }
+        if isPlayingReference { stopAudition() } else { startAudition() }
     }
 
     /// Plays the reference through the built-in piano and lights its keys.
     /// Plays even with Sound off, since listening is the point.
     func startAudition() {
-        guard let reference, let synth, !reference.notes.isEmpty else {
+        guard let reference, !reference.notes.isEmpty else {
             if reference == nil { message = "Open a reference MIDI file first." }
             return
         }
-        guard phase != .recording, !isPlayingAlong else { return }
-        stopAudition()
-        isAuditioning = true
-        audio?.setMuted(true) // the speakers would be heard as playing
-
         let leadIn = 0.25
         let speed = max(0.1, auditionSpeed)
         let start = reference.notes.map(\.onset).min() ?? 0
@@ -1384,7 +1385,55 @@ final class PlaySession: ObservableObject {
                                     start: leadIn + (note.onset - start) / speed,
                                     end: leadIn + max(note.offset - start, note.onset - start + 0.05) / speed)
         }
-        let end = notes.map(\.end).max() ?? leadIn
+        // The reference has one tempo, so time maps linearly to quarter notes.
+        let clock = AuditionClock(startedAt: 0, leadIn: leadIn, speed: speed,
+                                  secondsPerQuarter: 60.0 / max(1, reference.initialTempoBPM),
+                                  firstQuarter: reference.notes.map(\.onsetBeats).min() ?? 0)
+        audition(notes, clock: clock, steps: reference.notes.map(\.onsetBeats)) { [weak self] in
+            self?.lessonObserver?.playerListenFinished()
+        }
+    }
+
+    /// Seconds per quarter note at the practice tempo (120 bpm when the piece gives none).
+    private var practiceSecondsPerQuarter: Double { 60 / max(1, practiceBPM) }
+
+    /// Plays one bar of the reference (played order, from 0) at the practice tempo, moving the
+    /// playhead through it. Notes starting in the bar ring their written length.
+    func auditionBar(_ bar: Int) {
+        guard let reference, let clock else { return }
+        let from = clock.barStart(bar), to = clock.barStart(bar + 1)
+        let leadIn = 0.25
+        let spq = practiceSecondsPerQuarter
+        let referenceSPQ = 60.0 / max(1, reference.initialTempoBPM)
+        let inBar = reference.notes.filter { $0.onsetBeats >= from - 1e-6 && $0.onsetBeats < to - 1e-6 }
+        guard !inBar.isEmpty else { return }
+        let notes = inBar.map { note -> PianoSynth.SequenceNote in
+            let end = note.offsetBeats ?? (note.onsetBeats + (note.offset - note.onset) / referenceSPQ)
+            return PianoSynth.SequenceNote(pitch: note.pitch, velocity: note.velocity,
+                                           start: leadIn + (note.onsetBeats - from) * spq,
+                                           end: leadIn + max(end - from, note.onsetBeats - from + 0.05) * spq)
+        }
+        audition(notes, clock: AuditionClock(startedAt: 0, leadIn: leadIn, speed: 1, secondsPerQuarter: spq, firstQuarter: from),
+                 steps: inBar.map(\.onsetBeats))
+    }
+
+    /// Plays a single note for `quarters` quarter notes at the practice tempo, lighting its key.
+    func auditionNote(pitch: Int, quarters: Double) {
+        let seconds = max(0.15, quarters * practiceSecondsPerQuarter)
+        audition([PianoSynth.SequenceNote(pitch: pitch, velocity: 80, start: 0, end: seconds)], clock: nil, steps: [])
+    }
+
+    /// Plays notes through the built-in piano with the microphone muted, lighting their keys.
+    /// With a clock, the playhead follows the music, stepping between `steps` (note onsets).
+    private func audition(_ notes: [PianoSynth.SequenceNote], clock: AuditionClock?, steps: [Double],
+                          onFinish: (() -> Void)? = nil) {
+        guard let synth else { return }
+        guard phase != .recording, !isPlayingAlong else { return }
+        stopAudition()
+        isAuditioning = true
+        auditionIsNote = clock == nil
+        audio?.setMuted(true) // the speakers would be heard as playing
+        let end = notes.map(\.end).max() ?? 0
 
         // The notes play on the audio engine's clock, so a busy main thread can't make them
         // stutter. If that can't start, they're timed on the main thread as before.
@@ -1410,27 +1459,26 @@ final class PlaySession: ObservableObject {
             }
         }
 
-        // The playhead and lit keys follow the audio. The reference has one tempo, so time
-        // maps linearly to quarter notes.
-        let clock = AuditionClock(startedAt: ProcessInfo.processInfo.systemUptime, leadIn: leadIn, speed: speed,
-                                  secondsPerQuarter: 60.0 / max(1, reference.initialTempoBPM),
-                                  firstQuarter: reference.notes.map(\.onsetBeats).min() ?? 0)
-        auditionClock = clock
-        playheadSteps = Array(Set(reference.notes.map(\.onsetBeats))).sorted()
-        publishPlayhead(clock.firstQuarter)
+        // The playhead and lit keys follow the audio.
+        let startedAt = ProcessInfo.processInfo.systemUptime
+        auditionClock = clock.map { var c = $0; c.startedAt = startedAt; return c }
+        if let clock {
+            playheadSteps = Array(Set(steps)).sorted()
+            publishPlayhead(clock.firstQuarter)
+        }
         let timer = Timer(timeInterval: 1.0 / 60, repeats: true) { [weak self] _ in
-            guard let self, let clock = self.auditionClock else { return }
+            guard let self, self.isAuditioning else { return }
             let t = (onAudioClock ? synth.sequencePosition : nil)
-                ?? ProcessInfo.processInfo.systemUptime - clock.startedAt
+                ?? ProcessInfo.processInfo.systemUptime - startedAt
             if onAudioClock {
                 var sounding = Set<Int>()
                 for n in notes where n.start <= t && t < n.end { sounding.insert(n.pitch) }
                 if sounding != self.auditionHeld { self.auditionHeld = sounding }
             }
-            self.publishPlayhead(clock.quarter(atSeconds: t))
+            if let clock = self.auditionClock { self.publishPlayhead(clock.quarter(atSeconds: t)) }
             if t >= end + 0.1 {
                 self.stopAudition()
-                self.lessonObserver?.playerListenFinished()
+                onFinish?()
             }
         }
         RunLoop.main.add(timer, forMode: .common)
@@ -1473,6 +1521,7 @@ final class PlaySession: ObservableObject {
         auditionTimer?.invalidate()
         auditionTimer = nil
         isAuditioning = false
+        auditionIsNote = false
         if let audio {
             // Let the speakers' sound die away before listening again.
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
@@ -1500,9 +1549,10 @@ final class PlaySession: ObservableObject {
     ///   - remember: add it to the learner's recent pieces (not for lesson files).
     /// `measures` keeps only those measures (1-based), moved to the start: a lesson's bar drill.
     /// `writtenScore` is shown instead of a transcription of the MIDI: pieces read from a book
-    /// keep their own staves and clefs (Beyer writes both hands in treble clef).
+    /// keep their own staves and clefs (Beyer writes both hands in treble clef). Its
+    /// `printedFingering` (the book's finger numbers) is kept in the fingering shown.
     func loadReference(_ url: URL, keepPassage: Bool = false, tempo: Double? = nil, remember: Bool = true,
-                       measures: ClosedRange<Int>? = nil, writtenScore: Score? = nil) {
+                       measures: ClosedRange<Int>? = nil, writtenScore: Score? = nil, printedFingering: [PrintedFinger] = []) {
         endTutoring()
         stopPlayAlong(discard: false)
         if !keepPassage {
@@ -1525,7 +1575,7 @@ final class PlaySession: ObservableObject {
             if let p = passage {
                 fingeringNotes = PianoFingeringModel.analyze(passage: p, sequence: sequence)
             } else if let s = score {
-                fingeringNotes = PianoFingeringModel.analyze(score: s)
+                fingeringNotes = PianoFingeringModel.analyze(score: s, printed: writtenScore == nil ? [] : printedFingering)
             } else {
                 fingeringNotes = PianoFingeringModel.analyze(sequence: sequence)
             }
@@ -2263,17 +2313,18 @@ extension PlaySession {
 
     // MARK: Click a bar
 
-    /// A bar was clicked on the score (0-based, played order). Play along: play from it,
-    /// seeking the backing track (also while already playing). Wait: the guide waits there.
+    /// A bar was clicked on the score (0-based, played order). While playing along: play on
+    /// from it, seeking the backing track. Otherwise it's heard at the practice tempo, and in
+    /// wait mode the guide then waits there.
     func playFrom(bar: Int) {
         guard tutor == nil else { return }
         guard reference != nil else { return }
         if isAuditioning { stopAudition() }
-        switch mode {
-        case .playAlong:
-            startPlayAlong(fromBar: bar) // says what's missing if it can't start
-        case .wait:
-            guard let clock else { return }
+        if isPlayingAlong {
+            startPlayAlong(fromBar: bar)
+            return
+        }
+        if mode == .wait, let clock {
             let target = clock.barStart(bar)
             let index = chords.firstIndex { $0.onsetBeats >= target - 1e-6 } ?? chords.count
             discardTake()
@@ -2281,6 +2332,7 @@ extension PlaySession {
             gradeFromQuarter = target
             updateExpected()
         }
+        auditionBar(bar)
     }
 
     /// A printed measure was clicked on the book page. With repeats it is played more than
@@ -2484,6 +2536,7 @@ extension PlaySession {
         tutorSavedSetup = PracticeSnapshot(mode: mode, tempoPercent: tempoPercent, metronomeOn: metronomeOn, pieceTag: currentPieceTag)
         let persona = learnerSettings.persona == "kriti" ? Persona.kriti : Persona.alex
         tutor = PiecePracticeEngine(measureCount: full.measureCount, persona: persona)
+        if let learner { tutorPractice.activity(learner: learner.id, at: Date()) }
         tutorRecent = []; tutorContext = ""; tutorBeforeAttempt = nil; tutorAI = ""; tutorNote = nil
         tutorPieceKey = referenceURL.map(PieceLessonStore.key(for:))
         guard planLesson else {

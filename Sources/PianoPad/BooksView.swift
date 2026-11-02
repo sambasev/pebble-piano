@@ -15,7 +15,14 @@ struct BooksView: View {
                 .frame(width: 230)
             VStack(alignment: .leading, spacing: PP.Space.s3) {
                 if let message = model.message {
-                    Text(message).font(.ppCallout).foregroundColor(PP.warning)
+                    HStack(spacing: PP.Space.s3) {
+                        Text(message).font(.ppCallout).foregroundColor(PP.warning)
+                            .fixedSize(horizontal: false, vertical: true)
+                        if model.canRetryRead {
+                            Button("Try again") { model.read() }
+                                .help("Read the lines again: the ones already read are reused, so only the others are asked again")
+                        }
+                    }
                 }
                 if let note = model.aiKeyNote {
                     HStack(spacing: PP.Space.s3) {
@@ -24,7 +31,8 @@ struct BooksView: View {
                         Button("AI settings…") { showAISettings = true }
                     }
                 }
-                if model.documentURL == nil {
+                // A saved piece's check opens without its book.
+                if model.documentURL == nil && model.phase == .choosing {
                     emptyState
                 } else {
                     switch model.phase {
@@ -62,6 +70,8 @@ struct BooksView: View {
 /// The bundled books, books you've opened, and pieces you've read and saved.
 struct LibrarySidebar: View {
     @ObservedObject var model: BookImportModel
+    /// Asked before reading a saved piece again from scratch, which replaces its corrections.
+    @State private var rereading: SavedPiece?
 
     var body: some View {
         VStack(alignment: .leading, spacing: PP.Space.s2) {
@@ -122,7 +132,8 @@ struct LibrarySidebar: View {
                         .help("Practise it")
                         .contextMenu {
                             Button("Practise") { model.practise(piece) }
-                            Button("Read again…") { model.readAgain(piece) }
+                            Button("Check and correct…") { model.correct(piece) }
+                            Button("Read again from scratch…") { rereading = piece }
                             Button("Show in Finder") { model.showInFinder(piece) }
                         }
                     }
@@ -131,6 +142,16 @@ struct LibrarySidebar: View {
             Spacer(minLength: 0)
         }
         .ppGlass(cornerRadius: PP.Radius.lg, padding: PP.Space.s3)
+        .alert("Read \(rereading?.title ?? "this piece") again from scratch?", isPresented: Binding(
+            get: { rereading != nil }, set: { if !$0 { rereading = nil } })) {
+            Button("Read again") {
+                if let piece = rereading { model.readAgainFromScratch(piece) }
+                rereading = nil
+            }
+            Button("Cancel", role: .cancel) { rereading = nil }
+        } message: {
+            Text("Muse Wonder reads its lines afresh (this needs a Meta key). Saving the new reading replaces the piece and every correction made to it. To fix a few notes, use Check and correct instead.")
+        }
     }
 }
 
@@ -381,6 +402,10 @@ struct BookPagePicker: View {
                 Button(model.savedForSelection != nil && !model.freshRead ? "Open saved piece" : "Read this piece") { model.read() }
                     .buttonStyle(PPPrimaryButtonStyle(height: PP.Size.targetMin))
                     .disabled(!model.canRead)
+                if let saved = model.savedForSelection, !model.freshRead {
+                    Button("Check and correct") { model.correct(saved) }
+                        .help("Reopen its check as you left it, to fix notes read wrong")
+                }
                 Toggle("Ask Muse Wonder again", isOn: $model.freshRead)
                     .font(.ppCallout)
                     .help("Lines read before are reused (instant and free). Turn this on to read them again.")
@@ -568,7 +593,6 @@ private struct ReadingLineOverlay: View {
 
 struct ReviewView: View {
     @ObservedObject var model: BookImportModel
-    @State private var selected: Int?
     /// How far the lines from the page are zoomed in: 1 fits the line to the width (no taller
     /// than `pageMaxHeight`).
     @State private var zoom: CGFloat = 1
@@ -578,14 +602,24 @@ struct ReviewView: View {
     /// The tallest the line from the page is drawn, unzoomed.
     static let pageMaxHeight: CGFloat = 220
     static let zoomSteps: [CGFloat] = [0.5, 0.75, 1, 1.5, 2, 3, 4]
+    /// NotationView's margin round the engraving.
+    static let engravingMargin: CGFloat = 14
 
     var body: some View {
         VStack(alignment: .leading, spacing: PP.Space.s3) {
             HStack(spacing: PP.Space.s3) {
-                Text("Check “\(model.title)”").font(.ppHeadline)
+                Text("Check").font(.ppHeadline)
+                TextField("Name", text: $model.title)
+                    .textFieldStyle(.roundedBorder).font(.ppHeadline).frame(maxWidth: 280)
+                    .help("The piece's name: change it any time; it's saved with the piece")
                 Text(model.toReview == 0 ? "All bars checked" : "\(model.toReview) bar\(model.toReview == 1 ? "" : "s") to check")
                     .font(.ppCallout).foregroundColor(model.toReview == 0 ? PP.success : PP.warning)
+                if model.toReview > 0 {
+                    Button("Next to check") { model.selectNext(toCheck: true) }
+                        .help("Open the next bar still to check")
+                }
                 Spacer()
+                undoButtons
                 zoomButtons
                 Button("Start over") { model.startOver() }
                 Button("Save and practise") { model.save() }
@@ -607,6 +641,29 @@ struct ReviewView: View {
                 pageWidth = max(100, width - 2 * PP.Space.s3)
             }
         }
+        .background {
+            // Keyboard: ⌘[ and ⌘] step through the bars.
+            Group {
+                Button("Previous bar") { model.selectNext(toCheck: false, step: -1) }
+                    .keyboardShortcut("[", modifiers: .command)
+                Button("Next bar") { model.selectNext(toCheck: false) }
+                    .keyboardShortcut("]", modifiers: .command)
+            }
+            .opacity(0).allowsHitTesting(false)
+        }
+    }
+
+    private var undoButtons: some View {
+        HStack(spacing: 2) {
+            Button { model.undo() } label: { Image(systemName: "arrow.uturn.backward") }
+                .keyboardShortcut("z", modifiers: .command)
+                .disabled(!model.canUndo)
+                .help("Undo the last change to the bars (⌘Z)")
+            Button { model.redo() } label: { Image(systemName: "arrow.uturn.forward") }
+                .keyboardShortcut("z", modifiers: [.command, .shift])
+                .disabled(!model.canRedo)
+                .help("Redo (⇧⌘Z)")
+        }
     }
 
     private var zoomButtons: some View {
@@ -624,9 +681,10 @@ struct ReviewView: View {
 
     @ViewBuilder
     private func systemSection(_ r: BookImportModel.SystemRead) -> some View {
+        let lineBars = model.bars(inSystem: r.id)
         VStack(alignment: .leading, spacing: PP.Space.s2) {
             Text("Line \(r.id + 1)").font(.ppEyebrow).foregroundColor(PP.inkMuted)
-            // The page, with each bar marked: amber to check, green checked.
+            // The page, with each bar marked: amber to check, outlined when open. Click a bar to open it.
             // Fitted to the width but capped in height, so a tall crop (a worksheet, a line with
             // text around it) doesn't push the engraving and the bars to check off the screen;
             // then zoomed, scrolling sideways when it's wider than the window.
@@ -637,18 +695,20 @@ struct ReviewView: View {
                     Image(nsImage: r.image).resizable().interpolation(.high)
                         .frame(width: CGFloat(r.gray.width) * scale, height: CGFloat(r.gray.height) * scale)
                     if let g = r.geometry {
-                        ForEach(model.bars(inSystem: r.id)) { b in
+                        ForEach(lineBars) { b in
                             if let j = b.bar.pageBar, j + 1 < g.barEdges.count {
                                 let x0 = CGFloat(g.barEdges[j]) * scale
                                 let x1 = CGFloat(g.barEdges[j + 1]) * scale
                                 Rectangle()
                                     .fill(b.needsReview ? Color.orange.opacity(0.22) : Color.clear)
-                                    .overlay(Rectangle().stroke(selected == b.id ? PP.accent : Color.clear, lineWidth: 2))
+                                    .overlay(Rectangle().stroke(model.selectedBar == b.id ? PP.accent : Color.clear, lineWidth: 2.5))
                                     .frame(width: max(1, x1 - x0), height: CGFloat(r.gray.height) * scale)
-                                    .offset(x: x0)
+                                    // Hit-test before moving: `.offset` moves the drawing but not the
+                                    // click area, so every bar's click area sat at the line's left edge.
                                     .contentShape(Rectangle())
-                                    .onTapGesture { selected = b.id }
-                                    .help("Bar \(b.id): click to check or nudge its notes")
+                                    .onTapGesture { model.select(bar: b.id) }
+                                    .help("Bar \(b.id): click to check or correct it")
+                                    .offset(x: x0)
                             }
                         }
                     }
@@ -657,18 +717,28 @@ struct ReviewView: View {
             }
             .frame(height: CGFloat(r.gray.height) * scale)
 
-            // What PerfectPiano read, engraved: red bars to check, green bars checked.
+            // What PerfectPiano read, engraved: red bars to check. Click a bar to open it.
             if let engraved = model.engraving(ofSystem: r.id) {
                 NotationView(score: engraved.score, scoreID: model.engravingIDs[r.id] ?? UUID(),
-                             overlay: ScoreOverlay(mistakeMeasures: engraved.flagged))
-                    .frame(height: 210)
+                             overlay: ScoreOverlay(mistakeMeasures: engraved.flagged),
+                             onTapMeasure: { m in
+                                 if lineBars.indices.contains(m) { model.select(bar: lineBars[m].id) }
+                             })
+                    // The whole line, without scrolling inside it.
+                    .frame(height: engravingHeight(engraved.score))
             }
 
-            ForEach(model.bars(inSystem: r.id).filter { $0.needsReview || $0.id == selected }) { b in
+            if let b = lineBars.first(where: { $0.id == model.selectedBar }) {
                 BarCard(model: model, bar: b)
             }
         }
         .ppGlass(cornerRadius: PP.Radius.lg, padding: PP.Space.s3)
+    }
+
+    /// How tall the engraving is at this width (as NotationView lays it out).
+    private func engravingHeight(_ score: Score) -> CGFloat {
+        let width = max(320, Double(pageWidth - 2 * Self.engravingMargin)).rounded()
+        return CGFloat(ScoreLayout(score: score, width: width).height) + 2 * Self.engravingMargin
     }
 }
 
@@ -677,11 +747,16 @@ private struct PageWidthKey: PreferenceKey {
     static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
 }
 
-/// One bar to check: the bar from the page, why it was flagged, its notes with ↑/↓ to nudge,
-/// and Listen, That's right, Fix this bar.
+/// The bar open for checking: the bar from the page, why it was flagged, its notes (click one to
+/// change it), how many beats each hand adds up to, and Listen, That's right, Revert, Fix this bar.
 struct BarCard: View {
     @ObservedObject var model: BookImportModel
     let bar: BookImportModel.ReviewBar
+
+    private var picked: BookImportModel.NoteRef? {
+        guard let n = model.selectedNote, bar.bar.notes(n.staff).indices.contains(n.index) else { return nil }
+        return n
+    }
 
     var body: some View {
         HStack(alignment: .top, spacing: PP.Space.s4) {
@@ -694,16 +769,34 @@ struct BarCard: View {
                 HStack {
                     Text("Bar \(bar.id)").font(.ppHeadline)
                     statusLabel
+                    Spacer()
+                    Button { model.selectNext(toCheck: false, step: -1) } label: { Image(systemName: "chevron.left") }
+                        .help("Previous bar (⌘[)")
+                    Button { model.selectNext(toCheck: false) } label: { Image(systemName: "chevron.right") }
+                        .help("Next bar (⌘])")
+                    Button { model.select(bar: nil) } label: { Image(systemName: "xmark") }
+                        .help("Close")
                 }
                 if bar.needsReview, let reason = bar.reason {
                     Text(reason).font(.ppCallout).foregroundColor(PP.inkMuted)
                 }
-                staffRow(.upper, "Right hand")
-                staffRow(.lower, "Left hand")
+                staffRow(.upper, model.layout == .separate ? "Notes" : "Right hand")
+                if model.layout != .separate || !bar.bar.lower.isEmpty {
+                    staffRow(.lower, "Left hand")
+                }
+                if let picked { noteTools(picked) }
+                if let proposal = model.proposals[bar.id] { proposalBox(proposal) }
                 HStack(spacing: PP.Space.s2) {
                     Button { model.listen(bar.id) } label: { Label("Listen", systemImage: "speaker.wave.2") }
-                    Button("That's right") { model.confirm(bar.id) }
-                        .disabled(!bar.needsReview)
+                    if bar.needsReview {
+                        Button("That's right") { model.confirm(bar.id) }
+                    } else {
+                        Button("Mark to check") { model.markToCheck(bar.id) }
+                            .help("Not sure after all: count it as still to check")
+                    }
+                    Button("Revert") { model.revert(bar.id) }
+                        .disabled(bar.bar == bar.original && bar.resolution != .confirmed)
+                        .help("Back to the bar as first read")
                     Button {
                         model.fix(bar.id)
                     } label: {
@@ -713,7 +806,6 @@ struct BarCard: View {
                     .help("Ask Muse Wonder to read just this bar again")
                 }
             }
-            Spacer()
         }
         .padding(PP.Space.s3)
         .background(RoundedRectangle(cornerRadius: PP.Radius.sm).fill(PP.surfaceRaised))
@@ -734,17 +826,59 @@ struct BarCard: View {
 
     private func staffRow(_ staff: SystemReading.StaffName, _ label: String) -> some View {
         HStack(spacing: PP.Space.s1) {
-            Text(label).font(.ppCaption).foregroundColor(PP.inkMuted).frame(width: 72, alignment: .leading)
-            ForEach(Array(bar.bar.notes(staff).enumerated()), id: \.offset) { k, n in
-                noteChip(staff, k, n)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(label).font(.ppCaption).foregroundColor(PP.inkMuted)
+                clefMenu(staff)
+                beatsText(staff)
             }
+            .frame(width: 92, alignment: .leading)
+            // Named as they sound: a sharp or flat earlier in the bar carries to later notes on that line.
+            let names = bar.bar.noteNames(staff)
+            ForEach(Array(bar.bar.notes(staff).enumerated()), id: \.offset) { k, n in
+                noteChip(staff, k, n, name: names[k])
+            }
+            Button { model.insertNote(bar.id, staff: staff, after: nil) } label: { Image(systemName: "plus") }
+                .buttonStyle(.plain).foregroundColor(PP.accent)
+                .help("Add a note at the end")
         }
     }
 
-    private func noteChip(_ staff: SystemReading.StaffName, _ k: Int, _ n: BarMerge.Note) -> some View {
-        HStack(spacing: 2) {
-            Text(n.note.rest ? "rest" : n.name).font(.system(size: 12, weight: .semibold).monospacedDigit())
-            Text(symbol(n.note)).font(.system(size: 11)).foregroundColor(PP.inkMuted)
+    /// The staff's clef on this line: changing it re-reads every bar of the line in that clef.
+    private func clefMenu(_ staff: SystemReading.StaffName) -> some View {
+        let clef = model.staffClef(inSystem: bar.system, staff)
+        return Menu(clef == .treble ? "𝄞 Treble" : "𝄢 Bass") {
+            Button("𝄞 Treble clef") { model.setClef(inSystem: bar.system, staff, .treble) }
+            Button("𝄢 Bass clef") { model.setClef(inSystem: bar.system, staff, .bass) }
+        }
+        .menuStyle(.borderlessButton).font(.ppCaption).fixedSize()
+        .help("The clef at the start of this line: change it if it was read wrong (every bar of the line changes)")
+    }
+
+    /// "3 of 4 beats", amber when the staff doesn't fill the bar (a short first bar is a pickup).
+    private func beatsText(_ staff: SystemReading.StaffName) -> some View {
+        let metre = model.metre
+        let unit = 4 / Double(metre.denominator)  // quarters per beat
+        let have = bar.bar.quarters(staff) / unit, want = Double(metre.numerator)
+        let pickup = bar.id == 1 && have < want
+        let fits = bar.bar.notes(staff).isEmpty || abs(have - want) < 0.01 || pickup
+        return Text("\(Self.beats(have)) of \(metre.numerator) beats")
+            .font(.ppCaption.monospacedDigit()).foregroundColor(fits ? PP.inkMuted : PP.warning)
+            .help(fits ? "What this hand's notes and rests add up to" : "This hand's notes and rests don't add up to a bar: check their lengths")
+    }
+
+    static func beats(_ b: Double) -> String {
+        let whole = Int(b.rounded(.down)), part = b - Double(whole)
+        let fraction = [(0.25, "¼"), (0.5, "½"), (0.75, "¾")].first { abs($0.0 - part) < 0.01 }?.1
+        if part < 0.01 { return "\(whole)" }
+        if let fraction { return whole == 0 ? fraction : "\(whole)\(fraction)" }
+        return String(format: "%.2g", b)
+    }
+
+    private func noteChip(_ staff: SystemReading.StaffName, _ k: Int, _ n: BarMerge.Note, name: String) -> some View {
+        let isPicked = picked == BookImportModel.NoteRef(staff: staff, index: k)
+        return HStack(spacing: 2) {
+            Text(n.note.rest ? "rest" : name).font(.system(size: 12, weight: .semibold).monospacedDigit())
+            Text(Self.symbol(n.note)).font(.system(size: 11)).foregroundColor(PP.inkMuted)
             if !n.note.rest {
                 VStack(spacing: 0) {
                     Button { model.nudge(bar.id, staff: staff, note: k, by: 1) } label: { Image(systemName: "chevron.up") }
@@ -757,17 +891,98 @@ struct BarCard: View {
             }
         }
         .padding(.horizontal, 6).padding(.vertical, 3)
-        .background(RoundedRectangle(cornerRadius: 6).fill(PP.surface))
+        .background(RoundedRectangle(cornerRadius: 6).fill(isPicked ? PP.accent.opacity(0.25) : PP.surface))
+        .overlay(RoundedRectangle(cornerRadius: 6).stroke(isPicked ? PP.accent : Color.clear, lineWidth: 1.5))
+        .contentShape(Rectangle())
+        .onTapGesture { model.select(note: isPicked ? nil : BookImportModel.NoteRef(staff: staff, index: k)) }
+        .help("Click to pick this note and change it")
     }
 
-    private func symbol(_ note: SystemReading.Note) -> String {
+    /// The bar read again, after the learner had corrected or checked it: the new reading, with
+    /// the notes that differ marked, to take or leave.
+    private func proposalBox(_ proposal: BarMerge.Bar) -> some View {
+        VStack(alignment: .leading, spacing: PP.Space.s1) {
+            Text("Muse Wonder read this bar again. Notes that differ from yours are marked.")
+                .font(.ppCallout.weight(.semibold))
+            ForEach(SystemReading.StaffName.allCases, id: \.self) { staff in
+                if staff == .upper || model.layout != .separate || !proposal.lower.isEmpty {
+                    HStack(spacing: PP.Space.s1) {
+                        Text(staff == .upper ? "Right hand" : "Left hand").font(.ppCaption).foregroundColor(PP.inkMuted)
+                            .frame(width: 92, alignment: .leading)
+                        let names = proposal.noteNames(staff)
+                        let mine = bar.bar.notes(staff)
+                        ForEach(Array(proposal.notes(staff).enumerated()), id: \.offset) { k, n in
+                            let differs = !mine.indices.contains(k) || mine[k].note != n.note || mine[k].clef != n.clef
+                            HStack(spacing: 2) {
+                                Text(n.note.rest ? "rest" : names[k]).font(.system(size: 12, weight: .semibold).monospacedDigit())
+                                Text(Self.symbol(n.note)).font(.system(size: 11)).foregroundColor(PP.inkMuted)
+                            }
+                            .padding(.horizontal, 6).padding(.vertical, 3)
+                            .background(RoundedRectangle(cornerRadius: 6).fill(differs ? PP.warning.opacity(0.25) : PP.surface))
+                        }
+                        if mine.count > proposal.notes(staff).count {
+                            let fewer = mine.count - proposal.notes(staff).count
+                            Text("\(fewer) note\(fewer == 1 ? "" : "s") fewer than yours").font(.ppCaption).foregroundColor(PP.warning)
+                        }
+                    }
+                }
+            }
+            HStack(spacing: PP.Space.s2) {
+                Button("Use this") { model.useProposal(bar.id) }
+                    .help("Replace your version of the bar with this reading (Undo brings yours back)")
+                Button("Keep mine") { model.dismissProposal(bar.id) }
+            }
+        }
+        .padding(PP.Space.s2)
+        .background(RoundedRectangle(cornerRadius: PP.Radius.sm).stroke(PP.warning, lineWidth: 1.5))
+    }
+
+    /// What can be done to the picked note.
+    private func noteTools(_ note: BookImportModel.NoteRef) -> some View {
+        let n = bar.bar.notes(note.staff)[note.index].note
+        return HStack(spacing: PP.Space.s2) {
+            Button { model.cycleAccidental(bar.id, note) } label: {
+                Text(Self.accidentalLabel(bar.bar.shownAccidental(note.staff, note.index))).frame(minWidth: 52)
+            }
+                .disabled(n.rest)
+                .help("Sharp, flat, natural or none (click to change)")
+            Picker("Length", selection: Binding(get: { n.duration }, set: { model.setDuration(bar.id, note, $0) })) {
+                ForEach([SystemReading.Duration.whole, .half, .quarter, .eighth, .sixteenth], id: \.self) { d in
+                    Text(Self.symbol(.init(position: 0, duration: d))).tag(d)
+                }
+            }
+            .pickerStyle(.segmented).labelsHidden().frame(width: 190)
+            .help("How long it lasts")
+            Toggle("Dotted", isOn: Binding(get: { n.dotted }, set: { _ in model.toggleDot(bar.id, note) }))
+                .toggleStyle(.button)
+            Toggle("Rest", isOn: Binding(get: { n.rest }, set: { _ in model.toggleRest(bar.id, note) }))
+                .toggleStyle(.button)
+                .help("A rest of this length instead of a note (or back)")
+            Button { model.insertNote(bar.id, staff: note.staff, after: note.index) } label: { Image(systemName: "plus") }
+                .help("Add a note after this one")
+            Button(role: .destructive) { model.deleteNote(bar.id, note) } label: { Image(systemName: "trash") }
+                .help("Remove this note")
+        }
+        .controlSize(.small)
+    }
+
+    static func accidentalLabel(_ a: SystemReading.Accidental) -> String {
+        switch a {
+        case .none: return "No ♯/♭"
+        case .sharp: return "♯ Sharp"
+        case .flat: return "♭ Flat"
+        case .natural: return "♮ Natural"
+        }
+    }
+
+    static func symbol(_ note: SystemReading.Note) -> String {
         let base: String
         switch note.duration {
         case .whole: base = "𝅝"
         case .half: base = "𝅗𝅥"
         case .quarter: base = "♩"
         case .eighth: base = "♪"
-        case .sixteenth: base = "𝅘𝅥𝅯"
+        case .sixteenth: base = "♬"  // the sixteenth-note glyph is missing from the system font
         }
         return note.dotted ? base + "." : base
     }

@@ -115,6 +115,16 @@ public final class LearnerHistory {
             }
     }
 
+    /// Every saved take of every piece, oldest first.
+    public func allTakes() -> [SavedTake] {
+        guard let dirs = try? fm.contentsOfDirectory(at: takesDirectory, includingPropertiesForKeys: nil) else { return [] }
+        return dirs.flatMap { dir -> [SavedTake] in
+            let name = dir.lastPathComponent
+            return takes(for: PieceID(rawValue: name.removingPercentEncoding ?? name))
+        }
+        .sorted { $0.date < $1.date }
+    }
+
     // MARK: Reset
 
     /// Removes every take and all progress, lessons and sessions included; settings are kept.

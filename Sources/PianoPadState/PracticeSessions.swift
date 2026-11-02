@@ -29,9 +29,13 @@ public struct EarQuizSummary: Codable, Equatable, Sendable, Identifiable {
     }
 }
 
-/// One sitting in Learn or Ear Training. Older records are lesson sessions.
+/// One sitting in Learn, Ear Training or with the AI tutor. Older records are lesson sessions.
 public struct PracticeSession: Codable, Equatable, Sendable, Identifiable {
-    public enum Kind: String, Codable, Sendable { case lesson, earTraining }
+    public enum Kind: String, Codable, Sendable {
+        case lesson, earTraining
+        /// Learning an imported piece with the AI tutor, in Practice.
+        case tutor
+    }
     public var id: UUID
     public var started: Date
     /// The last activity (idle time after it isn't counted).
@@ -51,11 +55,15 @@ public struct PracticeSession: Codable, Equatable, Sendable, Identifiable {
     public var activeSeconds: Double?
     public var earQuestionsAnswered: Int
     public var earQuizzes: [EarQuizSummary]
+    /// Pieces played with the tutor (`PieceID` raw values, in order, no repeats).
+    public var pieces: [String]
+    /// Graded takes with the tutor.
+    public var takes: Int
 
     public init(id: UUID = UUID(), started: Date, ended: Date? = nil, pages: [String] = [], completedPages: [String] = [],
                 notesLearned: [String] = [], stars: Int = 0, lastTimed: TimedBlockResult? = nil,
                 kind: Kind = .lesson, activeSeconds: Double? = nil,
-                earQuestionsAnswered: Int = 0, earQuizzes: [EarQuizSummary] = []) {
+                earQuestionsAnswered: Int = 0, earQuizzes: [EarQuizSummary] = [], pieces: [String] = [], takes: Int = 0) {
         self.id = id
         self.started = started
         self.ended = ended ?? started
@@ -68,6 +76,8 @@ public struct PracticeSession: Codable, Equatable, Sendable, Identifiable {
         self.activeSeconds = activeSeconds
         self.earQuestionsAnswered = earQuestionsAnswered
         self.earQuizzes = earQuizzes
+        self.pieces = pieces
+        self.takes = takes
     }
 
     /// Whole minutes, at least 1.
@@ -75,7 +85,7 @@ public struct PracticeSession: Codable, Equatable, Sendable, Identifiable {
 
     private enum CodingKeys: String, CodingKey {
         case id, started, ended, pages, completedPages, notesLearned, stars, lastTimed
-        case kind, activeSeconds, earQuestionsAnswered, earQuizzes
+        case kind, activeSeconds, earQuestionsAnswered, earQuizzes, pieces, takes
     }
 
     public init(from decoder: Decoder) throws {
@@ -88,10 +98,13 @@ public struct PracticeSession: Codable, Equatable, Sendable, Identifiable {
         notesLearned = try c.decodeIfPresent([String].self, forKey: .notesLearned) ?? []
         stars = try c.decodeIfPresent(Int.self, forKey: .stars) ?? 0
         lastTimed = try c.decodeIfPresent(TimedBlockResult.self, forKey: .lastTimed)
-        kind = try c.decodeIfPresent(Kind.self, forKey: .kind) ?? .lesson
+        // An unknown kind (from a newer app) still loads, so one record can't lose the rest.
+        kind = (try? c.decodeIfPresent(Kind.self, forKey: .kind)) ?? .lesson
         activeSeconds = try c.decodeIfPresent(Double.self, forKey: .activeSeconds)
         earQuestionsAnswered = try c.decodeIfPresent(Int.self, forKey: .earQuestionsAnswered) ?? 0
         earQuizzes = try c.decodeIfPresent([EarQuizSummary].self, forKey: .earQuizzes) ?? []
+        pieces = try c.decodeIfPresent([String].self, forKey: .pieces) ?? []
+        takes = try c.decodeIfPresent(Int.self, forKey: .takes) ?? 0
     }
 }
 

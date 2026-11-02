@@ -9,6 +9,10 @@ import PianoGraderCore
 
 /// The Books tab: open a PDF, pick a piece by its systems, read it (Muse Wonder reads,
 /// code measures pitch), review the bars that need a look, and save it for practice.
+///
+/// Reading and re-reading a bar run in the background. Each belongs to one read (`readID`):
+/// Cancel, Start over, a new read or opening a book cancels them, and anything they finish
+/// afterwards is dropped, so it can't land in an emptied list or in the next piece.
 final class BookImportModel: ObservableObject {
     enum Phase: Equatable { case choosing, reading, review }
 
@@ -34,6 +38,16 @@ final class BookImportModel: ObservableObject {
         }
     }
 
+    /// The lines of a book page a piece is read from.
+    struct PieceSource: Equatable {
+        /// The book's file name.
+        var book: String
+        /// From 0.
+        var page: Int
+        /// The lines (systems) on the page, from 0.
+        var lines: ClosedRange<Int>
+    }
+
     /// One system of the piece being read.
     struct SystemRead: Identifiable {
         let id: Int
@@ -51,14 +65,29 @@ final class BookImportModel: ObservableObject {
         var geometry: NoteheadGeometry.System?
     }
 
+    /// A note in a bar: which staff, and which of its notes (from 0).
+    struct NoteRef: Equatable {
+        var staff: SystemReading.StaffName
+        var index: Int
+    }
+
+    /// The review at one moment, for Undo.
+    struct ReviewSnapshot {
+        var bars: [ReviewBar]
+        var selectedBar: Int?
+        var selectedNote: NoteRef?
+    }
+
     /// One bar of the piece, as the learner reviews it.
     struct ReviewBar: Identifiable, Equatable {
-        enum Resolution: Equatable { case trusted, needsReview, confirmed, fixed, nudged }
+        typealias Resolution = PieceCorrection.Resolution
 
         /// Bar number in the piece, from 1.
         let id: Int
         let system: Int
         var bar: BarMerge.Bar
+        /// As the first reading had it.
+        let original: BarMerge.Bar
         var resolution: Resolution
         /// The bar cut from the page.
         let image: NSImage?
@@ -90,9 +119,23 @@ final class BookImportModel: ObservableObject {
     @Published var selection: ClosedRange<Int>?
     @Published var title = ""
     @Published private(set) var phase: Phase = .choosing
+    /// What's being read or checked: saving writes the piece for these lines.
+    @Published private(set) var source: PieceSource?
     @Published private(set) var reads: [SystemRead] = []
     @Published private(set) var bars: [ReviewBar] = []
     @Published private(set) var fixing: Set<Int> = []
+    /// The bar being looked at in the review (its card is open), and the note picked in it.
+    @Published private(set) var selectedBar: Int?
+    @Published private(set) var selectedNote: NoteRef?
+    /// The last read failed (not for want of a key): Try again reads the same lines, reusing the
+    /// lines that were read (they're saved), so only the failed ones are asked again.
+    @Published private(set) var canRetryRead = false
+    /// Bars read again after the learner had corrected or checked them: what the new reading
+    /// says, waiting for Use this or Keep mine. A correction is never replaced unasked.
+    @Published private(set) var proposals: [Int: BarMerge.Bar] = [:]
+    /// The review as it was before each change, newest last (Undo), and changes undone (Redo).
+    @Published private(set) var undoStack: [ReviewSnapshot] = []
+    @Published private(set) var redoStack: [ReviewSnapshot] = []
     /// Changes when a system's bars change, so its engraving is redrawn.
     @Published private(set) var engravingIDs: [Int: UUID] = [:]
     @Published var message: String?
@@ -119,16 +162,53 @@ final class BookImportModel: ObservableObject {
     /// Looking at the selected lines' printed clefs; Read waits for it.
     @Published private(set) var checkingClefs = false
     private var readWhenChecked = false
-    /// The read under way: a cancelled or replaced read's late results are dropped.
-    private var readToken = UUID()
 
     private var document: PDFDocument?
     /// Small pictures of the open book's pages, for the page strip; made as they scroll into view.
     private let thumbnails = NSCache<NSNumber, NSImage>()
     /// Applied once the page has loaded ("Read again" on a saved piece).
     private var pendingSelection: ClosedRange<Int>?
+    /// Read once the page has loaded ("Check and correct" on a piece saved before checks were kept).
+    private var pendingCorrection: (lines: ClosedRange<Int>, layout: Layout, upper: SystemReading.Clef, lower: SystemReading.Clef)?
+    /// Shown when the reading under way reaches the review.
+    private var afterReadingNote: String?
+    /// The next read uses saved readings only, never Muse Wonder (checking a piece saved before
+    /// checks were kept: it's meant to be free, and to be the reading the piece was saved from).
+    private var savedReadingsOnly = false
     private var pageGray: Gray?
     private(set) weak var session: PlaySession?
+
+    /// Changes with every read and Start over; work started for an earlier read is dropped.
+    private var readID = UUID()
+    /// The read under way (tests wait on it).
+    private(set) var readTask: Task<Void, Never>?
+    /// Bars being read again, by bar number (tests wait on them).
+    private(set) var fixTasks: [Int: Task<Void, Never>] = [:]
+
+    // What reading uses, replaced in tests.
+    /// Measures one line's noteheads and bar lines: (image, one staff on its own) → bars.
+    var measureLine: @Sendable (Data, Bool) throws -> NoteheadGeometry.System = {
+        try NoteheadGeometry.measure(png: $0, singleStaff: $1)
+    }
+    /// How a line is read: its saved reading if there is one (else Muse Wonder), Muse Wonder
+    /// again, or only a saved reading (never Muse Wonder: `ModelError.missingKey` if there's none).
+    enum ReadingSource: Sendable { case saved, fresh, savedOnly }
+
+    /// Reads one line: (image, bars measured, one staff on its own, how) → reading.
+    /// Saved readings are used without a key.
+    var readLine: @Sendable (Data, Int, Bool, ReadingSource) async throws -> SystemReading = { png, measures, single, how in
+        try await BookImportModel.cachedReading(png: png, client: how == .savedOnly ? nil : try? ModelClient.configured(.meta),
+                                                expectedMeasures: measures, singleStaff: single, fresh: how == .fresh)
+    }
+    /// Reads one bar again, zoomed in: (image, one staff on its own, ask again) → reading.
+    /// Saved by image like a line's reading, so reading the piece again re-reads its skipped
+    /// bars for free; `ModelError.missingKey` when there's neither a key nor a saved reading.
+    var barReader: @Sendable (Data, Bool, Bool) async throws -> SystemReading = { png, single, fresh in
+        let client = try? ModelClient.configured(.meta)
+        return try await BookImportModel.cachedReading(png: png, client: client,
+                                                       reader: client.map { SystemReader(client: $0, reasoningEffort: "high") },
+                                                       expectedMeasures: 1, singleStaff: single, fresh: fresh)
+    }
 
     init(session: PlaySession) {
         self.session = session
@@ -155,7 +235,7 @@ final class BookImportModel: ObservableObject {
             return
         }
         aiKeyNote = nil
-        if phase == .reading { startOver() }
+        if phase == .reading { startOver() } else { cancelReading() }
         document = doc
         thumbnails.removeAllObjects()
         documentURL = url
@@ -186,6 +266,7 @@ final class BookImportModel: ObservableObject {
         seekingPage = nil
         pageIndex = index
         selection = nil
+        canRetryRead = false
         resetSetup()
         systems = []
         resizedLines = []
@@ -217,6 +298,21 @@ final class BookImportModel: ObservableObject {
                     self.checkClefs()
                 }
                 self.pendingSelection = nil
+                if let pending = self.pendingCorrection {
+                    self.pendingCorrection = nil
+                    guard pending.lines.upperBound < result.systems.count else {
+                        self.afterReadingNote = nil
+                        self.message = "The lines of this piece aren't on page \(index + 1) any more (was the page re-scanned?)."
+                        return
+                    }
+                    self.selection = pending.lines
+                    self.layout = pending.layout
+                    self.upperClef = pending.upper
+                    self.lowerClef = pending.lower
+                    self.setupEdited = true
+                    self.savedReadingsOnly = true
+                    self.readSelection()
+                }
             }
         }
     }
@@ -293,6 +389,7 @@ final class BookImportModel: ObservableObject {
     /// typed their own.
     func tapSystem(_ index: Int, extend: Bool) {
         guard phase != .reading else { return }
+        canRetryRead = false
         if extend, let s = selection {
             selection = min(s.lowerBound, index)...max(s.upperBound, index)
         } else {
@@ -333,35 +430,46 @@ final class BookImportModel: ObservableObject {
     /// The name filled in from the page, so typing over it is noticed.
     private var autoTitle = ""
 
-    /// The piece's name: the largest text in the line's top margin (a heading like
-    /// "Exercise No. 12"; the composer, beside it, is smaller), else "<book>, page N, line M"
-    /// for a scan with no text.
+    /// The piece's name: the heading over the line (see `heading(on:above:)`), else
+    /// "<book>, page N, line M" for a scan with no text.
     func suggestedTitle(forLine index: Int) -> String {
         let fallback = "\(documentURL?.deletingPathExtension().lastPathComponent ?? "Piece"), page \(pageIndex + 1), line \(index + 1)"
         guard systems.indices.contains(index), let page = document?.page(at: pageIndex) else { return fallback }
-        let s = systems[index]
+        return Self.heading(on: page, above: systems[index]) ?? fallback
+    }
+
+    /// The largest words in a line's top margin: a heading like "Exercise No. 12" (the composer,
+    /// beside it, is smaller). Nil when there's none.
+    static func heading(on page: PDFPage, above s: FoundSystem) -> String? {
         let box = page.bounds(for: .mediaBox)
         let k = 72 / BookImporter.dpi
-        // Headings sit just above the top staff, around the top of the line's crop (which reaches
-        // a few spaces above the staff): look from just above the crop down to the staff, so a book
-        // title higher up, and lyrics or text under the music, don't count.
-        let staffTop = Double(s.top) + 3.5 * s.spacing
-        let from = max(0, Double(s.top) - 0.5 * s.spacing)
-        let topY = box.maxY - CGFloat(from) * k
-        let height = CGFloat(staffTop - from) * k
-        let rect = CGRect(x: box.minX + CGFloat(s.left) * k, y: topY - height, width: CGFloat(s.width) * k, height: height)
-        guard let text = page.selection(for: rect)?.attributedString, text.length > 0 else { return fallback }
+        // Headings sit just above the top staff, around the top of the line's crop: take the page's
+        // lines of text that start between a little above the crop and the staff, so a book title
+        // higher up, and lyrics or text under the music, don't count. Only a line's top is used:
+        // PDFKit makes some lines far too tall (a LilyPond heading reaches down past the staff),
+        // which is also why `selection(for: rect)` finds nothing here.
+        let from = box.maxY - CGFloat(Double(s.top) - 2.5 * s.spacing) * k
+        let staffTop = box.maxY - CGFloat(Double(s.top) + 3.5 * s.spacing) * k
+        let left = box.minX + CGFloat(s.left) * k, right = box.minX + CGFloat(s.right) * k
+        let lines = (page.selection(for: box)?.selectionsByLine() ?? []).filter { line in
+            let b = line.bounds(for: page)
+            return (staffTop...from).contains(b.maxY) && b.maxX > left && b.minX < right
+        }
         var best: (size: CGFloat, text: String) = (0, "")
-        text.enumerateAttribute(.font, in: NSRange(location: 0, length: text.length)) { value, range, _ in
-            guard let font = value as? NSFont else { return }
-            let run = text.attributedSubstring(from: range).string.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !run.isEmpty else { return }
-            if font.pointSize > best.size + 0.5 { best = (font.pointSize, run) }
-            else if abs(font.pointSize - best.size) <= 0.5, !best.text.contains(run) { best.text += " " + run }
+        for line in lines {
+            guard let text = line.attributedString, text.length > 0 else { continue }
+            text.enumerateAttribute(.font, in: NSRange(location: 0, length: text.length)) { value, range, _ in
+                guard let font = value as? NSFont else { return }
+                let run = text.attributedSubstring(from: range).string.trimmingCharacters(in: .whitespacesAndNewlines)
+                // Time signatures and bar numbers are often the biggest type there.
+                guard run.contains(where: \.isLetter) else { return }
+                if font.pointSize > best.size + 0.5 { best = (font.pointSize, run) }
+                else if abs(font.pointSize - best.size) <= 0.5, !best.text.contains(run) { best.text += " " + run }
+            }
         }
         let name = best.text.split(whereSeparator: \.isWhitespace).joined(separator: " ")
-        // Too short to be a name (a dynamic, a bar number) or a whole paragraph: use the fallback.
-        return (3...80).contains(name.count) && best.size >= 11 ? name : fallback
+        // Too short to be a name (a dynamic) or a whole paragraph.
+        return (3...80).contains(name.count) && best.size >= 11 ? name : nil
     }
 
     var canRead: Bool { selection != nil && phase != .reading }
@@ -373,17 +481,21 @@ final class BookImportModel: ObservableObject {
             practise(saved)
             return
         }
-        guard let selection, let page = pageGray else { return }
+        readSelection()
+    }
+
+    /// Reads the selected lines (from the saved readings, unless asked to read again), once
+    /// their printed clefs have been looked at.
+    private func readSelection() {
+        guard let selection, let page = pageGray, let book = documentURL?.lastPathComponent else { return }
         guard !checkingClefs else {
             readWhenChecked = true
             return
         }
         // No key is fine as long as every line has a saved reading (see `finishReading`).
-        let client = try? ModelClient.configured(.meta)
-        aiKeyNote = nil
         // Separately: each staff is read as a line of its own, top staff first, in its own clef.
         var parts: [(found: FoundSystem, crop: FoundSystem, single: Bool, clef: SystemReading.Clef)] = []
-        for i in selection {
+        for i in selection where systems.indices.contains(i) {
             let s = systems[i]
             if layout == .separate {
                 let middle = (s.top + s.bottom) / 2
@@ -395,31 +507,60 @@ final class BookImportModel: ObservableObject {
                 parts.append((s, s, false, upperClef))
             }
         }
-        reads = parts.enumerated().compactMap { k, part -> SystemRead? in
+        let crops = parts.compactMap { part -> (FoundSystem, Gray, Data, NSImage, Bool, SystemReading.Clef)? in
             let crop = SystemFinder.crop(page, part.crop)
             guard let png = crop.pngData(), let cg = crop.cgImage() else { return nil }
-            // A staff read on its own is the reading's upper staff.
-            return SystemRead(id: k, found: part.found, gray: crop, png: png, image: NSImage(cgImage: cg, size: .zero),
-                              singleStaff: part.single, upperClef: part.clef,
-                              lowerClef: part.single ? part.clef : lowerClef)
+            return (part.found, crop, png, NSImage(cgImage: cg, size: .zero), part.single, part.clef)
         }
+        // Numbered after dropping any line that couldn't be cut out, so ids stay 0, 1, 2…
+        startReading(crops.enumerated().map { k, c in
+            // A staff read on its own is the reading's upper staff.
+            SystemRead(id: k, found: c.0, gray: c.1, png: c.2, image: c.3, singleStaff: c.4, upperClef: c.5,
+                       lowerClef: c.4 ? c.5 : lowerClef)
+        }, source: PieceSource(book: book, page: pageIndex, lines: selection))
+    }
+
+    /// Reads these lines (the selection, cut from the page), replacing any read under way.
+    func startReading(_ lines: [SystemRead], source: PieceSource) {
+        cancelReading()
+        aiKeyNote = nil
+        self.source = source
+        canRetryRead = false
+        reads = lines
         bars = []
-        fixing = []
+        clearReviewHistory()
         message = nil
         // Read in place, on the page: the check view opens only if a bar needs a look.
         phase = .reading
-        let token = UUID()
-        readToken = token
+        let id = readID
         let jobs = reads.map { ($0.id, $0.png, $0.singleStaff) }
-        let fresh = freshRead
-        Task {
+        let how: ReadingSource = savedReadingsOnly ? .savedOnly : freshRead ? .fresh : .saved
+        freshRead = false  // just this once: the next piece uses saved readings again
+        savedReadingsOnly = false
+        let measure = measureLine, read = readLine
+        readTask = Task { @MainActor in
             await withTaskGroup(of: Void.self) { group in
-                for (id, png, single) in jobs {
-                    group.addTask { await self.readSystem(id, png: png, singleStaff: single, client: client, fresh: fresh, token: token) }
+                for (line, png, single) in jobs {
+                    group.addTask {
+                        await self.readSystem(line, png: png, singleStaff: single, how: how, readID: id,
+                                              measure: measure, read: read)
+                    }
                 }
             }
-            await MainActor.run { self.finishReading(token) }
+            guard self.readID == id else { return }
+            self.readTask = nil
+            self.finishReading(how)
         }
+    }
+
+    /// Stops the read and any bars being read again; what they finish later is dropped.
+    func cancelReading() {
+        readID = UUID()
+        readTask?.cancel()
+        readTask = nil
+        fixTasks.values.forEach { $0.cancel() }
+        fixTasks = [:]
+        fixing = []
     }
 
     /// How far the read of one line of the page has got, while reading: nil for a line not
@@ -495,50 +636,58 @@ final class BookImportModel: ObservableObject {
         }
     }
 
-    private func readSystem(_ id: Int, png: Data, singleStaff: Bool, client: ModelClient?, fresh: Bool, token: UUID) async {
-        await setStep(id, .measuring, token: token)
+    private func readSystem(_ line: Int, png: Data, singleStaff: Bool, how: ReadingSource, readID: UUID,
+                            measure: @escaping @Sendable (Data, Bool) throws -> NoteheadGeometry.System,
+                            read: @Sendable (Data, Int, Bool, ReadingSource) async throws -> SystemReading) async {
+        await setStep(line, .measuring, readID: readID)
         do {
             // Measure first (under a second): the bar count tells the model how many bars to read.
-            let measured = try await Task.detached(priority: .userInitiated) {
-                try NoteheadGeometry.measure(png: png, singleStaff: singleStaff)
-            }.value
-            await setStep(id, .reading, token: token)
-            let reading = try await Self.cachedReading(png: png, client: client, expectedMeasures: measured.barCount,
-                                                       singleStaff: singleStaff, fresh: fresh)
-            await MainActor.run {
-                guard self.readToken == token else { return }
-                self.reads[id].reading = reading
-                self.reads[id].geometry = measured
-                self.reads[id].step = .done
+            let measured = try await Task.detached(priority: .userInitiated) { try measure(png, singleStaff) }.value
+            await setStep(line, .reading, readID: readID)
+            let reading = try await read(png, measured.barCount, singleStaff, how)
+            await updateRead(line, readID: readID) {
+                $0.reading = reading
+                $0.geometry = measured
+                $0.step = .done
             }
         } catch ModelError.missingKey(_) {
-            await setStep(id, .failed(Self.keyNeededReason), token: token)
+            await setStep(line, .failed(Self.keyNeededReason), readID: readID)
         } catch {
-            await setStep(id, .failed((error as? LocalizedError)?.errorDescription ?? "\(error)"), token: token)
+            await setStep(line, .failed((error as? LocalizedError)?.errorDescription ?? "\(error)"), readID: readID)
         }
     }
 
-    private func setStep(_ id: Int, _ step: Step, token: UUID) async {
-        await MainActor.run {
-            guard self.readToken == token else { return }
-            self.reads[id].step = step
-        }
+    @MainActor private func setStep(_ line: Int, _ step: Step, readID: UUID) {
+        updateRead(line, readID: readID) { $0.step = step }
+    }
+
+    /// Changes one line of the read, if that read is still the current one.
+    @MainActor private func updateRead(_ line: Int, readID: UUID, _ change: (inout SystemRead) -> Void) {
+        guard self.readID == readID, let i = reads.firstIndex(where: { $0.id == line }) else { return }
+        change(&reads[i])
     }
 
     private static let keyNeededReason = "it needs a Meta key"
 
-    private func finishReading(_ token: UUID) {
-        guard readToken == token else { return }
+    private func finishReading(_ how: ReadingSource) {
         if reads.contains(where: { $0.step == .failed(Self.keyNeededReason) }) {
             reads = []
             phase = .choosing
-            aiKeyNote = "Reading a new piece needs a Meta key, which you can add in AI settings. Pieces you've already read, and the rest of PerfectPiano, work without one."
+            if how == .savedOnly {
+                afterReadingNote = nil
+                message = "\(title) was saved before corrections were kept, and its saved reading has gone (the page has been "
+                    + "scanned again since). To correct it, read it again from scratch (right-click it under Your pieces)."
+            } else {
+                aiKeyNote = "Reading a new piece needs a Meta key, which you can add in AI settings. Pieces you've already read, and the rest of PerfectPiano, work without one."
+            }
             return
         }
         guard reads.allSatisfy({ $0.step == .done }) else {
             let why = reads.lazy.compactMap { r -> String? in if case .failed(let why) = r.step { return why } else { return nil } }.first
-            message = "Some lines couldn't be read\(why.map { " (\($0))" } ?? ""). Check your connection and try again."
+            message = "Some lines couldn't be read\(why.map { " (\($0))" } ?? ""). Check your connection and try again: "
+                + "the lines that were read are kept."
             startOver()
+            canRetryRead = true
             return
         }
         var out: [ReviewBar] = []
@@ -546,7 +695,7 @@ final class BookImportModel: ObservableObject {
             guard let reading = r.reading, let geometry = r.geometry else { continue }
             let merged = BarMerge.merge(reading.withClefs(upper: r.upperClef, lower: r.lowerClef), geometry)
             for bar in merged {
-                out.append(ReviewBar(id: out.count + 1, system: r.id, bar: bar,
+                out.append(ReviewBar(id: out.count + 1, system: r.id, bar: bar, original: bar,
                                      resolution: bar.isTrusted ? .trusted : .needsReview,
                                      image: bar.pageBar.flatMap { barImage(r, $0) }))
             }
@@ -554,24 +703,32 @@ final class BookImportModel: ObservableObject {
         }
         bars = out
         // Bars the reading skipped are read again one at a time, straight away, before deciding
-        // whether anything needs the learner's eye.
-        let rereads = out.filter { $0.bar.upperStatus == .flagged(.skippedByReading) }.compactMap { fix($0.id) }
-        guard !rereads.isEmpty else { return finishChecking(token) }
-        Task {
+        // whether anything needs the learner's eye. Not when only saved readings were to be used:
+        // that's a call to Muse Wonder.
+        let skipped = how == .savedOnly ? [] : out.filter { $0.bar.upperStatus == .flagged(.skippedByReading) }
+        let rereads = skipped.compactMap { fix($0.id, fresh: false) }
+        guard !rereads.isEmpty else { return finishChecking(how) }
+        let id = readID
+        Task { @MainActor in
             for task in rereads { await task.value }
-            await MainActor.run { self.finishChecking(token) }
+            guard self.readID == id else { return }
+            self.finishChecking(how)
         }
     }
 
     /// Every bar measured and read: saved and opened in Practice straight away when none needs a
-    /// look, otherwise the check view opens on the bars that do.
-    private func finishChecking(_ token: UUID) {
-        guard readToken == token, phase == .reading else { return }
-        if toReview == 0, save() {
+    /// look, otherwise the check view opens on the bars that do. Checking a piece saved before
+    /// checks were kept always opens the check view: that's what the learner asked for.
+    private func finishChecking(_ how: ReadingSource) {
+        guard phase == .reading else { return }
+        if how != .savedOnly, toReview == 0, save() {
             // Back to the page, the piece's lines now tinted as read, for when the learner returns.
             startOver()
         } else {
+            selectFirstToCheck()
             phase = .review
+            message = afterReadingNote
+            afterReadingNote = nil
         }
     }
 
@@ -628,21 +785,185 @@ final class BookImportModel: ObservableObject {
         return (piece.score, flagged)
     }
 
+    // MARK: Correcting
+
+    /// Opens a bar's card (nil closes it). A note picked in another bar is let go.
+    func select(bar id: Int?) {
+        guard id != selectedBar else { return }
+        selectedBar = id
+        selectedNote = nil
+    }
+
+    /// Picks a note of the selected bar (to move it, change it, delete it…), and plays it.
+    func select(note: NoteRef?) {
+        selectedNote = note
+        if let note, let id = selectedBar { play(note, inBar: id) }
+    }
+
+    /// The next bar still to check after the selected one (round to the start), or the bar
+    /// after it (`toCheck` false); `step` -1 goes back.
+    func selectNext(toCheck: Bool, step: Int = 1) {
+        guard !bars.isEmpty else { return }
+        let start = bars.firstIndex { $0.id == selectedBar } ?? (step > 0 ? bars.count - 1 : 0)
+        for offset in 1...bars.count {
+            let i = ((start + step * offset) % bars.count + bars.count) % bars.count
+            if !toCheck || bars[i].needsReview {
+                select(bar: bars[i].id)
+                return
+            }
+        }
+    }
+
+    private func selectFirstToCheck() {
+        selectedBar = bars.first(where: \.needsReview)?.id
+        selectedNote = nil
+    }
+
+    /// The learner checked the bar: it's right as it stands.
     func confirm(_ id: Int) {
+        remember()
         update(id) { $0.resolution = .confirmed }
+    }
+
+    /// Back to checking: the bar was marked right (or corrected) too soon.
+    func markToCheck(_ id: Int) {
+        remember()
+        update(id) { $0.resolution = .needsReview }
+    }
+
+    /// The bar as first read, every correction undone.
+    func revert(_ id: Int) {
+        guard let b = bars.first(where: { $0.id == id }), b.bar != b.original || b.resolution == .confirmed else { return }
+        remember()
+        update(id) { rb in
+            rb.bar = rb.original
+            rb.resolution = rb.original.isTrusted ? .trusted : .needsReview
+        }
+        selectedNote = nil
     }
 
     /// Moves one note up or down a line or space, and plays it.
     func nudge(_ id: Int, staff: SystemReading.StaffName, note k: Int, by delta: Int) {
-        update(id) { b in
-            var notes = staff == .upper ? b.bar.upper : b.bar.lower
-            guard notes.indices.contains(k), !notes[k].note.rest else { return }
-            notes[k].note.position += delta
-            if staff == .upper { b.bar.upper = notes } else { b.bar.lower = notes }
-            b.resolution = .nudged
-            session?.previewPitch(StaffPitch.midi(clef: notes[k].clef, position: notes[k].note.position,
-                                                  accidental: notes[k].note.accidental))
+        selectedNote = NoteRef(staff: staff, index: k)
+        edit(id) { $0.move(staff, k, by: delta) }
+    }
+
+    func cycleAccidental(_ id: Int, _ note: NoteRef) {
+        edit(id) { $0.cycleAccidental(note.staff, note.index) }
+    }
+
+    func setDuration(_ id: Int, _ note: NoteRef, _ duration: SystemReading.Duration) {
+        edit(id) { $0.setDuration(note.staff, note.index, duration) }
+    }
+
+    func toggleDot(_ id: Int, _ note: NoteRef) {
+        edit(id) { $0.toggleDot(note.staff, note.index) }
+    }
+
+    func toggleRest(_ id: Int, _ note: NoteRef) {
+        edit(id) { $0.toggleRest(note.staff, note.index) }
+    }
+
+    /// Adds a note to a staff, after note `k` (at the end when nil), and picks it.
+    func insertNote(_ id: Int, staff: SystemReading.StaffName, after k: Int?) {
+        guard let b = bars.first(where: { $0.id == id }) else { return }
+        let fallback = staffClef(inSystem: b.system, staff)
+        var added = 0
+        edit(id) { bar in
+            added = bar.insertNote(staff, after: k ?? bar.notes(staff).count - 1, clef: fallback)
         }
+        select(note: NoteRef(staff: staff, index: added))
+    }
+
+    func deleteNote(_ id: Int, _ note: NoteRef) {
+        edit(id) { $0.deleteNote(note.staff, note.index) }
+        selectedNote = nil
+    }
+
+    /// Reads one staff of a whole line in another clef (the clef printed at the start of the line
+    /// was read wrong): every bar of the line changes, and counts as corrected.
+    func setClef(inSystem system: Int, _ staff: SystemReading.StaffName, _ clef: SystemReading.Clef) {
+        let ids = bars(inSystem: system).filter { !$0.bar.notes(staff).isEmpty && $0.bar.clef(staff, fallback: clef) != clef }.map(\.id)
+        guard !ids.isEmpty else { return }
+        remember()
+        for id in ids {
+            update(id) { rb in
+                rb.bar.setClef(staff, clef)
+                rb.resolution = .nudged
+            }
+        }
+    }
+
+    /// A staff's clef on a line: from its notes (upper treble and lower bass when it has none).
+    func staffClef(inSystem system: Int, _ staff: SystemReading.StaffName) -> SystemReading.Clef {
+        bars(inSystem: system).lazy.compactMap { $0.bar.notes(staff).first?.clef }.first ?? (staff == .upper ? .treble : .bass)
+    }
+
+    /// The metre the piece will be written in: what each bar should add up to.
+    var metre: TimeSignature { ScoreWriter.metre(of: bars.map(\.bar)) }
+
+    /// Changes one bar's notes, undoably: the bar then counts as corrected, and the picked note sounds.
+    private func edit(_ id: Int, _ change: (inout BarMerge.Bar) -> Void) {
+        guard let b = bars.first(where: { $0.id == id }) else { return }
+        var bar = b.bar
+        change(&bar)
+        guard bar != b.bar else { return }
+        remember()
+        update(id) { rb in
+            rb.bar = bar
+            rb.resolution = .nudged
+        }
+        if let note = selectedNote, selectedBar == id { play(note, inBar: id) }
+    }
+
+    /// Plays a note as it sounds in its bar (a sharp or flat earlier in the bar still applies).
+    private func play(_ note: NoteRef, inBar id: Int) {
+        guard let b = bars.first(where: { $0.id == id }) else { return }
+        let pitches = b.bar.midiPitches(note.staff)
+        if pitches.indices.contains(note.index), let pitch = pitches[note.index] { session?.previewPitch(pitch) }
+    }
+
+    // MARK: Undo
+
+    var canUndo: Bool { !undoStack.isEmpty }
+    var canRedo: Bool { !redoStack.isEmpty }
+
+    /// Notes the review as it is, before a change.
+    private func remember() {
+        undoStack.append(snapshot)
+        if undoStack.count > 200 { undoStack.removeFirst() }
+        redoStack = []
+    }
+
+    func undo() {
+        guard let last = undoStack.popLast() else { return }
+        redoStack.append(snapshot)
+        restore(last)
+    }
+
+    func redo() {
+        guard let next = redoStack.popLast() else { return }
+        undoStack.append(snapshot)
+        restore(next)
+    }
+
+    private var snapshot: ReviewSnapshot {
+        ReviewSnapshot(bars: bars, selectedBar: selectedBar, selectedNote: selectedNote)
+    }
+
+    private func restore(_ s: ReviewSnapshot) {
+        bars = s.bars
+        selectedBar = s.selectedBar
+        selectedNote = s.selectedNote
+        for r in reads { engravingIDs[r.id] = UUID() }
+    }
+
+    private func clearReviewHistory() {
+        undoStack = []
+        redoStack = []
+        proposals = [:]
+        selectedBar = nil
+        selectedNote = nil
     }
 
     /// Plays one bar, both hands, at a steady 80 bpm.
@@ -651,12 +972,9 @@ final class BookImportModel: ObservableObject {
         var notes: [(pitch: Int, start: Double, length: Double)] = []
         for staff in SystemReading.StaffName.allCases {
             var t = 0.0
-            for n in b.bar.notes(staff) {
+            for (n, pitch) in zip(b.bar.notes(staff), b.bar.midiPitches(staff)) {
                 let seconds = n.note.quarters * 60 / 80
-                if !n.note.rest {
-                    notes.append((StaffPitch.midi(clef: n.clef, position: n.note.position, accidental: n.note.accidental),
-                                  t, seconds * 0.9))
-                }
+                if let pitch { notes.append((pitch, t, seconds * 0.9)) }
                 t += seconds
             }
         }
@@ -664,62 +982,116 @@ final class BookImportModel: ObservableObject {
     }
 
     /// Asks Muse Wonder to read just this bar again (zoomed in), then measures and merges it.
-    /// The task doing it, if it started.
+    /// `fresh`: ask again rather than use a saved re-reading (the learner pressed Fix this bar;
+    /// skipped bars re-read during a read use saved ones).
+    /// A bar as first read takes the new reading (Revert brings the first back); a bar the
+    /// learner corrected or checked gets it as a proposal instead (`proposals`).
+    /// The task doing it, if it started (nil if it's already being read again, or can't be).
     @discardableResult
-    func fix(_ id: Int) -> Task<Void, Never>? {
+    func fix(_ id: Int, fresh: Bool = true) -> Task<Void, Never>? {
+        guard !fixing.contains(id) else { return nil }  // already being read again
         guard let b = bars.first(where: { $0.id == id }), let r = reads.first(where: { $0.id == b.system }),
               let g = r.geometry else { return nil }
         guard let j = b.bar.pageBar, j + 1 < g.barEdges.count else {
-            message = "Bar \(id) couldn't be found on the page, so it can't be read again. Nudge its notes or tap That's right."
+            message = "Bar \(id) couldn't be found on the page, so it can't be read again. Correct its notes or tap That's right."
             return nil
         }
-        guard let client = try? ModelClient.configured(.meta) else {
-            aiKeyNote = "Reading a bar again needs a Meta key, which you can add in AI settings. You can still nudge its notes or tap That's right."
-            return nil
-        }
+        guard let png = Self.barCrop(r.gray, g, bar: j).pngData() else { return nil }
         aiKeyNote = nil
-        // The bar alone, with its clefs' context lost: zoom by cropping just this bar.
-        let pad = Int(0.6 * g.upper.spacing)
-        let x0 = max(0, Int(g.barEdges[j]) - pad)
-        let x1 = min(r.gray.width, Int(g.barEdges[j + 1]) + pad)
-        let crop = SystemFinder.crop(r.gray, FoundSystem(index: 0, left: x0, top: 0, right: x1, bottom: r.gray.height,
-                                                         spacing: g.upper.spacing))
-        guard let png = crop.pngData() else { return nil }
         fixing.insert(id)
-        let token = readToken
-        return Task {
+        let readID = self.readID, single = r.singleStaff, read = barReader
+        // The bar's clefs are the line's (as read with the whole line in view, or as the learner
+        // set them), not the model's guess from a crop that may not show them.
+        let clefs = (upper: lineClef(b.system, .upper, g), lower: lineClef(b.system, .lower, g))
+        fixTasks[id] = Task { @MainActor in
+            let result: Result<BarMerge.Bar, Error>
             do {
-                let reading = try await SystemReader(client: client, reasoningEffort: "high")
-                    .read(png: png, expectedMeasures: 1, singleStaff: r.singleStaff)
+                let reading = try await read(png, single, fresh)
                 // Use the measure with the most notes (a crop can catch a sliver of a neighbour).
-                guard let measure = reading.measures.max(by: {
+                guard var measure = reading.measures.max(by: {
                     $0.upper.notes.count + $0.lower.notes.count < $1.upper.notes.count + $1.lower.notes.count
                 }) else { throw ModelError.badResponse("no bar in the reply") }
+                measure.upper.clef = clefs.upper
+                measure.lower.clef = clefs.lower
                 var oneBar = g
                 oneBar.barEdges = [g.barEdges[j], g.barEdges[j + 1]]
-                let one = SystemReading(measureCount: 1, measures: [measure]).withClefs(upper: r.upperClef, lower: r.lowerClef)
-                var reread = BarMerge.merge(one, oneBar)[0]
+                var reread = BarMerge.merge(SystemReading(measureCount: 1, measures: [measure]), oneBar)[0]
                 reread.pageBar = j
-                let merged = reread
-                await MainActor.run {
-                    guard self.readToken == token else { return }
-                    self.fixing.remove(id)
-                    self.update(id) { rb in
-                        rb.bar = merged
-                        rb.resolution = merged.isTrusted ? .fixed : .needsReview
-                    }
-                    if self.phase == .review, self.bars.first(where: { $0.id == id })?.needsReview == true {
-                        self.message = "Bar \(id) still needs a look: nudge any wrong note, then tap That's right."
-                    }
-                }
+                result = .success(reread)
             } catch {
-                await MainActor.run {
-                    guard self.readToken == token else { return }
-                    self.fixing.remove(id)
-                    self.message = "Couldn't re-read bar \(id): \((error as? LocalizedError)?.errorDescription ?? "\(error)")"
-                }
+                result = .failure(error)
+            }
+            // Cancelled, or the piece changed while this bar was being read: drop it.
+            guard self.readID == readID else { return }
+            self.fixTasks[id] = nil
+            self.fixing.remove(id)
+            switch result {
+            case .success(let merged):
+                self.received(merged, forBar: id)
+            case .failure(ModelError.missingKey):
+                self.aiKeyNote = "Reading a bar again needs a Meta key, which you can add in AI settings. You can still correct its notes or tap That's right."
+            case .failure(let error):
+                self.message = "Couldn't re-read bar \(id): \((error as? LocalizedError)?.errorDescription ?? "\(error)")"
             }
         }
+        return fixTasks[id]
+    }
+
+    /// A bar read again: taken straight away if the bar is as first read, else proposed.
+    private func received(_ reread: BarMerge.Bar, forBar id: Int) {
+        guard let b = bars.first(where: { $0.id == id }) else { return }
+        let untouched = b.bar == b.original && (b.resolution == .trusted || b.resolution == .needsReview)
+        guard untouched else {
+            proposals[id] = reread
+            return
+        }
+        guard reread != b.bar else { return }
+        remember()
+        update(id) { rb in
+            rb.bar = reread
+            rb.resolution = reread.isTrusted ? .fixed : .needsReview
+        }
+        if phase == .review, bars.first(where: { $0.id == id })?.needsReview == true {
+            message = "Bar \(id) still needs a look: correct any wrong note, then tap That's right."
+        }
+    }
+
+    /// Takes the new reading of a bar in place of the learner's version (undoably).
+    func useProposal(_ id: Int) {
+        guard let reread = proposals.removeValue(forKey: id) else { return }
+        remember()
+        update(id) { rb in
+            rb.bar = reread
+            rb.resolution = reread.isTrusted ? .fixed : .needsReview
+        }
+        selectedNote = nil
+    }
+
+    /// Keeps the learner's version of a bar; the new reading is dropped.
+    func dismissProposal(_ id: Int) {
+        proposals[id] = nil
+    }
+
+    /// A staff's clef on a line: as its bars have it (read with the whole line in view, or set by
+    /// the learner), else as measured at the start of the line.
+    private func lineClef(_ system: Int, _ staff: SystemReading.StaffName, _ g: NoteheadGeometry.System) -> SystemReading.Clef {
+        bars(inSystem: system).lazy.compactMap { $0.bar.notes(staff).first?.clef }.first
+            ?? (staff == .upper ? g.upperClef : g.lowerClef)
+    }
+
+    /// What's sent to read bar `j` again: the bar, zoomed in by cropping it, with the start of the
+    /// line (its clefs and time signature) beside it so the clefs aren't lost.
+    static func barCrop(_ line: Gray, _ g: NoteheadGeometry.System, bar j: Int) -> Gray {
+        let pad = Int(0.6 * g.upper.spacing)
+        let x0 = max(0, Int(g.barEdges[j]) - pad)
+        let x1 = min(line.width, Int(g.barEdges[j + 1]) + pad)
+        func columns(_ from: Int, _ to: Int) -> Gray {
+            SystemFinder.crop(line, FoundSystem(index: 0, left: from, top: 0, right: to, bottom: line.height, spacing: g.upper.spacing))
+        }
+        let start = min(Int(g.barEdges[0]), line.width)  // where the music starts, after the clefs
+        guard start > 0 else { return columns(x0, x1) }
+        guard x0 > start else { return columns(0, x1) }  // the first bar: the clefs are right there
+        return SystemFinder.beside([columns(0, start), columns(x0, x1)], gap: pad)
     }
 
     private func update(_ id: Int, _ change: (inout ReviewBar) -> Void) {
@@ -730,42 +1102,105 @@ final class BookImportModel: ObservableObject {
 
     /// Back to picking (cancelling a read under way), the lines still selected.
     func startOver() {
-        readToken = UUID()
         aiKeyNote = nil
+        cancelReading()
         phase = .choosing
+        source = nil
         reads = []
         bars = []
-        fixing = []
+        clearReviewHistory()
     }
 
     // MARK: Saving
 
-    /// Writes the piece (MIDI, MusicXML, score) and opens it in Practice. False if it couldn't.
+    /// Writes the piece and opens it in Practice. False if it couldn't.
     @discardableResult
     func save() -> Bool {
-        guard canSave else { return false }
-        let name = title.trimmingCharacters(in: .whitespaces).isEmpty
-            ? (reads.first.map { suggestedTitle(forLine: $0.found.index) } ?? "Piece")
-            : title.trimmingCharacters(in: .whitespaces)
+        guard let saved = store() else { return false }
+        practise(saved)
+        // After opening it, which clears Practice's message.
+        if let note = lessonNote { session?.message = note }
+        lessonNote = nil
+        return true
+    }
+
+    /// Said once the piece opens in Practice, when saving it changed notes its lesson was made from.
+    private(set) var lessonNote: String?
+
+    /// Writes the piece (MIDI, MusicXML, score) and its check (`PieceCorrection`), so it can be
+    /// checked again as it was left. A piece already saved from these lines is replaced, in its
+    /// own folder, whatever it's called now.
+    @discardableResult
+    func store() -> SavedPiece? {
+        guard canSave, let source else { return nil }
+        let existing = savedPiece(for: source)
+        let typed = title.trimmingCharacters(in: .whitespaces)
+        let name = !typed.isEmpty ? typed
+            : existing?.title ?? reads.first.map { suggestedTitle(forLine: $0.found.index) } ?? "Piece"
         let piece = ScoreWriter.write(bars.map(\.bar), title: name, oneStaff: layout == .separate)
-        let saved = SavedPiece(id: Self.slug(name), title: name, book: documentURL?.lastPathComponent ?? "",
-                               page: pageIndex, firstLine: reads.first?.found.index ?? 0,
-                               lastLine: reads.last?.found.index ?? 0, created: Date())
+        let saved = SavedPiece(id: existing?.id ?? BookLibrary.pieceID(book: source.book, page: source.page, lines: source.lines),
+                               title: name, book: source.book, page: source.page,
+                               firstLine: source.lines.lowerBound, lastLine: source.lines.upperBound, created: Date())
         let folder = saved.folder
+        let before = (try? Data(contentsOf: folder.appendingPathComponent("score.json")))
+            .flatMap { try? JSONDecoder().decode(Score.self, from: $0) }
         do {
             try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
             try piece.midi.write(to: folder.appendingPathComponent("piece.mid"))
             try Data(piece.musicXML.utf8).write(to: folder.appendingPathComponent("piece.musicxml"))
             try JSONEncoder().encode(piece.score).write(to: folder.appendingPathComponent("score.json"))
+            try JSONEncoder().encode(piece.printedFingering).write(to: folder.appendingPathComponent("fingering.json"))
+            try BookLibrary.storeCorrection(correction, lineImages: reads.map(\.png), in: folder)
             try BookLibrary.store(saved)
+            // Corrected notes: the lesson made from the old ones goes, to be made again.
+            lessonNote = nil
+            if let before {
+                let changed = Self.changedBars(before, piece.score)
+                if !changed.isEmpty {
+                    PieceLessonStore.forgetLesson(saved.id)
+                    lessonNote = "Your corrections changed \(Self.barList(changed)) of \(name), so its lesson will be planned "
+                        + "again from the corrected notes."
+                }
+            }
             message = nil
             refreshLibrary()
-            practise(saved)
-            return true
+            return saved
         } catch {
             message = "Couldn't save the piece: \(error.localizedDescription)"
-            return false
+            return nil
         }
+    }
+
+    /// Bar numbers (from 1) whose notes or rests differ between two versions of a piece; bars
+    /// only one of them has count too.
+    static func changedBars(_ old: Score, _ new: Score) -> [Int] {
+        (0..<max(old.measures.count, new.measures.count)).filter { i in
+            !old.measures.indices.contains(i) || !new.measures.indices.contains(i)
+                || old.measures[i].events != new.measures[i].events
+        }.map { $0 + 1 }
+    }
+
+    /// "bar 3", "bars 3 and 5", "bars 2, 3 and 7".
+    static func barList(_ bars: [Int]) -> String {
+        let names = bars.map(String.init)
+        guard names.count > 1 else { return "bar \(names.first ?? "")" }
+        return "bars " + names.dropLast().joined(separator: ", ") + " and " + names.last!
+    }
+
+    /// The check as it stands: every line read and every bar, for saving.
+    var correction: PieceCorrection {
+        PieceCorrection(
+            oneStaff: layout == .separate,
+            lines: reads.map { .init(found: $0.found, singleStaff: $0.singleStaff, reading: $0.reading, geometry: $0.geometry) },
+            bars: bars.map { b in
+                .init(line: reads.firstIndex { $0.id == b.system } ?? 0, bar: b.bar, original: b.original, resolution: b.resolution)
+            })
+    }
+
+    /// The saved piece read from these lines, if there is one (the newest, should there be two).
+    func savedPiece(for source: PieceSource) -> SavedPiece? {
+        pieces.first { $0.book == source.book && $0.page == source.page
+            && $0.firstLine == source.lines.lowerBound && $0.lastLine == source.lines.upperBound }
     }
 
     // MARK: Saved pieces
@@ -775,7 +1210,8 @@ final class BookImportModel: ObservableObject {
         do {
             let score = try JSONDecoder().decode(Score.self, from: Data(contentsOf: piece.folder.appendingPathComponent("score.json")))
             session?.tab = .practice
-            session?.loadReference(piece.folder.appendingPathComponent("piece.mid"), remember: false, writtenScore: score)
+            session?.loadReference(piece.folder.appendingPathComponent("piece.mid"), remember: false, writtenScore: score,
+                                   printedFingering: BookLibrary.printedFingering(of: piece))
             // A tutor lesson under way on this piece carries on where it was left.
             if let progress = session?.savedTutorProgress, !progress.mastered {
                 session?.beginTutoring(planLesson: true)
@@ -793,12 +1229,65 @@ final class BookImportModel: ObservableObject {
         guard let piece = pieces.first(where: { $0.folder.appendingPathComponent("piece.mid").standardizedFileURL.path == path }),
               let data = try? Data(contentsOf: piece.folder.appendingPathComponent("score.json")),
               let score = try? JSONDecoder().decode(Score.self, from: data) else { return false }
-        session?.loadReference(url, remember: false, writtenScore: score)
+        session?.loadReference(url, remember: false, writtenScore: score, printedFingering: BookLibrary.printedFingering(of: piece))
         return true
     }
 
-    /// Goes back to the piece's page with its lines selected, ready to read again.
-    func readAgain(_ piece: SavedPiece) {
+    /// Reopens a saved piece's check as it was left: its bars and every correction, ready to
+    /// correct more and save again. Nothing is read again, so no key is needed. A piece saved
+    /// before checks were kept opens from its saved readings instead, as first read.
+    func correct(_ piece: SavedPiece) {
+        aiKeyNote = nil
+        message = nil
+        guard let (stored, images) = BookLibrary.correction(of: piece) else {
+            correctFromReadings(piece)
+            return
+        }
+        cancelReading()
+        title = piece.title
+        resetSetup()
+        layout = stored.oneStaff ? .separate : .together
+        setupEdited = true
+        source = PieceSource(book: piece.book, page: piece.page, lines: piece.firstLine...piece.lastLine)
+        reads = zip(stored.lines, images).enumerated().map { k, pair in
+            let (line, image) = pair
+            return SystemRead(id: k, found: line.found, gray: image.gray, png: image.png,
+                              image: image.gray.cgImage().map { NSImage(cgImage: $0, size: .zero) } ?? NSImage(),
+                              singleStaff: line.singleStaff, step: .done, reading: line.reading, geometry: line.geometry)
+        }
+        bars = stored.bars.enumerated().map { i, b in
+            ReviewBar(id: i + 1, system: b.line, bar: b.bar, original: b.original, resolution: b.resolution,
+                      image: b.bar.pageBar.flatMap { barImage(reads[b.line], $0) })
+        }
+        for r in reads { engravingIDs[r.id] = UUID() }
+        clearReviewHistory()
+        selectFirstToCheck()
+        phase = .review
+    }
+
+    /// A piece saved before its check was kept: goes to its page and reads its lines from the
+    /// saved readings (free; no key needed), as they were first read.
+    private func correctFromReadings(_ piece: SavedPiece) {
+        guard let book = library.first(where: { $0.url.lastPathComponent == piece.book }) else {
+            message = "Open \(piece.book) first: it isn't in your books."
+            return
+        }
+        title = piece.title
+        let score = (try? Data(contentsOf: piece.folder.appendingPathComponent("score.json")))
+            .flatMap { try? JSONDecoder().decode(Score.self, from: $0) }
+        // Read as it was saved: its layout, and the clefs its staves were written in.
+        let staves = score?.staves ?? []
+        let clef = { (i: Int) -> SystemReading.Clef in staves.indices.contains(i) && staves[i] == .bass ? .bass : .treble }
+        pendingCorrection = (lines: piece.firstLine...piece.lastLine, layout: staves.count == 1 ? .separate : .together,
+                             upper: clef(0), lower: staves.count == 1 ? clef(0) : clef(1))
+        afterReadingNote = "\(piece.title) was saved before corrections were kept, so it opens as it was first read: "
+            + "make any corrections again, then save."
+        open(book.url, page: piece.page)
+    }
+
+    /// Goes back to the piece's page with its lines selected and "Ask Muse Wonder again" on, to
+    /// read it afresh. Saving the new reading replaces the piece and its corrections.
+    func readAgainFromScratch(_ piece: SavedPiece) {
         guard let book = library.first(where: { $0.url.lastPathComponent == piece.book }) else {
             message = "Open \(piece.book) first: it isn't in your books."
             return
@@ -806,6 +1295,7 @@ final class BookImportModel: ObservableObject {
         title = piece.title
         pendingSelection = piece.firstLine...piece.lastLine
         open(book.url, page: piece.page)
+        freshRead = true
     }
 
     func showInFinder(_ piece: SavedPiece) {

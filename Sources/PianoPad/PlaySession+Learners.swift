@@ -331,6 +331,9 @@ extension PlaySession {
                     mode: mode.rawValue, printedMeasures: attempt.measures.map { passage?.printedMeasure(forPlayed: $0) ?? $0 },
                     stars: tutorPerformStars)
                 try JSONEncoder().encode(metadata).write(to: saved.reportURL.deletingPathExtension().appendingPathExtension("tutor.json"), options: .atomic)
+                if let s = tutorPractice.take(piece: piece.rawValue, learner: learner.id, at: Date()) {
+                    try learnerStore.history(for: learner.id).recordSession(s)
+                }
             }
         } catch {
             message = "Couldn't save the take to \(learner.name)'s history: \(error.localizedDescription)"

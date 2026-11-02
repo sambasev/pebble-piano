@@ -2,49 +2,56 @@
 import PianoGraderCore
 import SwiftUI
 
-/// Where the tempo line is: a point in the music, in quarters from the start, and whether
-/// it's the music actually playing (bright) or the target-tempo preview (faint).
+/// Where the tempo wash has reached: a point in the music, in quarters from the start, and
+/// whether it's the music actually playing (stronger) or the target-tempo preview (fainter).
 struct ScoreProgress {
     var quarter: Double
     var live: Bool
 }
 
-/// A thin line across each system of the score, between the finger numbers and the staff,
-/// filling from the left as the music goes: in time with the clicks while playing, or sweeping
-/// at the target tempo as a preview while learning the notes. Drawn on its own layer every
-/// frame, so the engraving underneath isn't repainted.
-struct TempoProgressLine: View {
+/// A soft iris tint behind the staff lines, filling each system from the left as the music
+/// goes. It has no leading line: it fades out at the current point, so nothing lines up with
+/// stems, bar lines or ledger lines, and it stays between each staff's outer lines so notes
+/// above and below are left clear. Drawn under the engraving on its own layer every frame, so
+/// the engraving isn't repainted.
+struct TempoWash: View {
     let layout: ScoreLayout
     let paper: PP.Paper
-    /// Asked every frame with the system uptime; nil hides the fill.
+    /// Asked every frame with the system uptime; nil hides the wash.
     let progress: (TimeInterval) -> ScoreProgress?
     /// Redraw every frame only while something moves; otherwise it's drawn once.
     var animating = true
+
+    /// Opacity of the accent at the start of a system and just before the fade.
+    static let opacity: ClosedRange<Double> = 0.08...0.18
+    /// How far the leading fade runs, in staff spaces.
+    static let fadeSpaces = 3.0
 
     var body: some View {
         TimelineView(.animation(minimumInterval: nil, paused: !animating)) { _ in
             let p = progress(ProcessInfo.processInfo.systemUptime)
             Canvas { context, _ in
+                guard let p, let fillX = TempoProgressGeometry.position(atQuarter: p.quarter, in: layout) else { return }
                 let s = layout.metrics.spacing
-                let fillX = p.flatMap { TempoProgressGeometry.position(atQuarter: $0.quarter, in: layout) }
-                for system in layout.systems {
+                let strength = p.live ? 1 : 0.5
+                for system in layout.systems where system.index <= fillX.system {
                     guard let span = TempoProgressGeometry.span(of: system, spacing: s) else { continue }
-                    let y = (system.staffTops.first ?? system.top) - 0.75 * s
-                    let thickness = 0.32 * s
-                    let track = Path(roundedRect: CGRect(x: span.lowerBound, y: y - thickness / 2,
-                                                         width: span.upperBound - span.lowerBound, height: thickness),
-                                     cornerRadius: thickness / 2)
-                    context.fill(track, with: .color(paper.ink.opacity(0.12)))
-                    guard let p, let fillX else { continue }
-                    let end: Double
-                    if system.index < fillX.system { end = span.upperBound }
-                    else if system.index == fillX.system { end = min(span.upperBound, max(span.lowerBound, fillX.x)) }
-                    else { continue }
-                    guard end > span.lowerBound else { continue }
-                    let fill = Path(roundedRect: CGRect(x: span.lowerBound, y: y - thickness / 2,
-                                                        width: end - span.lowerBound, height: thickness),
-                                    cornerRadius: thickness / 2)
-                    context.fill(fill, with: .color(paper.accent.opacity(p.live ? 1 : 0.45)))
+                    let current = system.index == fillX.system
+                    let end = current ? min(span.upperBound, max(span.lowerBound, fillX.x)) : span.upperBound
+                    let width = end - span.lowerBound
+                    guard width > 0 else { continue }
+                    // Earlier systems end at their last barline; the current one fades out.
+                    let fade = current ? min(width, Self.fadeSpaces * s) / width : 0
+                    let stops: [Gradient.Stop] = [
+                        .init(color: paper.accent.opacity(Self.opacity.lowerBound * strength), location: 0),
+                        .init(color: paper.accent.opacity(Self.opacity.upperBound * strength), location: 1 - fade),
+                        .init(color: paper.accent.opacity(current ? 0 : Self.opacity.upperBound * strength), location: 1),
+                    ]
+                    let shading = GraphicsContext.Shading.linearGradient(
+                        Gradient(stops: stops), startPoint: CGPoint(x: span.lowerBound, y: 0), endPoint: CGPoint(x: end, y: 0))
+                    for top in system.staffTops {
+                        context.fill(Path(CGRect(x: span.lowerBound, y: top, width: width, height: 4 * s)), with: shading)
+                    }
                 }
             }
         }
@@ -54,16 +61,16 @@ struct TempoProgressLine: View {
 }
 
 extension PlaySession {
-    /// The tempo line and beat dots are shown: play-along only (clicks, tempo or a backing
+    /// The tempo wash and beat dots are shown: play-along only (clicks, tempo or a backing
     /// track). Wait mode follows the player, not a beat, so a tempo display would be out of sync.
     var showsTempoDisplay: Bool { mode == .playAlong }
 
-    /// Something on the tempo line or beat dots is moving (music playing). Otherwise their
+    /// Something on the tempo wash or beat dots is moving (music playing). Otherwise their
     /// frame-by-frame redraw pauses.
     var tempoDisplayMoves: Bool { isPlayingAlong || isAuditioning }
 
 
-    /// The tempo line in the score: the music while it plays (play-along with or without a
+    /// The tempo wash in the score: the music while it plays (play-along with or without a
     /// backing track, count-in included, or Listen). Empty when nothing plays.
     func tempoProgress(atUptime uptime: TimeInterval) -> ScoreProgress? {
         if let q = liveQuarter(atUptime: uptime) { return ScoreProgress(quarter: q, live: true) }
@@ -72,7 +79,7 @@ extension PlaySession {
     }
 }
 
-/// The geometry behind the line: pure, so it reads the same as the layout the score was drawn with.
+/// The geometry behind the wash: pure, so it reads the same as the layout the score was drawn with.
 enum TempoProgressGeometry {
     /// From just before a system's first note to its last barline.
     static func span(of system: ScoreLayout.System, spacing s: Double) -> ClosedRange<Double>? {
