@@ -181,7 +181,7 @@ struct ContentView: View {
                                          if NSEvent.modifierFlags.contains(.option) { session.toggleMark(bar: index + 1) }
                                          else { session.playFrom(bar: index) }
                                      },
-                                     // The tempo line, in play-along only (with or without a backing track).
+                                     // The tempo wash, in play-along only (with or without a backing track).
                                      tempoProgress: session.showsTempoDisplay
                                          ? { [session] uptime in session.tempoProgress(atUptime: uptime) } : nil,
                                      tempoAnimating: session.tempoDisplayMoves)
@@ -661,6 +661,9 @@ struct ContentView: View {
             wrong: session.markedWrong,
             mistakeMeasures: session.replayMeasure.map { [$0] }
                 ?? (session.tutor != nil ? session.tutorHighlight.union(session.mistakeMeasures) : (session.phase == .graded && session.report != nil ? session.mistakeMeasures : nil)),
+            // The Tutor keeps its tints up during the next take: drop the green while the tempo
+            // wash runs, so the two don't stack. Red bars stay as the ones to fix.
+            cleanTints: !(session.showsTempoDisplay && session.tempoDisplayMoves),
             fingering: session.showFingering ? session.topStaffFingering : [],
             focusMeasures: session.markedBars
         )

@@ -13,9 +13,9 @@ struct NotationView: View {
     let overlay: ScoreOverlay
     /// A measure was clicked (index into the score's measures, from 0).
     var onTapMeasure: ((Int) -> Void)? = nil
-    /// The tempo line above the staff (lesson pages): asked every frame. Nil: no line.
+    /// The tempo wash behind the staff (lesson pages): asked every frame. Nil: no wash.
     var tempoProgress: ((TimeInterval) -> ScoreProgress?)? = nil
-    /// The tempo line is moving (music playing, or the Wait-mode preview).
+    /// The tempo wash is moving (music playing, or the Wait-mode preview).
     var tempoAnimating = true
 
     @StateObject private var cache = NotationCache()
@@ -26,6 +26,7 @@ struct NotationView: View {
         GeometryReader { geo in
             let width = max(320, Double(geo.size.width - 2 * Self.margin))
             let prepared = cache.prepared(score: score, id: scoreID, width: width, mistakes: overlay.mistakeMeasures,
+                                          cleanTints: overlay.cleanTints,
                                           fingering: overlay.fingering, focus: overlay.focusMeasures)
             let currentSystem = overlay.cursorQuarter.flatMap { prepared.layout.position(atQuarter: $0)?.system }
 
@@ -33,6 +34,12 @@ struct NotationView: View {
                 ScrollView(.vertical) {
                     ZStack(alignment: .topLeading) {
                         let played = cache.played(overlay.played, renderer: prepared.renderer)
+                        // The tempo wash sits under the engraving, so notes always draw over it.
+                        if let tempoProgress {
+                            TempoWash(layout: prepared.layout, paper: paper, progress: tempoProgress,
+                                      animating: tempoAnimating)
+                                .frame(width: width, height: prepared.layout.height)
+                        }
                         Canvas { context, _ in
                             prepared.painted.paint(paper: paper, in: &context)
                             played.paint(paper: paper, in: &context)
@@ -43,13 +50,6 @@ struct NotationView: View {
                             PulsingPlayhead(items: prepared.renderer.renderPlayhead(overlay), paper: paper)
                                 .frame(width: width, height: prepared.layout.height)
                                 .allowsHitTesting(false)
-                        }
-                        .overlay(alignment: .topLeading) {
-                            if let tempoProgress {
-                                TempoProgressLine(layout: prepared.layout, paper: paper, progress: tempoProgress,
-                                                  animating: tempoAnimating)
-                                    .frame(width: width, height: prepared.layout.height)
-                            }
                         }
                         .contentShape(Rectangle())
                         .onTapGesture(coordinateSpace: .local) { point in
@@ -97,7 +97,7 @@ final class NotationCache: ObservableObject {
         let painted: PaintedDrawing
     }
 
-    private var key: (id: UUID, width: Int, mistakes: Set<Int>?, fingering: [Int], focus: Set<Int>)?
+    private var key: (id: UUID, width: Int, mistakes: Set<Int>?, cleanTints: Bool, fingering: [Int], focus: Set<Int>)?
     private var value: Prepared?
     private var playedKey: (notes: [PlayedNote], width: Int, id: UUID)?
     private var playedValue: PaintedDrawing?
@@ -115,18 +115,20 @@ final class NotationCache: ObservableObject {
         return painted
     }
 
-    func prepared(score: Score, id: UUID, width: Double, mistakes: Set<Int>?, fingering: [Int] = [], focus: Set<Int> = []) -> Prepared {
+    func prepared(score: Score, id: UUID, width: Double, mistakes: Set<Int>?, cleanTints: Bool = true, fingering: [Int] = [],
+                  focus: Set<Int> = []) -> Prepared {
         let roundedWidth = Int(width.rounded())
-        if let key, let value, key.id == id, key.width == roundedWidth, key.mistakes == mistakes, key.fingering == fingering,
+        if let key, let value, key.id == id, key.width == roundedWidth, key.mistakes == mistakes, key.cleanTints == cleanTints,
+           key.fingering == fingering,
            key.focus == focus {
             return value
         }
         let layout = ScoreLayout(score: score, width: Double(roundedWidth))
         let renderer = ScoreRenderer(layout: layout)
         let prepared = Prepared(layout: layout, renderer: renderer,
-                                painted: PaintedDrawing(renderer.renderScore(mistakeMeasures: mistakes, fingering: fingering,
+                                painted: PaintedDrawing(renderer.renderScore(mistakeMeasures: mistakes, cleanTints: cleanTints, fingering: fingering,
                                                                              focusMeasures: focus)))
-        key = (id, roundedWidth, mistakes, fingering, focus)
+        key = (id, roundedWidth, mistakes, cleanTints, fingering, focus)
         value = prepared
         return prepared
     }

@@ -26,6 +26,9 @@ public struct ScoreOverlay: Sendable {
     public var wrong: Set<Int>
     /// After grading: measure numbers with mistakes. nil before grading.
     public var mistakeMeasures: Set<Int>?
+    /// Tint the bars without mistakes green too. Off while the tempo wash runs, so the two
+    /// tints don't stack; bars with mistakes stay red.
+    public var cleanTints: Bool
     /// Finger numbers (1–5) over the top staff's notes in score order (see `renderFingering`).
     public var fingering: [Int]
     /// Measure numbers the learner marked to focus on: tinted and labelled.
@@ -33,7 +36,7 @@ public struct ScoreOverlay: Sendable {
 
     public init(cursorQuarter: Double? = nil, auditioning: Bool = false, expected: Set<Int> = [],
                 played: [PlayedNote] = [], wrong: Set<Int> = [], mistakeMeasures: Set<Int>? = nil,
-                fingering: [Int] = [], focusMeasures: Set<Int> = []) {
+                cleanTints: Bool = true, fingering: [Int] = [], focusMeasures: Set<Int> = []) {
         self.focusMeasures = focusMeasures
         self.cursorQuarter = cursorQuarter
         self.auditioning = auditioning
@@ -41,6 +44,7 @@ public struct ScoreOverlay: Sendable {
         self.played = played
         self.wrong = wrong
         self.mistakeMeasures = mistakeMeasures
+        self.cleanTints = cleanTints
         self.fingering = fingering
     }
 }
@@ -56,7 +60,7 @@ public struct ScoreRenderer {
 
     /// Everything in one drawing (used for SVG): score, grading tints, playhead and marks.
     public func render(_ overlay: ScoreOverlay = ScoreOverlay()) -> Drawing {
-        var drawing = renderScore(mistakeMeasures: overlay.mistakeMeasures, fingering: overlay.fingering,
+        var drawing = renderScore(mistakeMeasures: overlay.mistakeMeasures, cleanTints: overlay.cleanTints, fingering: overlay.fingering,
                                   focusMeasures: overlay.focusMeasures)
         let live = renderLive(overlay)
         // The playhead band goes behind the music; the marks on top.
@@ -68,9 +72,10 @@ public struct ScoreRenderer {
         return drawing
     }
 
-    /// The engraved score, with red and green measure tints after grading, and finger numbers
-    /// when given. Changes rarely, so the app draws it once and keeps it.
-    public func renderScore(mistakeMeasures: Set<Int>? = nil, fingering: [Int] = [], focusMeasures: Set<Int> = []) -> Drawing {
+    /// The engraved score, with red and (with `cleanTints`) green measure tints after grading, and
+    /// finger numbers when given. Changes rarely, so the app draws it once and keeps it.
+    public func renderScore(mistakeMeasures: Set<Int>? = nil, cleanTints: Bool = true, fingering: [Int] = [],
+                            focusMeasures: Set<Int> = []) -> Drawing {
         var items: [DrawItem] = []
         // Bars the learner marked to focus on: a violet tint, and "focus" over the bar.
         for system in layout.systems {
@@ -84,6 +89,7 @@ public struct ScoreRenderer {
             for system in layout.systems {
                 for m in system.measures {
                     let number = score.measures[m.index].number
+                    guard cleanTints || mistakes.contains(number) else { continue }
                     let (top, bottom) = staffSpan(system)
                     items.append(.rect(x: m.x, y: top - 1.5 * s, width: m.width, height: bottom - top + 3 * s, cornerRadius: 0,
                                        color: mistakes.contains(number) ? .mistakeTint : .cleanTint))

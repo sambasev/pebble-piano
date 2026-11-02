@@ -503,6 +503,28 @@ final class ScoreRendererTests: XCTestCase {
         XCTAssertTrue(drawing.items.contains { if case .shape = $0 { return true } else { return false } })
     }
 
+    func testCleanTintsCanBeLeftOut() throws {
+        let score = try score()
+        let renderer = ScoreRenderer(layout: ScoreLayout(score: score, width: 800))
+        let bars = score.measures.count
+        let wrong = try XCTUnwrap(score.measures.first?.number)
+        func tints(_ drawing: Drawing) -> (clean: Int, mistake: Int) {
+            var clean = 0, mistake = 0
+            for case let .rect(_, _, _, _, _, color) in drawing.items {
+                if color == .cleanTint { clean += 1 }
+                if color == .mistakeTint { mistake += 1 }
+            }
+            return (clean, mistake)
+        }
+        let all = tints(renderer.renderScore(mistakeMeasures: [wrong]))
+        XCTAssertEqual(all.clean, bars - 1)
+        XCTAssertEqual(all.mistake, 1)
+        // Without clean tints, only the bar with a mistake is tinted.
+        let redOnly = tints(renderer.renderScore(mistakeMeasures: [wrong], cleanTints: false))
+        XCTAssertEqual(redOnly.clean, 0)
+        XCTAssertEqual(redOnly.mistake, 1)
+    }
+
     /// Centres of the see-through circles marking held wrong keys.
     private func playingCircles(_ items: [DrawItem]) -> [DrawPoint] {
         items.compactMap { item in
