@@ -117,6 +117,22 @@ enum BookLibrary {
         return (gray, page.systems)
     }
 
+    /// Deletes the book's other cache folders: left by an earlier copy of the book (a different
+    /// size or date) or an earlier `pageScanVersion`. Nothing reads them again.
+    static func pruneCaches(for book: URL) {
+        let current = cacheFolder(for: book)
+        let parent = current.deletingLastPathComponent()
+        let name = book.deletingPathExtension().lastPathComponent.filter { $0.isLetter || $0.isNumber || $0 == "-" }
+        let folders = (try? FileManager.default.contentsOfDirectory(atPath: parent.path)) ?? []
+        for folder in folders where folder != current.lastPathComponent && folder.hasPrefix(name + "-") {
+            // Only <name>-<size>-<date>[-v<n>], so "book" doesn't take "book-2"'s folders.
+            let rest = folder.dropFirst(name.count + 1).split(separator: "-", omittingEmptySubsequences: false)
+            let isOurs = (rest.count == 2 || (rest.count == 3 && rest[2].hasPrefix("v")))
+                && rest.prefix(2).allSatisfy { !$0.isEmpty && $0.allSatisfy(\.isNumber) }
+            if isOurs { try? FileManager.default.removeItem(at: parent.appendingPathComponent(folder)) }
+        }
+    }
+
     /// Just the lines found on a page, without decoding its image: for skimming many pages.
     static func cachedSystems(_ book: URL, _ index: Int) -> [FoundSystem]? {
         guard let json = try? Data(contentsOf: cacheFolder(for: book).appendingPathComponent("page-\(index).json")) else { return nil }
