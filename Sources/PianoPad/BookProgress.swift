@@ -70,6 +70,12 @@ extension BookImportModel {
         return pieces.first { $0.book == book && $0.page == pageIndex && ($0.firstLine...$0.lastLine).contains(index) }
     }
 
+    /// The furthest any piece on page `index` of the open book has got (nil when none).
+    func status(ofPage index: Int) -> PieceStatus? {
+        guard let book = documentURL else { return nil }
+        return pieces(in: book).filter { $0.page == index }.map(status).max()
+    }
+
     /// Pages of the open book with a saved piece on them (from 0).
     var pagesWithPieces: Set<Int> {
         guard let book = documentURL else { return [] }
