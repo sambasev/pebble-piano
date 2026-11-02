@@ -12,15 +12,24 @@ public struct DetectedNote: Equatable, Sendable {
     public var time: Double
     /// When the detector reported it, in seconds of audio processed (time + latency).
     public var reportedAt: Double
-    /// 0–1: how clearly the note stood out (on events only).
+    /// 0–1: how the note's rise compares with the strongest key of the same strike (on events
+    /// only). Relative: the strongest key of every strike is 1, even a stray one.
     public var confidence: Double
+    /// How far the note rose above the room's background noise (on events only; the detector
+    /// reports nothing under `minimumRise`). Absolute, unlike `confidence`.
+    public var strength: Double
+    /// Which strike the note came from: notes of one strike share it (on events only).
+    public var strike: Int
 
-    public init(kind: Kind, pitch: Int, time: Double, reportedAt: Double, confidence: Double = 1) {
+    public init(kind: Kind, pitch: Int, time: Double, reportedAt: Double, confidence: Double = 1,
+                strength: Double = .infinity, strike: Int = 0) {
         self.kind = kind
         self.pitch = pitch
         self.time = time
         self.reportedAt = reportedAt
         self.confidence = confidence
+        self.strength = strength
+        self.strike = strike
     }
 }
 
@@ -504,7 +513,8 @@ public final class PianoNoteDetector {
             }
             active[r.pitch] = (r.level, frameIndex)
             events.append(DetectedNote(kind: .on, pitch: r.pitch, time: onsetTime, reportedAt: now,
-                                       confidence: min(1, r.rise / strongest)))
+                                       confidence: min(1, r.rise / strongest),
+                                       strength: r.rise / max(noiseTotal, 1e-12), strike: frameIndex))
         }
         return events
     }

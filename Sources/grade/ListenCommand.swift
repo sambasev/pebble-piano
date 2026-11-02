@@ -22,6 +22,18 @@ struct Listen: ParsableCommand {
     @Option(help: "Seconds of audio before the MIDI's first note (if the recording started earlier).")
     var offset: Double = 0
 
+    @Option(help: "PianoPad mic log (~/Music/PianoPad Mic/*.log) of this recording: replays its expected chords and shows what the strike filter drops.")
+    var log: String?
+
+    @Option(help: "Piano profile JSON saved by PianoPad's calibration (piano-profile.json), instead of a calibration recording.")
+    var profileJSON: String?
+
+    @Option(help: "Noise gate (RMS level) to use from the start, as PianoPad sets from its room measurement.")
+    var gate: Float?
+
+    @Option(help: .hidden) var spillRatio: Double?
+    @Option(help: .hidden) var minimumStrength: Double?
+
     @Option(help: .hidden) var evalDelay: Double?
     @Option(help: .hidden) var maxWindow: Double?
     @Option(help: .hidden) var iterations: Int?
@@ -75,6 +87,9 @@ struct Listen: ParsableCommand {
     }
 
     private var profile: PianoProfile? {
+        if let profileJSON, let data = FileManager.default.contents(atPath: profileJSON) {
+            return try? JSONDecoder().decode(PianoProfile.self, from: data)
+        }
         guard let calibration, let audio = try? WAVFile.read(url: URL(fileURLWithPath: calibration)) else { return nil }
         let notes = calibrationNotes.map { $0.split(separator: ",").compactMap { Int($0) } } ?? PianoCalibration.defaultNotes
         switch PianoCalibration.analyse(audio.samples, sampleRate: audio.sampleRate, notes: notes) {
@@ -90,6 +105,11 @@ struct Listen: ParsableCommand {
         let guideChords = try guide.map { path -> [ChordEvent] in
             let notes = try MIDIFile.read(url: URL(fileURLWithPath: path)).notes.map { shifted($0) }
             return ChordGrouping.group(notes, window: 0.05)
+        }
+
+        if let log {
+            try replay(audio, log: log)
+            return
         }
 
         guard let truth else {
@@ -127,6 +147,61 @@ struct Listen: ParsableCommand {
         if !r.extra.isEmpty {
             print("extra:  " + r.extra.prefix(12).map { "\(PitchName.of($0.pitch))@" + String(format: "%.2f", $0.time) }.joined(separator: " "))
         }
+    }
+
+    private var filterSettings: StrikeFilter.Settings {
+        var f = StrikeFilter.Settings()
+        if let spillRatio { f.spillRatio = spillRatio }
+        if let minimumStrength { f.minimumStrength = minimumStrength }
+        return f
+    }
+
+    /// Replays a recording with the expectations from its mic log (lines "<sample> expect <pitches>").
+    private func replay(_ audio: WAVFile.Audio, log: String) throws {
+        enum Change { case expect(Set<Int>), gate(Float?) }
+        var changes: [(position: Int, change: Change)] = []
+        for line in try String(contentsOfFile: log, encoding: .utf8).split(separator: "\n") {
+            let parts = line.split(separator: " ")
+            guard parts.count >= 2, let position = Int(parts[0]) else { continue }
+            if parts[1] == "expect" {
+                changes.append((position, .expect(Set(parts.dropFirst(2).compactMap { Int($0) }))))
+            } else if parts[1] == "gate", parts.count >= 3 {
+                changes.append((position, .gate(Float(parts[2]))))
+            }
+        }
+        let detector = PianoNoteDetector(sampleRate: audio.sampleRate, settings: settings)
+        detector.fixedGate = gate
+        var filter = StrikeFilter(settings: filterSettings)
+        var next = 0
+        var position = 0
+        var kept = (expected: 0, other: 0), spill = 0, weak = 0
+        while position < audio.samples.count {
+            while next < changes.count && changes[next].position <= position {
+                switch changes[next].change {
+                case .expect(let pitches): detector.expected = pitches
+                case .gate(let value): detector.fixedGate = value
+                }
+                next += 1
+            }
+            let expected = detector.expected
+            let end = min(audio.samples.count, position + 256)
+            let events = detector.process(Array(audio.samples[position..<end]))
+            let passed = filter.filter(events, expected: expected) { e, why in
+                if why == .spill { spill += 1 } else { weak += 1 }
+                print(String(format: "%8.3f  drop %@  %@  conf %.2f  strength %.1f", e.time,
+                             PitchName.of(e.pitch).padding(toLength: 4, withPad: " ", startingAt: 0),
+                             why == .spill ? "spill" : "weak ", e.confidence, e.strength))
+            }
+            for e in passed where e.kind == .on {
+                let isExpected = expected.contains(e.pitch)
+                if isExpected { kept.expected += 1 } else { kept.other += 1 }
+                print(String(format: "%8.3f  keep %@  %@  conf %.2f  strength %.1f", e.time,
+                             PitchName.of(e.pitch).padding(toLength: 4, withPad: " ", startingAt: 0),
+                             isExpected ? "expected" : "other   ", e.confidence, e.strength))
+            }
+            position = end
+        }
+        print("kept \(kept.expected) expected, \(kept.other) unexpected; dropped \(spill) spill, \(weak) weak")
     }
 
     private func shifted(_ n: NoteEvent) -> NoteEvent {

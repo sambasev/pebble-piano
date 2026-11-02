@@ -39,7 +39,9 @@ public enum WAVFile {
                 bits = u16(body + 14)
                 if format == 0xFFFE && size >= 26 { format = u16(body + 24) } // extensible
             } else if id == "data" {
-                dataRange = body..<min(b.count, body + size)
+                // A recording that was never closed has a zero size: its data runs to the end.
+                dataRange = body..<(size == 0 ? b.count : min(b.count, body + size))
+                if size == 0 { break }
             }
             i = body + size + (size & 1)
         }
