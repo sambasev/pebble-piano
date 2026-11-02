@@ -37,6 +37,7 @@ extension PlaySession {
     func startTour(_ tour: TourID) {
         tourStep = 0
         tourStepCount = tour.steps.count
+        tourLetsYouPlay = false
         activeTour = tour
     }
 
@@ -64,13 +65,14 @@ extension PlaySession {
     }
 
     /// While a tour runs, keys move it (Return/→ on, ← back, Esc skip) instead of playing.
-    /// Returns true: no other key does anything until the tour is over.
+    /// Returns true when the tour took the key: every key, except note keys on a step that
+    /// asks you to try the keyboard.
     func handleTourKey(_ event: NSEvent) -> Bool {
         switch event.keyCode {
         case 36, 76, 124, 49: nextTourStep()  // Return, Enter, →, Space
         case 123: previousTourStep()           // ←
         case 53: endTour()                     // Esc
-        default: break
+        default: return !tourLetsYouPlay
         }
         return true
     }

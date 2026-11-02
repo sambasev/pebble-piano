@@ -34,6 +34,9 @@ struct TourStep {
     var childBody: String?
 
     func text(forChild child: Bool) -> String { child ? childBody ?? body : body }
+
+    /// The keyboard steps invite a try: clicks in the spotlight and note keys reach it.
+    var letsYouPlay: Bool { target == .keyboard }
 }
 
 extension TourID {
@@ -159,7 +162,8 @@ extension View {
 // MARK: - The overlay
 
 /// The dimmed window with a hole around the step's target, and the Pebble's card beside it.
-/// It covers the whole window, so nothing underneath can be clicked while a tour runs.
+/// It covers the whole window, so nothing underneath can be clicked while a tour runs, except
+/// the spotlighted keyboard on a step that asks you to try it.
 struct TourOverlay: View {
     @EnvironmentObject var session: PlaySession
     let anchors: [TourTarget: Anchor<CGRect>]
@@ -180,14 +184,18 @@ struct TourOverlay: View {
                     let index = min(session.tourStep, shown.count - 1)
                     let hole = shown[index].rect.insetBy(dx: -8, dy: -8).intersection(bounds.insetBy(dx: 2, dy: 2))
                     ZStack(alignment: .topLeading) {
-                        spotlight(hole, in: bounds)
+                        spotlight(hole, in: bounds, open: shown[index].step.letsYouPlay)
                         callout(shown[index].step, number: index + 1, of: shown.count)
                             .frame(width: Self.calloutWidth)
                             .modifier(CalloutPlacement(hole: hole, bounds: bounds, width: Self.calloutWidth))
                     }
                     .animation(.easeInOut(duration: 0.25), value: index)
-                    .onAppear { session.tourStepCount = shown.count }
+                    .onAppear {
+                        session.tourStepCount = shown.count
+                        session.tourLetsYouPlay = shown[index].step.letsYouPlay
+                    }
                     .onChange(of: shown.count) { session.tourStepCount = $0 }
+                    .onChange(of: shown[index].step.letsYouPlay) { session.tourLetsYouPlay = $0 }
                 }
             }
             .transition(.opacity)
@@ -196,20 +204,21 @@ struct TourOverlay: View {
 
     private static let calloutWidth: CGFloat = 380
 
-    private func spotlight(_ hole: CGRect, in bounds: CGRect) -> some View {
-        ZStack(alignment: .topLeading) {
-            Path { p in
-                p.addRect(bounds)
-                p.addRoundedRect(in: hole, cornerSize: CGSize(width: PP.Radius.md, height: PP.Radius.md), style: .continuous)
-            }
-            .fill(Color.black.opacity(0.45), style: FillStyle(eoFill: true))
+    private func spotlight(_ hole: CGRect, in bounds: CGRect, open: Bool) -> some View {
+        let dim = Path { p in
+            p.addRect(bounds)
+            p.addRoundedRect(in: hole, cornerSize: CGSize(width: PP.Radius.md, height: PP.Radius.md), style: .continuous)
+        }
+        return ZStack(alignment: .topLeading) {
+            dim.fill(Color.black.opacity(0.45), style: FillStyle(eoFill: true))
             RoundedRectangle(cornerRadius: PP.Radius.md, style: .continuous)
                 .strokeBorder(PP.accent, lineWidth: 3)
                 .frame(width: hole.width, height: hole.height)
                 .offset(x: hole.minX, y: hole.minY)
+                .allowsHitTesting(false)
         }
-        // Clicks anywhere (the hole too) stop here: the tour's buttons move it on.
-        .contentShape(Rectangle())
+        // Clicks stop here (the tour's buttons move it on), in the hole too unless it's open.
+        .contentShape(open ? dim : Path(bounds), eoFill: open)
         .onTapGesture {}
         .accessibilityHidden(true)
     }

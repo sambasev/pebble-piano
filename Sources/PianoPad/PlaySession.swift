@@ -101,6 +101,8 @@ final class PlaySession: ObservableObject {
     @Published var tourStep = 0
     /// How many of the tour's steps are on screen, as the overlay last counted them.
     var tourStepCount = 0
+    /// The step on screen invites playing the keyboard: note keys go to it, not the tour.
+    var tourLetsYouPlay = false
 
     /// Reference audition.
     @Published private(set) var isAuditioning = false
@@ -1037,7 +1039,7 @@ final class PlaySession: ObservableObject {
         // Leave ⌘-shortcuts (quit, close, open…) to the app.
         if event.modifierFlags.contains(.command) { return false }
         // A tour takes the keys while it runs; key-ups still go through so no note hangs.
-        if event.type == .keyDown && activeTour != nil { return handleTourKey(event) }
+        if event.type == .keyDown && activeTour != nil && handleTourKey(event) { return true }
         // Typing into a text field (track name, tempo…) isn't playing, and the backing-track
         // editor has its own keys. Key-ups still go through so no note is left hanging.
         if event.type == .keyDown && (!tabPlaysNotes || event.window?.firstResponder is NSText) { return false }
