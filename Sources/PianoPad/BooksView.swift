@@ -138,6 +138,8 @@ struct LibrarySidebar: View {
 
 struct BookPagePicker: View {
     @ObservedObject var model: BookImportModel
+    /// A line's box while one of its handles is dragged; set on the model when the drag ends.
+    @State private var resizing: FoundSystem?
 
     var body: some View {
         HStack(alignment: .top, spacing: PP.Space.s4) {
@@ -179,10 +181,17 @@ struct BookPagePicker: View {
                             ZStack(alignment: .topLeading) {
                                 Image(nsImage: image).resizable().interpolation(.high).frame(width: w, height: h)
                                 ForEach(model.systems, id: \.index) { s in
-                                    systemOverlay(s, scale: scale)
+                                    systemOverlay(shown(s), scale: scale)
+                                }
+                                if !reading, let selection = model.selection {
+                                    ForEach(model.systems.filter { selection.contains($0.index) }, id: \.index) { s in
+                                        resizeHandles(s, scale: scale)
+                                    }
+                                    .frame(width: w, height: h, alignment: .topLeading)
                                 }
                             }
                             .frame(width: w, height: h)
+                            .coordinateSpace(name: "bookPage")
                             .background(Color.white)
                             .position(x: geo.size.width / 2, y: h / 2)
                         }
@@ -246,6 +255,39 @@ struct BookPagePicker: View {
             .offset(x: CGFloat(s.left) * scale, y: CGFloat(s.top) * scale)
     }
 
+    /// A line as drawn: with the box being dragged, while it is.
+    private func shown(_ s: FoundSystem) -> FoundSystem {
+        resizing?.index == s.index ? resizing! : s
+    }
+
+    /// Handles on the sides and corners of a selected line's box: drag one to fit the box to the
+    /// music (the box is what's cut from the page and read).
+    private func resizeHandles(_ s: FoundSystem, scale: CGFloat) -> some View {
+        let box = shown(s)
+        let rect = CGRect(x: CGFloat(box.left) * scale, y: CGFloat(box.top) * scale,
+                          width: CGFloat(box.width) * scale, height: CGFloat(box.height) * scale)
+        return ZStack(alignment: .topLeading) {
+            ForEach(BoxHandle.allCases, id: \.self) { handle in
+                BoxHandleView(handle: handle)
+                    .position(handle.point(in: rect))
+                    .gesture(
+                        DragGesture(minimumDistance: 1, coordinateSpace: .named("bookPage"))
+                            .onChanged { drag in resizing = resized(s, handle, drag.translation, scale) }
+                            .onEnded { drag in
+                                model.resizeSystem(s.index, to: resized(s, handle, drag.translation, scale))
+                                resizing = nil
+                            }
+                    )
+            }
+        }
+    }
+
+    private func resized(_ s: FoundSystem, _ handle: BoxHandle, _ by: CGSize, _ scale: CGFloat) -> FoundSystem {
+        s.moving(handle.edges, dx: Int((by.width / scale).rounded()), dy: Int((by.height / scale).rounded()),
+                 pageWidth: Int(model.pageSize.width), pageHeight: Int(model.pageSize.height),
+                 minimum: Int(max(24, 4 * s.spacing)))
+    }
+
     /// Asked before reading when the staves don't print a treble clef over a bass clef.
     private var handsQuestion: some View {
         VStack(alignment: .leading, spacing: PP.Space.s2) {
@@ -297,6 +339,10 @@ struct BookPagePicker: View {
             if let s = model.selection {
                 Text(s.count == 1 ? "Line \(s.lowerBound + 1) selected" : "Lines \(s.lowerBound + 1)–\(s.upperBound + 1) selected")
                     .font(.ppCallout)
+                if !reading {
+                    Text("Box missing some notes, or taking in too much? Drag its edges or corners. Re-scan page puts back the boxes found.")
+                        .font(.ppCaption).foregroundColor(PP.inkMuted).fixedSize(horizontal: false, vertical: true)
+                }
             }
             TextField("Name (filled in from the page)", text: $model.title)
                 .textFieldStyle(.roundedBorder)
@@ -320,6 +366,61 @@ struct BookPagePicker: View {
             Spacer()
         }
         .ppGlass(cornerRadius: PP.Radius.lg, padding: PP.Space.s4)
+    }
+}
+
+/// A handle on a line's box: a side or a corner.
+enum BoxHandle: CaseIterable {
+    case top, bottom, left, right, topLeft, topRight, bottomLeft, bottomRight
+
+    var edges: FoundSystem.Edges {
+        switch self {
+        case .top: return .top
+        case .bottom: return .bottom
+        case .left: return .left
+        case .right: return .right
+        case .topLeft: return [.top, .left]
+        case .topRight: return [.top, .right]
+        case .bottomLeft: return [.bottom, .left]
+        case .bottomRight: return [.bottom, .right]
+        }
+    }
+
+    var isCorner: Bool { edges.rawValue.nonzeroBitCount == 2 }
+
+    func point(in r: CGRect) -> CGPoint {
+        let x = edges.contains(.left) ? r.minX : edges.contains(.right) ? r.maxX : r.midX
+        let y = edges.contains(.top) ? r.minY : edges.contains(.bottom) ? r.maxY : r.midY
+        return CGPoint(x: x, y: y)
+    }
+
+    var cursor: NSCursor {
+        switch self {
+        case .left, .right: return .resizeLeftRight
+        case .top, .bottom: return .resizeUpDown
+        default: return .crosshair
+        }
+    }
+}
+
+private struct BoxHandleView: View {
+    let handle: BoxHandle
+
+    var body: some View {
+        let vertical = handle == .left || handle == .right
+        Group {
+            if handle.isCorner {
+                Circle().fill(Color.white).overlay(Circle().stroke(PP.accent, lineWidth: 2)).frame(width: 11, height: 11)
+            } else {
+                Capsule().fill(Color.white).overlay(Capsule().stroke(PP.accent, lineWidth: 2))
+                    .frame(width: vertical ? 7 : 26, height: vertical ? 26 : 7)
+            }
+        }
+        // A bigger target than the drawing.
+        .frame(width: 28, height: 28)
+        .contentShape(Rectangle())
+        .onHover { inside in inside ? handle.cursor.push() : NSCursor.pop() }
+        .help("Drag to resize this line's box")
     }
 }
 

@@ -77,6 +77,9 @@ final class BookImportModel: ObservableObject {
     @Published private(set) var pageImage: NSImage?
     @Published private(set) var pageSize = CGSize.zero
     @Published private(set) var systems: [FoundSystem] = []
+    /// Lines on this page whose box was resized by hand since it was shown: a piece saved from
+    /// the old box isn't reopened for them, they're read again.
+    @Published private(set) var resizedLines: Set<Int> = []
     @Published private(set) var isLoadingPage = false
     /// The page being looked at while skipping to the next page with music on it.
     @Published private(set) var seekingPage: Int?
@@ -173,6 +176,7 @@ final class BookImportModel: ObservableObject {
         hands = nil
         asksHands = false
         systems = []
+        resizedLines = []
         isLoadingPage = true
         Task.detached(priority: .userInitiated) {
             let result: (image: Gray, systems: [FoundSystem])?
@@ -289,10 +293,25 @@ final class BookImportModel: ObservableObject {
         title = autoTitle
     }
 
+    /// Sets a line's box by hand (dragging its edges), where finding it on the page cut off part of
+    /// the music or took in too much. Saved with the page, so it stays until the page is re-scanned.
+    func resizeSystem(_ index: Int, to box: FoundSystem) {
+        guard phase != .reading, let i = systems.firstIndex(where: { $0.index == index }) else { return }
+        var box = box
+        box.index = index
+        guard box != systems[i] else { return }
+        systems[i] = box
+        resizedLines.insert(index)
+        hands = nil
+        asksHands = false
+        if let book = documentURL { BookLibrary.storeSystems(book, pageIndex, systems) }
+    }
+
     /// The saved piece read from exactly these lines, if there is one: Read opens it instead
-    /// of reading again (unless "Ask Muse Wonder again" is on).
+    /// of reading again (unless "Ask Muse Wonder again" is on, or a line's box was just resized).
     var savedForSelection: SavedPiece? {
-        guard let selection, let book = documentURL?.lastPathComponent else { return nil }
+        guard let selection, let book = documentURL?.lastPathComponent,
+              !selection.contains(where: resizedLines.contains) else { return nil }
         return pieces.first {
             $0.book == book && $0.page == pageIndex && $0.firstLine == selection.lowerBound && $0.lastLine == selection.upperBound
                 && FileManager.default.fileExists(atPath: $0.folder.appendingPathComponent("score.json").path)

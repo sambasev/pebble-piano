@@ -29,6 +29,27 @@ public struct FoundSystem: Codable, Equatable, Sendable {
 
     public var width: Int { right - left }
     public var height: Int { bottom - top }
+
+    /// Sides of the box, for resizing it by hand.
+    public struct Edges: OptionSet, Hashable, Sendable {
+        public let rawValue: Int
+        public init(rawValue: Int) { self.rawValue = rawValue }
+        public static let left = Edges(rawValue: 1)
+        public static let top = Edges(rawValue: 2)
+        public static let right = Edges(rawValue: 4)
+        public static let bottom = Edges(rawValue: 8)
+    }
+
+    /// The box with `edges` moved by (dx, dy) pixels: kept on the page, and at least
+    /// `minimum` pixels wide and tall (an edge stops rather than crossing the one opposite).
+    public func moving(_ edges: Edges, dx: Int, dy: Int, pageWidth: Int, pageHeight: Int, minimum: Int = 24) -> FoundSystem {
+        var s = self
+        if edges.contains(.left) { s.left = min(max(0, left + dx), right - minimum) }
+        if edges.contains(.right) { s.right = max(min(pageWidth, right + dx), left + minimum) }
+        if edges.contains(.top) { s.top = min(max(0, top + dy), bottom - minimum) }
+        if edges.contains(.bottom) { s.bottom = max(min(pageHeight, bottom + dy), top + minimum) }
+        return s
+    }
 }
 
 /// Finds the systems on a page by their staff lines, and cuts them out for reading.

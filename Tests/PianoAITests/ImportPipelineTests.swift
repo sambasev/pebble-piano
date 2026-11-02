@@ -11,6 +11,21 @@ final class ImportPipelineTests: XCTestCase {
         return try XCTUnwrap(Gray.decode(data))
     }
 
+    func testAResizedBoxStaysOnThePageAndKeepsItsMinimumSize() {
+        let s = FoundSystem(index: 2, left: 100, top: 200, right: 900, bottom: 500, spacing: 20)
+        // Corner drag: two sides move, the others stay.
+        let grown = s.moving([.top, .left], dx: -30, dy: -50, pageWidth: 1000, pageHeight: 1400)
+        XCTAssertEqual([grown.left, grown.top, grown.right, grown.bottom, grown.index], [70, 150, 900, 500, 2])
+        // Past the page edge: stops at it.
+        let wide = s.moving(.right, dx: 400, dy: 0, pageWidth: 1000, pageHeight: 1400)
+        XCTAssertEqual(wide.right, 1000)
+        // Past the opposite side: stops `minimum` short of it.
+        let flat = s.moving(.bottom, dx: 0, dy: -1000, pageWidth: 1000, pageHeight: 1400, minimum: 80)
+        XCTAssertEqual(flat.bottom, 280)
+        let narrow = s.moving(.left, dx: 2000, dy: 0, pageWidth: 1000, pageHeight: 1400, minimum: 80)
+        XCTAssertEqual(narrow.left, 820)
+    }
+
     func testFindsTheSystemsOnBeyerPages() throws {
         // Page 24: Nos. 12, 13, 14 and two systems of No. 15. Page 27: the end of No. 22,
         // then two systems each of Nos. 23, 24 and 25.

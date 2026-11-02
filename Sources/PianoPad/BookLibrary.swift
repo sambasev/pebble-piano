@@ -150,6 +150,15 @@ enum BookLibrary {
         }
     }
 
+    /// Rewrites just the lines found on a page (one resized by hand), keeping its image.
+    static func storeSystems(_ book: URL, _ index: Int, _ systems: [FoundSystem]) {
+        let folder = cacheFolder(for: book)
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        if let json = try? JSONEncoder().encode(CachedPage(systems: systems)) {
+            try? json.write(to: folder.appendingPathComponent("page-\(index).json"))
+        }
+    }
+
     // MARK: Saved pieces
 
     static func pieces() -> [SavedPiece] {
