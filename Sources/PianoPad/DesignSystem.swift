@@ -110,6 +110,18 @@ enum PP {
         static let targetPrimary: CGFloat = 60
         /// Dense Mac toolbars: still comfortable for a pointer.
         static let compact: CGFloat = 32
+        /// The on-screen keyboard, and its height in a short window.
+        static let keyboard: CGFloat = 150
+        static let keyboardCompact: CGFloat = 110
+    }
+
+    /// Window heights (content, in points) where the layout changes.
+    enum WindowHeight {
+        /// Below this the layout goes compact. At full size the Practice tab's rows (keyboard,
+        /// Pebbles, toolbar) take about 600 pt, so a shorter window leaves the music under two lines.
+        static let roomy: CGFloat = 860
+        /// The compact layout's tightest fit. Below this the window scrolls rather than crop.
+        static let floor: CGFloat = 672
     }
 }
 
@@ -276,6 +288,42 @@ extension EnvironmentValues {
     var paper: PP.Paper {
         get { self[PaperKey.self] }
         set { self[PaperKey.self] = newValue }
+    }
+}
+
+private struct CompactKey: EnvironmentKey {
+    static let defaultValue = false
+}
+
+extension EnvironmentValues {
+    /// True in a short window (a small laptop in full screen): the keyboard and gaps shrink.
+    var ppCompact: Bool {
+        get { self[CompactKey.self] }
+        set { self[CompactKey.self] = newValue }
+    }
+}
+
+/// Fits the app to the window's height. A short window gets the compact layout; one too short
+/// even for that (full screen on a small display, or a display set to larger text) scrolls,
+/// so the tabs at the top and the controls at the bottom are never cut off.
+struct PPWindowFit<Content: View>: View {
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        GeometryReader { geo in
+            let height = geo.size.height
+            if height >= PP.WindowHeight.floor {
+                content
+                    .environment(\.ppCompact, height < PP.WindowHeight.roomy)
+                    .frame(width: geo.size.width, height: height)
+            } else {
+                ScrollView(.vertical) {
+                    content
+                        .environment(\.ppCompact, true)
+                        .frame(width: geo.size.width, height: PP.WindowHeight.floor)
+                }
+            }
+        }
     }
 }
 

@@ -38,6 +38,7 @@ struct LearnView: View {
 private struct PagePlayerView: View {
     @ObservedObject var runner: LessonRunner
     @EnvironmentObject var session: PlaySession
+    @Environment(\.ppCompact) private var compact
 
     /// The bottom part (keyboard, feedback line, controls) has fixed heights and sits at the
     /// bottom of the window; everything that changes size from step to step (stage tabs, the
@@ -71,8 +72,8 @@ private struct PagePlayerView: View {
                         onPress: { session.mouseDown(on: $0) },
                         onRelease: { session.mouseUp() }
                     )
-                    .frame(height: 150)
-                    .ppGlass(cornerRadius: PP.Radius.xl, padding: PP.Space.s3)
+                    .frame(height: compact ? PP.Size.keyboardCompact : PP.Size.keyboard)
+                    .ppGlass(cornerRadius: PP.Radius.xl, padding: compact ? PP.Space.s2 : PP.Space.s3)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
                 if runner.showsDancers, block.kind != .earTraining {

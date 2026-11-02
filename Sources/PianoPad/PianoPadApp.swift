@@ -37,9 +37,11 @@ struct PianoPadApp: App {
 
     var body: some Scene {
         WindowGroup("PerfectPiano") {
-            ContentView()
+            PPWindowFit { ContentView() }
                 .environmentObject(session)
-                .frame(minWidth: 1040, minHeight: 780)
+                // Full screen ignores this minimum (the 13" MacBook Neo is 752 pt tall, ~728 with
+                // the menu bar), so PPWindowFit shrinks or scrolls the layout to fit whatever it gets.
+                .frame(minWidth: 1040, minHeight: PP.WindowHeight.floor)
                 .tint(PP.accent)
                 .ppPaperStyle()
                 .background(PPBackdrop())
