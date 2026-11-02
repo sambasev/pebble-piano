@@ -6,11 +6,17 @@ public struct SystemReader: Sendable {
     public let client: ModelClient
     public var model: String
     public var reasoningEffort: String
+    /// The longest one read may take. A line usually takes one to two minutes; past this the
+    /// server is holding the stream open with keepalives and no answer, so the read fails
+    /// (and can be tried again) instead of spinning for ever.
+    public var deadline: TimeInterval
 
-    public init(client: ModelClient, model: String = MetaModels.wonder, reasoningEffort: String = "medium") {
+    public init(client: ModelClient, model: String = MetaModels.wonder, reasoningEffort: String = "medium",
+                deadline: TimeInterval = 300) {
         self.client = client
         self.model = model
         self.reasoningEffort = reasoningEffort
+        self.deadline = deadline
     }
 
     /// One system image (PNG) → its reading. `expectedMeasures`: how many bars were measured on
@@ -26,7 +32,7 @@ public struct SystemReader: Sendable {
         let result = try await client.chat(
             [.user([.text(prompt), .image(png, mimeType: "image/png")])],
             options: .init(model: model, schema: ("Systems", Self.schema), reasoningEffort: reasoningEffort,
-                           stream: true))
+                           stream: true, deadline: deadline))
         return try result.decode(SystemReading.self)
     }
 

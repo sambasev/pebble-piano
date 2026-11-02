@@ -9,6 +9,8 @@ public enum ModelError: Error, Equatable, LocalizedError {
     case badResponse(String)
     /// A streamed response ended with an error event.
     case streamError(String)
+    /// The call ran past its `ChatOptions.deadline` and was cancelled.
+    case timedOut(seconds: TimeInterval)
     case keychain(Int32)
 
     public var errorDescription: String? {
@@ -18,6 +20,8 @@ public enum ModelError: Error, Equatable, LocalizedError {
         case .http(let status, let message): return "HTTP \(status): \(message)"
         case .badResponse(let what): return "Unexpected response: \(what)"
         case .streamError(let message): return "Stream error: \(message)"
+        case .timedOut(let seconds):
+            return seconds >= 120 ? "no answer after \(Int(seconds / 60)) minutes" : "no answer after \(Int(seconds)) seconds"
         case .keychain(let status): return "Keychain error \(status)"
         }
     }

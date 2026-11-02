@@ -45,12 +45,16 @@ public struct ChatOptions: Sendable {
     /// that takes too long to start answering fails with HTTP 504.
     public var stream: Bool
 
-    /// Override the page-analysis timeout for interactive requests.
+    /// Override the page-analysis timeout for interactive requests. It's an idle timeout: any
+    /// byte (a stream's keepalive too) restarts it.
     public var requestTimeout: TimeInterval?
+    /// The longest the whole call may take, start to last byte, however much keepalive arrives.
+    /// Past it the request is cancelled and `ModelError.timedOut` thrown.
+    public var deadline: TimeInterval?
 
     public init(model: String = MetaModels.spark, schema: (name: String, schema: JSONValue)? = nil,
                 reasoningEffort: String? = nil, maxTokens: Int? = nil, temperature: Double? = nil,
-                stream: Bool = false, requestTimeout: TimeInterval? = nil) {
+                stream: Bool = false, requestTimeout: TimeInterval? = nil, deadline: TimeInterval? = nil) {
         self.model = model
         self.schema = schema
         self.reasoningEffort = reasoningEffort
@@ -58,6 +62,7 @@ public struct ChatOptions: Sendable {
         self.temperature = temperature
         self.stream = stream
         self.requestTimeout = requestTimeout
+        self.deadline = deadline
     }
 }
 
@@ -129,7 +134,7 @@ public struct ModelClient: Sendable {
             var req = try request("chat/completions", json: .object(body))
             if let timeout = options.requestTimeout { req.timeoutInterval = timeout }
             if options.stream { req.setValue("text/event-stream", forHTTPHeaderField: "Accept") }
-            let (data, _) = try await send(req)
+            let (data, _) = try await send(req, deadline: options.deadline)
             let parsed = options.stream ? try Self.parseChatStream(data) : try Self.parseChat(data)
             let result = ChatResult(
                 text: parsed.text, model: parsed.model ?? options.model,
@@ -303,8 +308,23 @@ public struct ModelClient: Sendable {
         return req
     }
 
-    func send(_ request: URLRequest) async throws -> (Data, HTTPURLResponse) {
-        let (data, response) = try await transport(request)
+    func send(_ request: URLRequest, deadline: TimeInterval? = nil) async throws -> (Data, HTTPURLResponse) {
+        let transport = self.transport
+        let (data, response): (Data, HTTPURLResponse)
+        if let deadline {
+            // Whichever finishes first: the request, or the deadline (which cancels the request).
+            (data, response) = try await withThrowingTaskGroup(of: (Data, HTTPURLResponse).self) { group in
+                group.addTask { try await transport(request) }
+                group.addTask {
+                    try await Task.sleep(nanoseconds: UInt64(deadline * 1_000_000_000))
+                    throw ModelError.timedOut(seconds: deadline)
+                }
+                defer { group.cancelAll() }
+                return try await group.next()!
+            }
+        } else {
+            (data, response) = try await transport(request)
+        }
         guard (200..<300).contains(response.statusCode) else { throw ModelError.fromHTTP(status: response.statusCode, body: data) }
         return (data, response)
     }

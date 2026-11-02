@@ -41,6 +41,34 @@ final class StreamingChatTests: XCTestCase {
         }
     }
 
+    /// A stream the server holds open (keepalives, no answer) fails at the deadline, and the
+    /// request itself is cancelled rather than left running.
+    func testStalledStreamFailsAtDeadline() async {
+        let cancelled = expectation(description: "request cancelled")
+        let stalled: ModelClient.Transport = { _ in
+            do { try await Task.sleep(nanoseconds: 60_000_000_000) } catch { cancelled.fulfill(); throw error }
+            XCTFail("the request should have been cancelled")
+            throw CancellationError()
+        }
+        let client = ModelClient(endpoint: endpoint, log: UsageLog(printsToConsole: false), transport: stalled)
+        let started = Date()
+        do {
+            _ = try await client.chat([.user("hi")], options: .init(stream: true, deadline: 0.2))
+            XCTFail("expected a timeout")
+        } catch {
+            XCTAssertEqual(error as? ModelError, .timedOut(seconds: 0.2))
+        }
+        XCTAssertLessThan(Date().timeIntervalSince(started), 5)
+        await fulfillment(of: [cancelled], timeout: 5)
+    }
+
+    func testAnswerWithinDeadlineComesThrough() async throws {
+        let fake = FakeTransport([(200, try Self.sse([["choices": [["delta": ["content": "ok"]]]]]))])
+        let client = ModelClient(endpoint: endpoint, log: UsageLog(printsToConsole: false), transport: fake.transport)
+        let r = try await client.chat([.user("hi")], options: .init(stream: true, deadline: 30))
+        XCTAssertEqual(r.text, "ok")
+    }
+
     func testNonStreamedRequestHasNoStreamField() async throws {
         let fake = FakeTransport([(200, #"{"choices":[{"message":{"content":"ok"}}]}"#)])
         let client = ModelClient(endpoint: endpoint, log: UsageLog(printsToConsole: false), transport: fake.transport)
