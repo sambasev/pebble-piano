@@ -1,6 +1,7 @@
 #if os(macOS)
 import AppKit
 import PianoGraderCore
+import PianoPadState
 import SwiftUI
 
 struct ContentView: View {
@@ -9,6 +10,8 @@ struct ContentView: View {
     @State private var showSettings = false
     @State private var showAISettings = false
     @State private var showInput = false
+    @State private var progressLearner: Learner?
+    @State private var headerWidth: CGFloat = 0
     /// The note under the pointer on the score, ringed on the keyboard.
     @State private var hoveredPitch: Int?
     @AppStorage(PaperStyle.storageKey) private var paperStyle = PaperStyle.matchAppearance
@@ -105,8 +108,36 @@ struct ContentView: View {
             .popover(isPresented: $showInput, arrowEdge: .bottom) {
                 InputSettingsView().environmentObject(session)
             }
+            if let learner = session.learner {
+                // Narrow windows: just the icon, so the app's name and the input don't get cut.
+                Group {
+                    if headerWidth >= 1150 {
+                        Button { progressLearner = learner } label: {
+                            Label("Progress", systemImage: "chart.xyaxis.line")
+                        }
+                        .buttonStyle(PPGlassButtonStyle())
+                        .fixedSize()
+                    } else {
+                        Button { progressLearner = learner } label: {
+                            Image(systemName: "chart.xyaxis.line")
+                        }
+                        .buttonStyle(PPIconButtonStyle())
+                        .accessibilityLabel("Progress")
+                    }
+                }
+                .help("\(learner.name)'s progress: lessons, AI tutor and mistakes over time")
+                .sheet(item: $progressLearner) { learner in
+                    StudentOverviewView(learner: learner) { progressLearner = nil }
+                        .environmentObject(session)
+                }
+            }
             LearnerMenu()
         }
+        .background(GeometryReader { g in
+            Color.clear
+                .onAppear { headerWidth = g.size.width }
+                .onChange(of: g.size.width) { headerWidth = $0 }
+        })
     }
 
     private var practice: some View {
