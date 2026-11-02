@@ -20,7 +20,6 @@ struct TutorPanel: View {
                     Button("Use a quick plan instead") { session.useQuickTutorPlan() }
                         .help("Plan the lesson in code now, without waiting for Muse Spark")
                 } else {
-                    if !engine.steps.isEmpty { PlanChecklist(engine: engine) }
                     current(engine)
                 }
                 Button("End tutoring") { session.endTutoring() }
@@ -56,7 +55,6 @@ struct TutorPanel: View {
 
     @ViewBuilder private func current(_ engine: PiecePracticeEngine) -> some View {
         let e = engine.exercise
-        Text("\(e.title) · \(e.whereText)\(e.isTimed ? " · \(Int(e.tempoPercent))%" : "")").font(.callout.weight(.semibold))
         if let stars = engine.lastStars {
             HStack(spacing: 2) {
                 ForEach(0..<3, id: \.self) { i in
@@ -64,9 +62,6 @@ struct TutorPanel: View {
                 }
                 Text(engine.mastered ? "Piece passed" : "Last performance").font(.caption).padding(.leading, 4)
             }
-        }
-        if e.isTimed || e.isWaitMode {
-            Text("Clean runs: \(engine.cleanStreak)/\(engine.needed)").font(.caption)
         }
         if session.tutorAttempt == nil {
             Text(readyText(e)).font(.callout)
@@ -157,6 +152,77 @@ struct TutorPanel: View {
         case .placement: return "Play the whole piece once, as well as you can. Parts you play cleanly are ticked off. Not ready? Skip step."
         default: return "Ready when you are: press \(startLabel(e)), then play after the count-in\(e.hand == nil ? "" : " (\(e.hand == .left ? "left" : "right") hand only)")."
         }
+    }
+}
+
+/// The step being worked on, large and above the music where the eyes already are. The full
+/// plan stays folded away behind the Plan button.
+struct TutorStepBanner: View {
+    @EnvironmentObject var session: PlaySession
+    let engine: PiecePracticeEngine
+    @State private var showsPlan = false
+
+    var body: some View {
+        let e = engine.exercise
+        HStack(alignment: .center, spacing: PP.Space.s4) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text(eyebrow).font(.ppEyebrow).foregroundColor(PP.accent)
+                Text(headline(e))
+                    .font(.system(size: 24, weight: .bold))
+                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
+                Text(details(e)).font(.ppCallout).monospacedDigit().foregroundColor(PP.inkMuted)
+                if let tip = tip(for: e) {
+                    Text(tip).font(.ppCallout).foregroundColor(PP.ink)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .accessibilityElement(children: .combine)
+            Spacer(minLength: 0)
+            if !engine.steps.isEmpty {
+                Button {
+                    showsPlan.toggle()
+                } label: {
+                    Label("Plan \(engine.completedSteps.count)/\(engine.steps.count)", systemImage: "list.bullet")
+                        .monospacedDigit()
+                }
+                .buttonStyle(PPGlassButtonStyle(height: PP.Size.compact))
+                .fixedSize()
+                .help("See the whole lesson plan, or go to another step")
+                .popover(isPresented: $showsPlan, arrowEdge: .bottom) {
+                    PlanChecklist(engine: engine) { showsPlan = false }
+                        .environmentObject(session)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .ppGlass(cornerRadius: PP.Radius.lg, padding: PP.Space.s3)
+    }
+
+    private var eyebrow: String {
+        engine.stepIndex.map { "STEP \($0 + 1) OF \(engine.steps.count)" } ?? "EXTRA PRACTICE"
+    }
+
+    /// "Slowly, in time · First Joy tune".
+    private func headline(_ e: PracticeExercise) -> String {
+        guard let label = e.label else { return e.title }
+        return "\(e.title) · \(label)"
+    }
+
+    /// "Bars 6–13 · 70% speed · Clean runs 0/1".
+    private func details(_ e: PracticeExercise) -> String {
+        var parts: [String] = []
+        if e.kind != .newNote {
+            parts.append(e.measures.count == 1 ? "Bar \(e.measures.lowerBound)" : "Bars \(e.measures.lowerBound)–\(e.measures.upperBound)")
+        }
+        if e.isTimed { parts.append("\(Int(e.tempoPercent))% speed") }
+        if e.isTimed || e.isWaitMode { parts.append("Clean runs \(engine.cleanStreak)/\(engine.needed)") }
+        return parts.joined(separator: " · ")
+    }
+
+    private func tip(for e: PracticeExercise) -> String? {
+        guard let plan = engine.plan, let label = e.label else { return nil }
+        return plan.phrases.first { $0.label == label }?.tip
     }
 }
 
@@ -258,36 +324,52 @@ private struct MarkedBarsSection: View {
 private struct PlanChecklist: View {
     @EnvironmentObject var session: PlaySession
     let engine: PiecePracticeEngine
+    /// Called after a step is chosen, so the popover can close.
+    var onChoose: () -> Void = {}
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 3) {
-            Text("Lesson plan").font(.caption.weight(.semibold)).foregroundColor(.secondary)
-            ForEach(Array(engine.steps.enumerated()), id: \.offset) { i, step in
+        ScrollViewReader { proxy in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Lesson plan").font(.ppHeadline)
+                    ForEach(Array(engine.steps.enumerated()), id: \.offset) { i, step in
+                        row(i, step).id(i)
+                    }
+                }
+                .padding(PP.Space.s4)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .frame(width: 480)
+            .frame(maxHeight: 560)
+            .onAppear { if let i = engine.stepIndex { proxy.scrollTo(i, anchor: .center) } }
+        }
+    }
+
+    private func row(_ i: Int, _ step: PracticeExercise) -> some View {
                 Button {
                     session.tutorJump(to: i)
+                    onChoose()
                 } label: {
                     HStack(alignment: .firstTextBaseline, spacing: 6) {
                         Image(systemName: icon(i))
                             .foregroundColor(engine.stepIndex == i ? .accentColor : engine.completedSteps.contains(i) ? .green : .secondary)
                         VStack(alignment: .leading, spacing: 1) {
                             Text(step.kind == .listen || step.kind == .newNote || step.kind == .perform ? step.title : "\(step.title) · \(step.whereText)")
-                                .font(.caption)
+                                .font(.system(size: 15))
                                 .fontWeight(engine.stepIndex == i ? .semibold : .regular)
+                                .fixedSize(horizontal: false, vertical: true)
                             if engine.stepIndex == i, let tip = tip(for: step) {
-                                Text(tip).font(.caption2).foregroundColor(.secondary)
+                                Text(tip).font(.system(size: 13)).foregroundColor(.secondary)
+                                    .fixedSize(horizontal: false, vertical: true)
                             }
                             if let why = step.skipReason, engine.stepIndex != i, !engine.completedSteps.contains(i) {
-                                Text("Skipped: \(why.prefix(1).lowercased() + why.dropFirst())").font(.caption2).foregroundColor(.secondary)
+                                Text("Skipped: \(why.prefix(1).lowercased() + why.dropFirst())").font(.system(size: 13)).foregroundColor(.secondary)
                             }
                         }
                     }
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
-            }
-        }
-        .padding(8)
-        .background(RoundedRectangle(cornerRadius: 8).fill(Color.secondary.opacity(0.08)))
     }
 
     private func icon(_ i: Int) -> String {

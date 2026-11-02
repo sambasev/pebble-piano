@@ -110,6 +110,9 @@ struct ContentView: View {
         VStack(alignment: .leading, spacing: PP.Space.s3) {
             toolbar
                 .ppGlass(cornerRadius: PP.Radius.lg, padding: PP.Space.s3)
+            if let engine = session.tutor, !session.tutorPlanning {
+                TutorStepBanner(engine: engine)
+            }
             statusLine
                 .padding(.horizontal, PP.Space.s2)
             if let passage = session.passage, let image = session.pageImage {
@@ -675,7 +678,7 @@ struct ContentView: View {
                 .fill(statusColor)
                 .frame(width: 10, height: 10)
                 .accessibilityHidden(true)
-            Text(statusText).font(.ppHeadline).lineLimit(1)
+            Text(statusText).font(session.tutor == nil ? Font.ppHeadline : Font.ppCallout).lineLimit(1)
             if session.reference != nil && session.showGuide {
                 Text("\(session.mode == .playAlong ? "Hit" : "Guide") \(session.guideProgress.done)/\(session.guideProgress.total)")
                     .font(.ppCallout)
