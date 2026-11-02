@@ -39,6 +39,8 @@ public final class AudioInput {
     private var sink: AVAudioSinkNode?
     private let queue = DispatchQueue(label: "PianoPad.audio-input", qos: .userInteractive)
     private var detector: PianoNoteDetector?
+    /// Drops spill and weak strikes the detector reports (detector queue only).
+    private var strikeFilter = StrikeFilter()
     private let onNoteOn: NoteOn
     private let onNoteOff: NoteOff
     private var pendingExpected: Set<Int> = []
@@ -146,6 +148,7 @@ public final class AudioInput {
                 detector.expected = self.pendingExpected
                 detector.fixedGate = self.pendingGate
                 self.detector = detector
+                self.strikeFilter.reset()
             }
         }
     }
@@ -162,6 +165,7 @@ public final class AudioInput {
             let samples = self.capture ?? []
             self.capture = nil
             self.detector?.reset()
+            self.strikeFilter.reset()
             let rate = self.currentSampleRate
             DispatchQueue.main.async { done(samples, rate) }
         }
@@ -172,7 +176,10 @@ public final class AudioInput {
     public func setMuted(_ value: Bool) {
         queue.async { [weak self] in
             guard let self else { return }
-            if self.muted && !value { self.detector?.reset() }
+            if self.muted && !value {
+                self.detector?.reset()
+                self.strikeFilter.reset()
+            }
             self.muted = value
             self.recorder?.log(value ? "mute" : "unmute")
         }
@@ -258,6 +265,7 @@ public final class AudioInput {
         }
         detector.expected = pendingExpected
         self.detector = detector
+        queue.async { [weak self] in self?.strikeFilter.reset() }
         let sampleRate = format.sampleRate
         let recorder = AppEnvironment.recordsMicForDebugging ? MicRecorder(sampleRate: sampleRate) : nil
         let device = deviceName
@@ -300,11 +308,20 @@ public final class AudioInput {
         let capturing = capture != nil
         if capturing { capture!.append(contentsOf: samples) }
         let heard = detector.process(samples)
-        let events = capturing ? [] : heard
-        if let recorder {
-            for e in events {
-                recorder.log((e.kind == .on ? "on " : "off ") + "\(e.pitch) " + String(format: "t=%.3f conf=%.2f", e.time, e.confidence))
+        let faded = detector.takeFaded()
+        if let recorder, !capturing {
+            for e in heard {
+                recorder.log(e.kind == .on
+                    ? "on \(e.pitch) " + String(format: "t=%.3f conf=%.2f str=%.1f", e.time, e.confidence, e.strength)
+                        + (e.sustain.map { String(format: " sus=%.2f", $0) } ?? "")
+                    : "off \(e.pitch) " + String(format: "t=%.3f", e.time))
             }
+            for e in faded {
+                recorder.log("drop \(e.pitch) faded " + String(format: "t=%.3f sus=%.2f", e.time, e.sustain ?? 0))
+            }
+        }
+        let events = capturing ? [] : strikeFilter.filter(heard, expected: detector.expected) { [recorder] e, why in
+            recorder?.log("drop \(e.pitch) \(why)")
         }
         let level = detector.level
         let gate = detector.gateLevel
