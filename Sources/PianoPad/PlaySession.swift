@@ -96,6 +96,11 @@ final class PlaySession: ObservableObject {
     /// The Practice tab's dancers' latest reaction: a hop for a right note in wait mode, a
     /// wobble for a slip. (Lesson pages get theirs from the lesson runner.)
     @Published private(set) var dancerReaction: GremlinReaction?
+    /// The guided tour showing, and its step among those whose target is on screen.
+    @Published var activeTour: TourID?
+    @Published var tourStep = 0
+    /// How many of the tour's steps are on screen, as the overlay last counted them.
+    var tourStepCount = 0
 
     /// Reference audition.
     @Published private(set) var isAuditioning = false
@@ -1031,6 +1036,8 @@ final class PlaySession: ObservableObject {
     private func handleKey(_ event: NSEvent) -> Bool {
         // Leave ⌘-shortcuts (quit, close, open…) to the app.
         if event.modifierFlags.contains(.command) { return false }
+        // A tour takes the keys while it runs; key-ups still go through so no note hangs.
+        if event.type == .keyDown && activeTour != nil { return handleTourKey(event) }
         // Typing into a text field (track name, tempo…) isn't playing, and the backing-track
         // editor has its own keys. Key-ups still go through so no note is left hanging.
         if event.type == .keyDown && (!tabPlaysNotes || event.window?.firstResponder is NSText) { return false }
@@ -1854,6 +1861,17 @@ extension PlaySession {
     fileprivate func dancersReact(_ kind: GremlinReaction.Kind) {
         guard lessonObserver == nil, showsDancers else { return }
         dancerReaction = GremlinReaction(kind: kind, startedAt: ProcessInfo.processInfo.systemUptime)
+    }
+
+    /// The music's position as the dancers count it, or nil when nothing plays.
+    func dancerBeat(atUptime uptime: TimeInterval) -> GremlinBeat? {
+        guard let q = liveQuarter(atUptime: uptime) ?? auditionQuarter(atUptime: uptime) else { return nil }
+        let meter = GremlinMeter(meter)
+        if let bar = bar(containing: q) {
+            return GremlinBeat.at(quarter: q, bar: bar.index, barStart: bar.start, barLength: bar.length,
+                                  pickup: bar.pickup, meter: meter)
+        }
+        return GremlinBeat.at(quarter: q, barStart: firstBarQuarter, meter: meter)
     }
 
     /// Where the first bar starts, in quarters, so beat 1 lands on the downbeat.

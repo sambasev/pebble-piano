@@ -1,16 +1,19 @@
 #if os(macOS)
 import PianoGraderCore
+import PianoLessons
 import SwiftUI
 
 /// The Backing Tracks tab: saved tracks on the left, the selected track's editor on the right.
 struct BackingTracksView: View {
     @ObservedObject var model: BackingEditorModel
     @ObservedObject var store: BackingStore
+    @EnvironmentObject var session: PlaySession
 
     var body: some View {
         HSplitView {
             sidebar
                 .ppGlass(cornerRadius: PP.Radius.xl, padding: PP.Space.s3)
+                .tourAnchor(.backingList)
                 .padding(.trailing, PP.Space.s2)
                 .frame(minWidth: 220, idealWidth: 250, maxWidth: 340)
             Group {
@@ -38,8 +41,14 @@ struct BackingTracksView: View {
                     .ppGlass()
                 }
             }
+            .tourAnchor(.backingMain)
             .padding(.leading, PP.Space.s2)
             .frame(minWidth: 600)
+        }
+        .onAppear { session.startTourIfNew(session.currentScreenTour) }
+        // The first track opened in the editor has its own tour.
+        .onChange(of: model.draft != nil) { editing in
+            if editing { session.startTourIfNew(.backingEditor) }
         }
         .foregroundColor(PP.ink)
         .tint(PP.accent)
@@ -93,12 +102,16 @@ struct BackingTracksView: View {
             header
             WaveformOverviewView(model: model).frame(height: 36)
             WaveformDetailView(model: model).frame(minHeight: 180, maxHeight: .infinity)
+                .tourAnchor(.waveform)
             zoomBar
             transport
+                .tourAnchor(.transport)
             Divider()
             HStack(alignment: .top, spacing: 28) {
                 markers
+                    .tourAnchor(.markers)
                 timing
+                    .tourAnchor(.timing)
             }
             if let message = model.message {
                 Label(message, systemImage: "exclamationmark.circle").font(.ppCallout).foregroundColor(PP.warning)
@@ -164,7 +177,17 @@ struct BackingTracksView: View {
             Text("Stop where a bar starts, then use the buttons below to mark it.")
                 .font(.ppCaption).foregroundColor(PP.inkMuted)
             Spacer()
+            // The Pebbles dance to the preview, on its bar grid, so you can see the beat line up.
+            if session.showsDancers {
+                DancerStrip(beat: previewBeat, isMoving: model.isPlaying, height: 56)
+                    .frame(width: 150)
+            }
         }
+    }
+
+    private func previewBeat(_ uptime: TimeInterval) -> GremlinBeat? {
+        guard let q = model.previewQuarter(atUptime: uptime) else { return nil }
+        return GremlinBeat.at(quarter: q, barStart: 0, meter: GremlinMeter(model.draft?.timeSignature ?? .common))
     }
 
     private var markers: some View {

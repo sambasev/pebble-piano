@@ -13,6 +13,7 @@ struct BooksView: View {
         HStack(alignment: .top, spacing: PP.Space.s4) {
             LibrarySidebar(model: model)
                 .frame(width: 230)
+                .tourAnchor(.library)
             VStack(alignment: .leading, spacing: PP.Space.s3) {
                 if let message = model.message {
                     HStack(spacing: PP.Space.s3) {
@@ -43,6 +44,7 @@ struct BooksView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .tourAnchor(.bookMain)
         }
         .onAppear { model.refreshLibrary() }
         .sheet(isPresented: $showAISettings) {

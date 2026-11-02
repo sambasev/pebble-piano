@@ -28,9 +28,11 @@ struct ContentView: View {
                     .padding(PP.Space.s4)
             case .practice:
                 practice
+                    .onAppear { session.startTourIfNew(.practice) }
             case .books:
                 BooksView(model: session.bookImport)
                     .padding(PP.Space.s4)
+                    .onAppear { session.startTourIfNew(.books) }
             case .backingTracks:
                 BackingTracksView(model: session.backingEditor, store: session.backingStore)
                     .padding(PP.Space.s4)
@@ -57,6 +59,10 @@ struct ContentView: View {
             }
         }
         .animation(.easeInOut(duration: 0.2), value: session.isChoosingLearner)
+        // After setup or "Who's playing?", the screen underneath is new to this learner.
+        .onChange(of: session.isChoosingLearner) { choosing in
+            if !choosing { session.startTourIfNew(session.currentScreenTour) }
+        }
         .alert("Calibrate the microphone?", isPresented: $session.offersCalibration) {
             Button("Calibrate now") { session.startCalibration() }
             Button("Later", role: .cancel) {}
@@ -108,6 +114,7 @@ struct ContentView: View {
             .popover(isPresented: $showInput, arrowEdge: .bottom) {
                 InputSettingsView().environmentObject(session)
             }
+            .tourAnchor(.inputStatus)
             if let learner = session.learner {
                 // Narrow windows: just the icon, so the app's name and the input don't get cut.
                 Group {
@@ -131,6 +138,15 @@ struct ContentView: View {
                         .environmentObject(session)
                 }
             }
+            Button {
+                session.startTour(session.currentScreenTour)
+            } label: {
+                Image(systemName: "questionmark")
+            }
+            .buttonStyle(PPIconButtonStyle(kind: .tool))
+            .help("Show me around this screen")
+            .accessibilityLabel("Show me around this screen")
+            .tourAnchor(.help)
             LearnerMenu()
         }
         .background(GeometryReader { g in
@@ -194,6 +210,7 @@ struct ContentView: View {
                             onHoverNote: { hoveredPitch = $0 },
                             onTapNote: { session.auditionNote(pitch: $0, quarters: $1) }
                         )
+                        .tourAnchor(.music)
                     }
                     .frame(maxWidth: .infinity, minHeight: 200, maxHeight: .infinity)
                     reportPanel
@@ -225,6 +242,7 @@ struct ContentView: View {
                                      onHoverNote: { hoveredPitch = $0 },
                                      onTapNote: { session.auditionNote(pitch: $0.midi, quarters: $0.quarters) })
                             .ppPaper()
+                            .tourAnchor(.music)
                     }
                     .frame(maxWidth: .infinity, minHeight: 200, maxHeight: .infinity)
                     reportPanel
@@ -244,9 +262,11 @@ struct ContentView: View {
             )
             .frame(height: compact ? PP.Size.keyboardCompact : PP.Size.keyboard)
             .ppGlass(cornerRadius: PP.Radius.xl, padding: compact ? PP.Space.s2 : PP.Space.s3)
+            .tourAnchor(.keyboard)
             // The Pebbles dance to the piece here too, from a book passage or a file.
             if session.showsDancers && (session.passage != nil || session.score != nil) {
                 DancerStrip(reaction: session.dancerReaction)
+                    .tourAnchor(.dancers)
             }
             playOptions
                 .ppGlass(cornerRadius: PP.Radius.lg, padding: PP.Space.s3)
@@ -254,6 +274,7 @@ struct ContentView: View {
                 ReportView(report: session.tutorDisplayReport, phase: session.phase)
                     .frame(maxWidth: .infinity, alignment: .topLeading)
                     .ppGlass()
+                    .tourAnchor(.report)
                 Spacer(minLength: 0)
             }
         }
@@ -272,6 +293,7 @@ struct ContentView: View {
             .frame(maxWidth: .infinity, alignment: .topLeading)
             .ppGlass()
             .frame(width: 340, alignment: .topLeading)
+            .tourAnchor(.report)
     }
 
     /// Passage, listening, grading and rubric.
@@ -305,6 +327,7 @@ struct ContentView: View {
                 .frame(minWidth: 160, idealWidth: 260, maxWidth: 280)
                 .layoutPriority(-1)
                 .help("A book passage, or a MIDI file (⋯ → Open MIDI file… adds more)")
+                .tourAnchor(.pieces)
             } else {
                 Button {
                     session.chooseReference()
@@ -312,6 +335,7 @@ struct ContentView: View {
                     Label(session.referenceURL?.lastPathComponent ?? "Open MIDI…", systemImage: "music.note.list")
                         .lineLimit(1)
                 }
+                .tourAnchor(.pieces)
             }
 
             Picker("Mode", selection: $session.mode) {
@@ -322,6 +346,7 @@ struct ContentView: View {
             .labelsHidden()
             .frame(width: 170)
             .help("Wait: the music waits for each note. Play along: the music keeps going, and a bar with too many misses is played again.")
+            .tourAnchor(.mode)
 
             if session.mode == .playAlong {
                 Button {
@@ -335,6 +360,7 @@ struct ContentView: View {
                 .fixedSize()
                 .disabled(!session.canPlayAlong)
                 .help("Start playing along (Space)")
+                .tourAnchor(.listen)
             } else {
                 Button {
                     session.toggleAudition()
@@ -347,6 +373,7 @@ struct ContentView: View {
                 .fixedSize()
                 .disabled(session.reference == nil || session.phase == .recording)
                 .help("Hear the reference (Space)")
+                .tourAnchor(.listen)
             }
 
             if session.mode == .playAlong {
@@ -362,17 +389,20 @@ struct ContentView: View {
                 .help("Listening speed")
             }
 
-            Button { session.finishTake() } label: { Image(systemName: "checkmark") }
-                .buttonStyle(PPIconButtonStyle(kind: .tool))
-                .disabled(!session.canFinishTake)
-                .help("Finish the take and grade it (Return)")
-                .accessibilityLabel("Grade the take")
+            HStack(spacing: 12) {
+                Button { session.finishTake() } label: { Image(systemName: "checkmark") }
+                    .buttonStyle(PPIconButtonStyle(kind: .tool))
+                    .disabled(!session.canFinishTake)
+                    .help("Finish the take and grade it (Return)")
+                    .accessibilityLabel("Grade the take")
 
-            Button { session.resetAll() } label: { Image(systemName: "arrow.counterclockwise") }
-                .buttonStyle(PPIconButtonStyle(kind: .tool))
-                .disabled(!session.canReset)
-                .help("Stop, discard the take and start again from the beginning (Esc)")
-                .accessibilityLabel("Start again")
+                Button { session.resetAll() } label: { Image(systemName: "arrow.counterclockwise") }
+                    .buttonStyle(PPIconButtonStyle(kind: .tool))
+                    .disabled(!session.canReset)
+                    .help("Stop, discard the take and start again from the beginning (Esc)")
+                    .accessibilityLabel("Start again")
+            }
+            .tourAnchor(.gradeReset)
 
             Spacer(minLength: PP.Space.s2)
 

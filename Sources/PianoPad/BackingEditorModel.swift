@@ -39,6 +39,8 @@ final class BackingEditorModel: ObservableObject {
     private var player: BackingPlayer?
     private var playerAudioPath: String?
     private var anchorTimer: Timer?
+    /// The preview's timing, for the dancers: when it started and its bar grid.
+    private var preview: (anchor: PlaybackAnchor, clock: BeatClock)?
     private var tap = TapTempo()
 
     init(store: BackingStore) {
@@ -284,6 +286,7 @@ final class BackingEditorModel: ObservableObject {
         let start = fromBar1 ? max(track.trimStart, track.bar1Seconds - track.barSeconds) : cursor
         guard let player, start < track.playEnd - 0.05 else { return }
         let anchor = player.play(fromAudioSeconds: start, clicks: clickOn)
+        preview = (anchor, clock)
         isPlaying = true
         anchorTimer?.invalidate()
         let end = track.playEnd
@@ -302,11 +305,19 @@ final class BackingEditorModel: ObservableObject {
         anchorTimer = timer
     }
 
+    /// Where the preview is, in quarters from bar 1, for drawing that moves with it. Not
+    /// published; nil when no preview is playing.
+    func previewQuarter(atUptime uptime: TimeInterval) -> Double? {
+        guard isPlaying, let preview else { return nil }
+        return preview.anchor.quarter(atUptime: uptime) - preview.clock.barStart(0)
+    }
+
     func togglePlay() { isPlaying ? stopPreview() : play() }
 
     func stopPreview() {
         anchorTimer?.invalidate()
         anchorTimer = nil
+        preview = nil
         player?.stop()
         player = nil
         if isPlaying { isPlaying = false }

@@ -7,6 +7,7 @@ import SwiftUI
 /// its stars, ending with the learner's goal song. Continue opens the exact step left off.
 struct UnitMapView: View {
     @ObservedObject var runner: LessonRunner
+    @EnvironmentObject var session: PlaySession
     let unit: LessonUnit
     @State private var showGrownUps = false
 
@@ -16,6 +17,7 @@ struct UnitMapView: View {
         ScrollView {
             VStack(alignment: .leading, spacing: PP.Space.s6) {
                 header
+                    .tourAnchor(.unitHeader)
                 if let warmUp = runner.warmUp {
                     WarmUpCard(runner: runner, warmUp: warmUp)
                 }
@@ -28,8 +30,11 @@ struct UnitMapView: View {
                             }
                         }
                     }
-                    if unit.pages.contains(where: \.isGoalSongPage) { GoalCard(runner: runner, unit: unit) }
+                    if unit.pages.contains(where: \.isGoalSongPage) {
+                        GoalCard(runner: runner, unit: unit).tourAnchor(.goalSong)
+                    }
                 }
+                .tourAnchor(.pageGrid)
                 if !runner.piecePages.isEmpty {
                     Divider().padding(.vertical, PP.Space.s3)
                     PiecesSection(runner: runner)
@@ -39,6 +44,7 @@ struct UnitMapView: View {
             }
             .padding(.bottom, PP.Space.s6)
         }
+        .onAppear { session.startTourIfNew(.learnMap) }
     }
 
     private var header: some View {
@@ -115,6 +121,7 @@ struct UnitMapView: View {
                 }
                 .buttonStyle(PPPrimaryButtonStyle())
                 .keyboardShortcut(.defaultAction)
+                .tourAnchor(.continueButton)
             }
         }
     }

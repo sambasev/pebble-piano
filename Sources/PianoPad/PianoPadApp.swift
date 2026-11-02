@@ -42,6 +42,12 @@ struct PianoPadApp: App {
                 // Full screen ignores this minimum (the 13" MacBook Neo is 752 pt tall, ~728 with
                 // the menu bar), so PPWindowFit shrinks or scrolls the layout to fit whatever it gets.
                 .frame(minWidth: 1040, minHeight: PP.WindowHeight.floor)
+                // "Show me around", over everything. Here, on the window-sized frame, so the
+                // spotlight measures what's actually in the window.
+                .overlayPreferenceValue(TourAnchorKey.self) { anchors in
+                    TourOverlay(anchors: anchors).environmentObject(session)
+                }
+                .animation(.easeInOut(duration: 0.2), value: session.activeTour)
                 .tint(PP.accent)
                 .ppPaperStyle()
                 .background(PPBackdrop())
@@ -53,6 +59,13 @@ struct PianoPadApp: App {
                     get: { shareUsage },
                     set: { shareUsage = $0; Usage.setEnabled($0) }
                 ))
+            }
+            CommandGroup(before: .help) {
+                Button("Show Me Around") { session.startTour(session.currentScreenTour) }
+                    .disabled(session.isChoosingLearner)
+                Button("Show All Tours Again") { session.resetTours() }
+                    .disabled(session.isChoosingLearner)
+                Divider()
             }
         }
     }

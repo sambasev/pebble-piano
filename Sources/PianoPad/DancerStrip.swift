@@ -13,6 +13,12 @@ import SwiftUI
 struct DancerStrip: View {
     @EnvironmentObject var session: PlaySession
     var reaction: GremlinReaction?
+    /// Music other than the session's (the backing-track editor's preview): where it is, and
+    /// whether it's playing. nil: the session's piece.
+    var beat: ((TimeInterval) -> GremlinBeat?)?
+    var isMoving: Bool?
+    /// nil: the usual height, smaller in a short window.
+    var height: CGFloat? = nil
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @Environment(\.ppCompact) private var compact
@@ -24,7 +30,7 @@ struct DancerStrip: View {
     static let compactHeight: CGFloat = 84
 
     var body: some View {
-        let moving = session.isPlayingAlong || session.isAuditioning
+        let moving = isMoving ?? (session.isPlayingAlong || session.isAuditioning)
         TimelineView(.animation(minimumInterval: moving ? nil : 1.0 / 20, paused: reduceMotion && reaction == nil)) { _ in
             let uptime = ProcessInfo.processInfo.systemUptime
             let beat = currentBeat(uptime)
@@ -33,7 +39,7 @@ struct DancerStrip: View {
                 draw(in: &context, size: size, beat: beat, walkTime: walk, uptime: uptime)
             }
         }
-        .frame(height: compact ? Self.compactHeight : Self.height)
+        .frame(height: height ?? (compact ? Self.compactHeight : Self.height))
         .allowsHitTesting(false)
         .accessibilityHidden(true)
     }
@@ -42,13 +48,8 @@ struct DancerStrip: View {
 
     /// The music's position as the dancers count it, or nil when nothing plays.
     private func currentBeat(_ uptime: TimeInterval) -> GremlinBeat? {
-        guard let q = session.liveQuarter(atUptime: uptime) ?? session.auditionQuarter(atUptime: uptime) else { return nil }
-        let meter = GremlinMeter(session.meter)
-        if let bar = session.bar(containing: q) {
-            return GremlinBeat.at(quarter: q, bar: bar.index, barStart: bar.start, barLength: bar.length,
-                                  pickup: bar.pickup, meter: meter)
-        }
-        return GremlinBeat.at(quarter: q, barStart: session.firstBarQuarter, meter: meter)
+        if let beat { return beat(uptime) }
+        return session.dancerBeat(atUptime: uptime)
     }
 
     // MARK: Drawing

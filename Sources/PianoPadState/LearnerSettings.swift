@@ -55,6 +55,9 @@ public struct LearnerSettings: Codable, Equatable, Sendable {
     /// The lesson page open in Learn; nil when they were on the page list. The step comes from
     /// the page's saved progress.
     public var lastLessonPage: String?
+    /// The guided tours ("Show me around") this learner has seen or skipped, by ID, so each
+    /// screen's tour starts by itself only the first time.
+    public var seenTours: [String]
 
     public var showsDancers: Bool { dancers ?? true }
 
@@ -66,7 +69,7 @@ public struct LearnerSettings: Codable, Equatable, Sendable {
                 missMode: String = LearnerSettings.defaultMissMode, recentPieces: [RecentPiece] = [],
                 persona: String? = nil, goalSong: String? = nil, inputSource: String? = nil, onboardedAt: Date? = nil,
                 dancers: Bool? = nil, practiceMode: String? = nil, lastTab: String? = nil,
-                lastPiece: String? = nil, lastLessonPage: String? = nil) {
+                lastPiece: String? = nil, lastLessonPage: String? = nil, seenTours: [String] = []) {
         self.strictness = strictness
         self.customPlayAlong = customPlayAlong
         self.missMode = missMode
@@ -80,11 +83,12 @@ public struct LearnerSettings: Codable, Equatable, Sendable {
         self.lastTab = lastTab
         self.lastPiece = lastPiece
         self.lastLessonPage = lastLessonPage
+        self.seenTours = seenTours
     }
 
     private enum CodingKeys: String, CodingKey {
         case strictness, customPlayAlong, missMode, recentPieces, persona, goalSong, inputSource, onboardedAt, dancers, practiceMode
-        case lastTab, lastPiece, lastLessonPage
+        case lastTab, lastPiece, lastLessonPage, seenTours
     }
 
     public init(from decoder: Decoder) throws {
@@ -102,6 +106,7 @@ public struct LearnerSettings: Codable, Equatable, Sendable {
         lastTab = try c.decodeIfPresent(String.self, forKey: .lastTab)
         lastPiece = try c.decodeIfPresent(String.self, forKey: .lastPiece)
         lastLessonPage = try c.decodeIfPresent(String.self, forKey: .lastLessonPage)
+        seenTours = try c.decodeIfPresent([String].self, forKey: .seenTours) ?? []
     }
 
     /// Moves `piece` to the front (replacing any entry with the same ID) and keeps the newest
@@ -112,6 +117,12 @@ public struct LearnerSettings: Codable, Equatable, Sendable {
         if recentPieces.count > Self.maxRecentPieces {
             recentPieces.removeLast(recentPieces.count - Self.maxRecentPieces)
         }
+    }
+
+    public func hasSeenTour(_ id: String) -> Bool { seenTours.contains(id) }
+
+    public mutating func markTourSeen(_ id: String) {
+        if !seenTours.contains(id) { seenTours.append(id) }
     }
 
     public mutating func forget(_ id: PieceID) {

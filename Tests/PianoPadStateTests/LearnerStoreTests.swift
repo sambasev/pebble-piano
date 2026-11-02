@@ -228,6 +228,25 @@ final class LearnerStoreTests: XCTestCase {
         XCTAssertFalse(reloaded.showsDancers)
     }
 
+    func testSeenToursRoundTripPerLearnerAndOlderFilesLoad() throws {
+        let store = makeStore()
+        let a = try store.add(name: "A", kind: .adult)
+        let b = try store.add(name: "B", kind: .child)
+        var settings = LearnerSettings()
+        settings.markTourSeen("practice")
+        settings.markTourSeen("practice")
+        settings.markTourSeen("learnMap")
+        try store.save(settings, for: a.id)
+        let reloaded = makeStore().settings(for: a.id)
+        XCTAssertEqual(reloaded.seenTours, ["practice", "learnMap"])
+        XCTAssertTrue(reloaded.hasSeenTour("learnMap"))
+        // Each learner sees the tours for themselves.
+        XCTAssertFalse(makeStore().settings(for: b.id).hasSeenTour("practice"))
+
+        let older = try JSONDecoder().decode(LearnerSettings.self, from: Data(#"{"strictness":"rubric"}"#.utf8))
+        XCTAssertEqual(older.seenTours, [])
+    }
+
     func testCorruptLearnersFileIsMovedAsideNotOverwritten() throws {
         try FileManager.default.createDirectory(at: base, withIntermediateDirectories: true)
         let junk = Data("not json".utf8)

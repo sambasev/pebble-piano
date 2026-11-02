@@ -54,6 +54,7 @@ private struct PagePlayerView: View {
                         if let drill = runner.drill { drillBar(drill) } else { stageBar }
                     }
                     promptCard(block)
+                        .tourAnchor(.lessonPrompt)
                     content(block)
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
@@ -74,18 +75,23 @@ private struct PagePlayerView: View {
                     )
                     .frame(height: compact ? PP.Size.keyboardCompact : PP.Size.keyboard)
                     .ppGlass(cornerRadius: PP.Radius.xl, padding: compact ? PP.Space.s2 : PP.Space.s3)
+                    .tourAnchor(.keyboard)
                     .transition(.move(edge: .bottom).combined(with: .opacity))
                 }
                 if runner.showsDancers, block.kind != .earTraining {
                     DancerStrip(reaction: runner.dancerReaction)
+                        .tourAnchor(.dancers)
                 }
                 feedbackLine
                     .frame(height: Self.feedbackHeight)
+                    .tourAnchor(.feedback)
                 controls(block)
                     .frame(height: Self.controlsHeight)
+                    .tourAnchor(.lessonControls)
             }
         }
         .animation(.easeInOut(duration: 0.25), value: runner.showsKeyboard)
+        .onAppear { session.startTourIfNew(.lessonPage) }
     }
 
     private static let feedbackHeight: CGFloat = 52
@@ -109,6 +115,7 @@ private struct PagePlayerView: View {
                                  ? { [session] uptime in session.tempoProgress(atUptime: uptime) } : nil,
                              tempoAnimating: session.tempoDisplayMoves)
                     .ppPaper()
+                    .tourAnchor(.music)
             }
         } else if case .concept(let card) = block, card.card == "fingerNumbers" {
             FingerNumbersCard()
@@ -126,6 +133,7 @@ private struct PagePlayerView: View {
                 Label("Lessons", systemImage: "chevron.left")
             }
             .buttonStyle(PPGlassButtonStyle())
+            .tourAnchor(.lessonsBack)
             VStack(alignment: .leading, spacing: 2) {
                 Text(runner.page?.title ?? "").font(.ppHeadline)
                 Text(runner.isWarmingUp ? "Warm-up · about a minute" : "Step \(runner.shownIndex + 1) of \(runner.blockCount)")
