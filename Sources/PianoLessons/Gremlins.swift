@@ -272,6 +272,70 @@ public struct GremlinWander: Equatable, Sendable {
     }
 }
 
+/// Blinking: each dancer blinks by itself every few seconds, now and then twice in a row.
+///
+/// Time is cut into windows of `windowSeconds`; in each window the dancer blinks once at a
+/// moment picked by the seed (never right at the edges, so blinks don't bunch up), and about
+/// one blink in four is a double blink. Same seed and time, same answer.
+public struct GremlinBlink: Equatable, Sendable {
+    public var seed: UInt64
+    public var windowSeconds: Double
+
+    /// How long the lids take to close and to open again.
+    public static let closeSeconds = 0.06
+    public static let openSeconds = 0.10
+    /// The gap between the two blinks of a double blink.
+    public static let doubleGapSeconds = 0.28
+
+    public init(seed: UInt64, windowSeconds: Double = 6) {
+        self.seed = seed
+        self.windowSeconds = max(1, windowSeconds)
+    }
+
+    /// The usual three dancers, each on its own schedule.
+    public static func dancer(_ index: Int) -> GremlinBlink {
+        GremlinBlink(seed: 0xB114C &+ UInt64(index) &* 0x2545_F491_4F6C_DD1D)
+    }
+
+    /// How open the eyes are at `seconds`: 1 open, 0 shut.
+    public func openness(atSeconds seconds: Double) -> Double {
+        let window = Int((seconds / windowSeconds).rounded(.down))
+        // A blink late in the previous window may run into this one.
+        return min(lids(seconds, window: window), lids(seconds, window: window - 1))
+    }
+
+    /// When the blink, or the two of a double blink, in `window` start.
+    public func blinkTimes(window: Int) -> [Double] {
+        let start = Double(window) * windowSeconds
+        let at = start + windowSeconds * (0.1 + 0.8 * random(window, salt: 1))
+        return random(window, salt: 2) < 0.25 ? [at, at + Self.doubleGapSeconds] : [at]
+    }
+
+    private func lids(_ t: Double, window: Int) -> Double {
+        var open = 1.0
+        for at in blinkTimes(window: window) {
+            let e = t - at
+            if e < 0 || e >= Self.closeSeconds + Self.openSeconds { continue }
+            let v = e < Self.closeSeconds ? 1 - e / Self.closeSeconds : (e - Self.closeSeconds) / Self.openSeconds
+            open = min(open, v)
+        }
+        return open
+    }
+
+    private func random(_ window: Int, salt: UInt64) -> Double {
+        let key = gremlinMix(UInt64(bitPattern: Int64(window)) &+ salt &* 0xD1B5_4A32_D192_ED03)
+        return Double(gremlinMix(seed ^ key) >> 11) / Double(UInt64(1) << 53)
+    }
+}
+
+/// SplitMix64, for the dancers' seeded choices.
+func gremlinMix(_ x: UInt64) -> UInt64 {
+    var z = x &+ 0x9E37_79B9_7F4A_7C15
+    z = (z ^ (z >> 30)) &* 0xBF58_476D_1CE4_E5B9
+    z = (z ^ (z >> 27)) &* 0x94D0_49BB_1331_11EB
+    return z ^ (z >> 31)
+}
+
 /// One foot, in the same units as the body's position: where it is along the floor and how
 /// high it's lifted (0 on the ground, 1 at the top of a step).
 public struct GremlinFoot: Equatable, Sendable {

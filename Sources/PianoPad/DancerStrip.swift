@@ -108,7 +108,9 @@ struct DancerStrip: View {
             let stretch = CGFloat(pose.stretch)
             c.scaleBy(x: CGFloat(place.facing) * scale * (1 - 0.8 * stretch), y: scale * (1 + stretch))
             c.translateBy(x: -60, y: -137)
-            Pebble.draw(look, face: pose.face, feet: feet, armSwing: CGFloat(sway), in: &c)
+            // Each blinks on its own clock, music or not; a hop or a wobble keeps the eyes as they are.
+            let blink = GremlinBlink.dancer(i).openness(atSeconds: uptime)
+            Pebble.draw(look, face: pose.face, feet: feet, armSwing: CGFloat(sway), openness: CGFloat(blink), in: &c)
         }
     }
 
@@ -154,8 +156,9 @@ enum Pebble {
     /// - Parameters:
     ///   - feet: left, then right (in the drawing's own left and right).
     ///   - armSwing: -1...1 while walking: the arms swing opposite each other.
+    ///   - openness: how open the eyes are, 1...0, for blinking.
     static func draw(_ look: PebbleLook, face: GremlinFace, feet: [Foot] = standingFeet, armSwing: CGFloat = 0,
-                     in c: inout GraphicsContext) {
+                     openness: CGFloat = 1, in c: inout GraphicsContext) {
         let limb = StrokeStyle(lineWidth: 6, lineCap: .round, lineJoin: .round)
         let outline = StrokeStyle(lineWidth: 3.5, lineCap: .round, lineJoin: .round)
 
@@ -230,11 +233,13 @@ enum Pebble {
         c.stroke(body, with: .color(line), lineWidth: 4)
         c.fill(Path(ellipseIn: CGRect(x: 38, y: 84, width: 44, height: 26)), with: .color(.white.opacity(0.5)))
 
-        drawEyes(look.eyes, face: face, in: &c)
+        drawEyes(look.eyes, face: face, openness: openness, in: &c)
         drawMouth(face, in: &c)
     }
 
-    private static func drawEyes(_ eyes: PebbleLook.Eyes, face: GremlinFace, in c: inout GraphicsContext) {
+    /// `openness`: 1 wide open, 0 shut (blinking).
+    private static func drawEyes(_ eyes: PebbleLook.Eyes, face: GremlinFace, openness: CGFloat,
+                                 in c: inout GraphicsContext) {
         let centers: [CGPoint] = eyes == .two ? [CGPoint(x: 46, y: 74), CGPoint(x: 74, y: 74)] : [CGPoint(x: 60, y: 72)]
         let radius: CGFloat = eyes == .two ? 10 : 14
         for (i, center) in centers.enumerated() {
@@ -248,13 +253,25 @@ enum Pebble {
             case .normal, .worried:
                 // Worried: one eye a little bigger, both looking up and away.
                 let r = face == .worried && i == centers.count - 1 && centers.count > 1 ? radius + 2 : radius
-                let eye = Path(ellipseIn: CGRect(x: center.x - r, y: center.y - r, width: 2 * r, height: 2 * r))
+                guard openness > 0.2 else {
+                    // Shut: a soft lid line.
+                    var lid = Path()
+                    lid.move(to: CGPoint(x: center.x - r, y: center.y))
+                    lid.addQuadCurve(to: CGPoint(x: center.x + r, y: center.y), control: CGPoint(x: center.x, y: center.y + 4))
+                    c.stroke(lid, with: .color(ink), style: StrokeStyle(lineWidth: 3, lineCap: .round))
+                    continue
+                }
+                // Blinking squeezes the eye from top and bottom; the pupil is cut off by the lids.
+                let h = r * openness
+                let eye = Path(ellipseIn: CGRect(x: center.x - r, y: center.y - h, width: 2 * r, height: 2 * h))
                 c.fill(eye, with: .color(.white))
-                c.stroke(eye, with: .color(ink), lineWidth: 3)
                 let pupilR = r * 0.45
                 let look = face == .worried ? CGPoint(x: -2, y: -3) : CGPoint(x: 2, y: 2)
-                c.fill(Path(ellipseIn: CGRect(x: center.x + look.x - pupilR, y: center.y + look.y - pupilR,
-                                              width: 2 * pupilR, height: 2 * pupilR)), with: .color(ink))
+                var inside = c
+                inside.clip(to: eye)
+                inside.fill(Path(ellipseIn: CGRect(x: center.x + look.x - pupilR, y: center.y + look.y - pupilR,
+                                                   width: 2 * pupilR, height: 2 * pupilR)), with: .color(ink))
+                c.stroke(eye, with: .color(ink), lineWidth: 3)
             }
         }
     }

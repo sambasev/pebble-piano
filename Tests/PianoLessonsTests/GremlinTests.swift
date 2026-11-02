@@ -250,4 +250,34 @@ final class GremlinTests: XCTestCase {
         XCTAssertEqual(walk?.start, start)
         XCTAssertEqual(walk?.end, start + Double(w.walkBeats(3)))
     }
+
+    // MARK: Blinking
+
+    func testBlinksNowAndThenNotOften() {
+        let b = GremlinBlink.dancer(0)
+        var blinks = 0
+        var wasOpen = true
+        var t = 0.0
+        while t < 600 {
+            let open = b.openness(atSeconds: t) > 0.5
+            if wasOpen && !open { blinks += 1 }
+            wasOpen = open
+            t += 0.01
+        }
+        // One blink per 6-second window, about a quarter of them double: ~125 in 10 minutes.
+        XCTAssertGreaterThan(blinks, 100)
+        XCTAssertLessThan(blinks, 150)
+    }
+
+    func testABlinkClosesThenOpens() {
+        let b = GremlinBlink.dancer(1)
+        let at = b.blinkTimes(window: 3)[0]
+        XCTAssertEqual(b.openness(atSeconds: at - 0.01), 1)
+        XCTAssertEqual(b.openness(atSeconds: at + GremlinBlink.closeSeconds), 0, accuracy: 1e-9)
+        XCTAssertEqual(b.openness(atSeconds: at + 0.5), 1, "open again well before the next blink")
+    }
+
+    func testDancersBlinkOnTheirOwn() {
+        XCTAssertNotEqual(GremlinBlink.dancer(0).blinkTimes(window: 5), GremlinBlink.dancer(1).blinkTimes(window: 5))
+    }
 }
