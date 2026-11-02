@@ -12,6 +12,14 @@ import PianoGraderCore
 final class BookImportModel: ObservableObject {
     enum Phase: Equatable { case choosing, reading, review }
 
+    /// How a line's two staves are played.
+    enum Hands: Equatable {
+        /// Upper staff right hand, lower staff left hand, together (a grand staff).
+        case split
+        /// Both staves right hand, one after the other (each staff is its own line).
+        case rightOnly
+    }
+
     enum Step: Equatable {
         case waiting, reading, measuring, done, failed(String)
 
@@ -33,6 +41,8 @@ final class BookImportModel: ObservableObject {
         let gray: Gray
         let png: Data
         let image: NSImage
+        /// One staff of a line on its own (right hand only), not a pair.
+        var singleStaff = false
         var step: Step = .waiting
         var reading: SystemReading?
         var geometry: NoteheadGeometry.System?
@@ -86,6 +96,10 @@ final class BookImportModel: ObservableObject {
     @Published private(set) var pieces: [SavedPiece] = []
     /// Ask Muse Wonder again instead of using its saved readings of these lines.
     @Published var freshRead = false
+    /// How the selected lines' staves are played: asked when their clefs don't make it clear.
+    @Published private(set) var hands: Hands?
+    /// The selected lines don't print a treble and a bass clef: waiting for `answerHands`.
+    @Published private(set) var asksHands = false
 
     private var document: PDFDocument?
     /// Applied once the page has loaded ("Read again" on a saved piece).
@@ -135,6 +149,8 @@ final class BookImportModel: ObservableObject {
         guard let doc = document, let book = documentURL, (0..<pageCount).contains(index) else { return }
         pageIndex = index
         selection = nil
+        hands = nil
+        asksHands = false
         systems = []
         isLoadingPage = true
         Task.detached(priority: .userInitiated) {
@@ -176,6 +192,8 @@ final class BookImportModel: ObservableObject {
         } else {
             selection = selection == index...index ? nil : index...index
         }
+        hands = nil
+        asksHands = false
         let typed = title.trimmingCharacters(in: .whitespaces)
         guard typed.isEmpty || title == autoTitle else { return }
         autoTitle = savedForSelection?.title ?? selection.map { suggestedTitle(forLine: $0.lowerBound) } ?? ""
@@ -236,38 +254,74 @@ final class BookImportModel: ObservableObject {
             return
         }
         guard let selection, let page = pageGray else { return }
+        guard let hands else {
+            // Only a treble clef over a bass clef says plainly which hand plays which staff. Without
+            // that (two treble clefs, or none printed), ask rather than guess.
+            let crops = selection.map { SystemFinder.crop(page, systems[$0]) }
+            Task.detached(priority: .userInitiated) {
+                let clear = crops.allSatisfy { NoteheadGeometry.printedClefs($0) == (.treble, .bass) }
+                await MainActor.run {
+                    guard self.selection == selection, self.hands == nil else { return }
+                    if clear { self.answerHands(.split) } else { self.asksHands = true }
+                }
+            }
+            return
+        }
         // No key is fine as long as every line has a saved reading (see `finishReading`).
         let client = try? ModelClient.configured(.meta)
         aiKeyNote = nil
-        reads = selection.enumerated().compactMap { pair -> SystemRead? in
-            let (k, i) = pair
-            let crop = SystemFinder.crop(page, systems[i])
+        // Right hand only: each staff is read as a line of its own, top staff first.
+        var parts: [(found: FoundSystem, crop: FoundSystem, single: Bool)] = []
+        for i in selection {
+            let s = systems[i]
+            if hands == .rightOnly {
+                let middle = (s.top + s.bottom) / 2
+                var upper = s, lower = s
+                upper.bottom = middle
+                lower.top = middle
+                parts += [(s, upper, true), (s, lower, true)]
+            } else {
+                parts.append((s, s, false))
+            }
+        }
+        reads = parts.enumerated().compactMap { k, part -> SystemRead? in
+            let crop = SystemFinder.crop(page, part.crop)
             guard let png = crop.pngData(), let cg = crop.cgImage() else { return nil }
-            return SystemRead(id: k, found: systems[i], gray: crop, png: png, image: NSImage(cgImage: cg, size: .zero))
+            return SystemRead(id: k, found: part.found, gray: crop, png: png, image: NSImage(cgImage: cg, size: .zero),
+                              singleStaff: part.single)
         }
         bars = []
         message = nil
         phase = .reading
-        let jobs = reads.map { ($0.id, $0.png) }
+        let jobs = reads.map { ($0.id, $0.png, $0.singleStaff) }
         let fresh = freshRead
         Task {
             await withTaskGroup(of: Void.self) { group in
-                for (id, png) in jobs {
-                    group.addTask { await self.readSystem(id, png: png, client: client, fresh: fresh) }
+                for (id, png, single) in jobs {
+                    group.addTask { await self.readSystem(id, png: png, singleStaff: single, client: client, fresh: fresh) }
                 }
             }
             await MainActor.run { self.finishReading() }
         }
     }
 
-    private func readSystem(_ id: Int, png: Data, client: ModelClient?, fresh: Bool) async {
+    /// The learner's answer to "which hand plays which staff?": reads the piece that way.
+    func answerHands(_ answer: Hands) {
+        hands = answer
+        asksHands = false
+        read()
+    }
+
+    private func readSystem(_ id: Int, png: Data, singleStaff: Bool, client: ModelClient?, fresh: Bool) async {
         await setStep(id, .measuring)
         do {
             // Measure first (under a second): the bar count tells the model how many bars to read.
-            let measured = try await Task.detached(priority: .userInitiated) { try NoteheadGeometry.measure(png: png) }.value
+            let measured = try await Task.detached(priority: .userInitiated) {
+                try NoteheadGeometry.measure(png: png, singleStaff: singleStaff)
+            }.value
             await setStep(id, .reading)
             let reading = try await Self.cachedReading(png: png, client: client, expectedMeasures: measured.barCount,
-                                                       fresh: fresh)
+                                                       singleStaff: singleStaff, fresh: fresh)
             await MainActor.run {
                 self.reads[id].reading = reading
                 self.reads[id].geometry = measured
@@ -330,8 +384,8 @@ final class BookImportModel: ObservableObject {
 
     /// Readings are cached by image, so reading the same piece again is instant (and free).
     static func cachedReading(png: Data, client: ModelClient?, reader: SystemReader? = nil, expectedMeasures: Int? = nil,
-                              fresh: Bool = false) async throws -> SystemReading {
-        let url = cacheURL(png: png, expectedMeasures: expectedMeasures)
+                              singleStaff: Bool = false, fresh: Bool = false) async throws -> SystemReading {
+        let url = cacheURL(png: png, expectedMeasures: expectedMeasures, singleStaff: singleStaff)
         let activeReader = reader ?? client.map { SystemReader(client: $0) }
         // Without a key a saved reading is still used, even when asked to read again.
         if !fresh || activeReader == nil, let data = try? Data(contentsOf: url),
@@ -339,15 +393,17 @@ final class BookImportModel: ObservableObject {
             return cached
         }
         guard let activeReader else { throw ModelError.missingKey(.meta) }
-        let reading = try await activeReader.read(png: png, expectedMeasures: expectedMeasures)
+        let reading = try await activeReader.read(png: png, expectedMeasures: expectedMeasures, singleStaff: singleStaff)
         try? FileManager.default.createDirectory(at: cacheFolder, withIntermediateDirectories: true)
         try? JSONEncoder().encode(reading).write(to: url)
         return reading
     }
 
-    /// The key covers the image and how it was asked (v2: with the measured bar count).
-    static func cacheURL(png: Data, expectedMeasures: Int?) -> URL {
+    /// The key covers the image and how it was asked (v2: with the measured bar count; "-1staff"
+    /// when read as one staff on its own).
+    static func cacheURL(png: Data, expectedMeasures: Int?, singleStaff: Bool = false) -> URL {
         let key = SHA256.hash(data: png).map { String(format: "%02x", $0) }.joined() + "-v2-\(expectedMeasures ?? 0)"
+            + (singleStaff ? "-1staff" : "")
         return cacheFolder.appendingPathComponent("\(key).json")
     }
 
@@ -368,7 +424,7 @@ final class BookImportModel: ObservableObject {
     func engraving(ofSystem s: Int) -> (score: Score, flagged: Set<Int>)? {
         let mine = bars(inSystem: s)
         guard !mine.isEmpty else { return nil }
-        let piece = ScoreWriter.write(mine.map(\.bar), title: "")
+        let piece = ScoreWriter.write(mine.map(\.bar), title: "", oneStaff: hands == .rightOnly)
         let flagged = Set(mine.enumerated().filter { $0.element.needsReview }.map { $0.offset + 1 })
         return (piece.score, flagged)
     }
@@ -432,7 +488,8 @@ final class BookImportModel: ObservableObject {
         fixing.insert(id)
         Task {
             do {
-                let reading = try await SystemReader(client: client, reasoningEffort: "high").read(png: png, expectedMeasures: 1)
+                let reading = try await SystemReader(client: client, reasoningEffort: "high")
+                    .read(png: png, expectedMeasures: 1, singleStaff: r.singleStaff)
                 // Use the measure with the most notes (a crop can catch a sliver of a neighbour).
                 guard let measure = reading.measures.max(by: {
                     $0.upper.notes.count + $0.lower.notes.count < $1.upper.notes.count + $1.lower.notes.count
@@ -483,7 +540,7 @@ final class BookImportModel: ObservableObject {
         let name = title.trimmingCharacters(in: .whitespaces).isEmpty
             ? (reads.first.map { suggestedTitle(forLine: $0.found.index) } ?? "Piece")
             : title.trimmingCharacters(in: .whitespaces)
-        let piece = ScoreWriter.write(bars.map(\.bar), title: name)
+        let piece = ScoreWriter.write(bars.map(\.bar), title: name, oneStaff: hands == .rightOnly)
         let saved = SavedPiece(id: Self.slug(name), title: name, book: documentURL?.lastPathComponent ?? "",
                                page: pageIndex, firstLine: reads.first?.found.index ?? 0,
                                lastLine: reads.last?.found.index ?? 0, created: Date())

@@ -58,17 +58,26 @@ public enum NoteheadGeometry {
     // MARK: Entry point
 
     #if canImport(CoreGraphics)
-    public static func measure(png: Data, clefs: (SystemReading.Clef, SystemReading.Clef) = (.treble, .treble)) throws -> System {
+    public static func measure(png: Data, clefs: (SystemReading.Clef, SystemReading.Clef) = (.treble, .treble),
+                               singleStaff: Bool = false) throws -> System {
         guard let gray = Gray.decode(png) else { throw GeometryError.unreadableImage }
-        return try measure(gray, clefs: clefs)
+        return try measure(gray, clefs: clefs, singleStaff: singleStaff)
     }
     #endif
 
-    public static func measure(_ gray: Gray, clefs: (SystemReading.Clef, SystemReading.Clef) = (.treble, .treble)) throws -> System {
+    /// `singleStaff`: the image is one staff on its own (a right-hand line); its heads are all
+    /// the upper staff's, and the lower staff is the same staff with no heads.
+    public static func measure(_ gray: Gray, clefs: (SystemReading.Clef, SystemReading.Clef) = (.treble, .treble),
+                               singleStaff: Bool = false) throws -> System {
         let ink = deskew(gray.binarized())
         var staves = staffLines(ink)
-        guard staves.count >= 2 else { throw GeometryError.staffNotFound(staves.count) }
-        if staves.count > 2 {
+        guard staves.count >= (singleStaff ? 1 : 2) else { throw GeometryError.staffNotFound(staves.count) }
+        if singleStaff {
+            // The staff nearest the middle (a crop can catch a sliver of its neighbour's lines).
+            let middle = Double(ink.height) / 2
+            let staff = staves.min { abs(($0.top + $0.bottom) / 2 - middle) < abs(($1.top + $1.bottom) / 2 - middle) }!
+            staves = [staff, staff]
+        } else if staves.count > 2 {
             // The pair of neighbouring staves whose gap looks most like a grand staff's.
             let pairs = (0..<(staves.count - 1)).map { (staves[$0], staves[$0 + 1]) }
             let best = pairs.min { abs(($0.1.top - $0.0.bottom) - 2.5 * $0.0.spacing) < abs(($1.1.top - $1.0.bottom) - 2.5 * $1.0.spacing) }!
@@ -82,7 +91,7 @@ public enum NoteheadGeometry {
 
         var upperHeads: [Head] = [], lowerHeads: [Head] = []
         for h in noteheads(ink, spacing: (upper.spacing + lower.spacing) / 2).sorted(by: { ($0.x, $0.y) < ($1.x, $1.y) }) {
-            let isUpper = h.y < split
+            let isUpper = singleStaff || h.y < split
             let staff = isUpper ? upper : lower
             if h.x < Double(isUpper ? startUpper : startLower) { continue }
             let exact = (staff.bottom - h.y) / (staff.spacing / 2)
@@ -102,6 +111,16 @@ public enum NoteheadGeometry {
         return System(upper: upper, lower: lower, upperHeads: upperHeads.filter(notOnBar),
                       lowerHeads: lowerHeads.filter(notOnBar), barEdges: edges,
                       upperClef: clefs.0, lowerClef: clefs.1)
+    }
+
+    /// The clefs printed at the start of a two-staff image (nil where none is printed), to tell
+    /// whether its staves are clearly a right and a left hand.
+    public static func printedClefs(_ gray: Gray) -> (upper: SystemReading.Clef?, lower: SystemReading.Clef?) {
+        let ink = deskew(gray.binarized())
+        let staves = staffLines(ink)
+        guard staves.count >= 2 else { return (nil, nil) }
+        let header = headerEnds(ink, staves[0], staves[1])
+        return (header.upperClef, header.lowerClef)
     }
 
     // MARK: Deskew

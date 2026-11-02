@@ -12,12 +12,16 @@ public struct ImportedPiece: Sendable {
 }
 
 /// Turns merged bars into a `Score`, reference MIDI and MusicXML. Assumes C major (key
-/// signatures aren't read yet) and a time signature from the bars' most common length.
+/// signatures aren't read yet) and a common time signature from the bars' lengths.
 public enum ScoreWriter {
-    public static func write(_ bars: [BarMerge.Bar], title: String, tempoBPM: Double = 80) -> ImportedPiece {
+    /// `oneStaff`: a right-hand piece, written on the upper staff alone (the bars' lower staff is
+    /// left out).
+    public static func write(_ bars: [BarMerge.Bar], title: String, tempoBPM: Double = 80,
+                             oneStaff: Bool = false) -> ImportedPiece {
         let timeSignature = timeSignature(of: bars)
         let barLength = timeSignature.numerator * 16 / timeSignature.denominator  // sixteenths
-        let clefs = [clef(bars, .upper), clef(bars, .lower)]
+        let staffNames: [SystemReading.StaffName] = oneStaff ? [.upper] : SystemReading.StaffName.allCases
+        let clefs = staffNames.map { clef(bars, $0) }
 
         var measures: [ScoreMeasure] = []
         var notes: [NoteEvent] = []
@@ -26,7 +30,7 @@ public enum ScoreWriter {
         for (i, bar) in bars.enumerated() {
             var events: [ScoreEvent] = []
             var longest = 0
-            for (staffIndex, staffName) in SystemReading.StaffName.allCases.enumerated() {
+            for (staffIndex, staffName) in staffNames.enumerated() {
                 var at = 0
                 var altered: Set<Int> = []  // letter steps given a sharp or flat earlier in this bar
                 let staffNotes = bar.notes(staffName)
@@ -69,8 +73,9 @@ public enum ScoreWriter {
                 }
                 longest = max(longest, at)
             }
-            // A short first bar is a pickup; otherwise every bar has the metre's length.
-            let length = i == 0 && longest < barLength ? longest : barLength
+            // A short first bar is a pickup; a bar that runs over the metre (a page with no
+            // barlines, say) keeps its whole length rather than inventing an odd metre.
+            let length = i == 0 && longest < barLength ? longest : max(barLength, longest)
             measures.append(ScoreMeasure(number: i + 1, startSixteenth: start, length: length,
                                          events: events.sorted { ($0.staff, $0.start) < ($1.staff, $1.start) }))
             start += length
@@ -82,21 +87,57 @@ public enum ScoreWriter {
         return ImportedPiece(score: score, midi: midi, fingering: fingering, musicXML: MusicXMLWriter.write(score))
     }
 
-    /// The most common bar length, as quarter notes over 4 (or eighths over 8 when it isn't a
-    /// whole number of quarters, as in 6/8). 4/4 when there are no notes.
+    /// The metres a piece is given: anything else a page seems to have (17/4, 11/8, …) is far more
+    /// likely a misread bar or a page without barlines than a real metre. Six eighths is 3/4 or
+    /// 6/8, told apart by where the notes fall (see `isCompound`).
+    static let commonMetres: [Int: TimeSignature] = [  // bar length in eighths → metre
+        3: TimeSignature(numerator: 3, denominator: 8),
+        4: TimeSignature(numerator: 2, denominator: 4),
+        5: TimeSignature(numerator: 5, denominator: 8),
+        6: TimeSignature(numerator: 3, denominator: 4),
+        7: TimeSignature(numerator: 7, denominator: 8),
+        8: TimeSignature(numerator: 4, denominator: 4),
+        9: TimeSignature(numerator: 9, denominator: 8),
+        10: TimeSignature(numerator: 5, denominator: 4),
+        12: TimeSignature(numerator: 12, denominator: 8),
+    ]
+
+    /// The common metre matching the most bars. 4/4 when no bar has a common length.
     static func timeSignature(of bars: [BarMerge.Bar]) -> TimeSignature {
         var counts: [Int: Int] = [:]  // length in eighths → bars
         for bar in bars {
-            let eighths = SystemReading.StaffName.allCases.map { s in
-                Int((bar.notes(s).reduce(0) { $0 + $1.note.quarters } * 2).rounded())
-            }.max() ?? 0
-            if eighths > 0 { counts[eighths, default: 0] += 1 }
+            let eighths = eighthsLong(bar)
+            if commonMetres[eighths] != nil { counts[eighths, default: 0] += 1 }
         }
         guard let eighths = counts.max(by: { ($0.value, $0.key) < ($1.value, $1.key) })?.key else {
             return TimeSignature(numerator: 4, denominator: 4)
         }
-        return eighths % 2 == 0 ? TimeSignature(numerator: eighths / 2, denominator: 4)
-                                : TimeSignature(numerator: eighths, denominator: 8)
+        if eighths == 6, isCompound(bars.filter { eighthsLong($0) == 6 }) {
+            return TimeSignature(numerator: 6, denominator: 8)
+        }
+        return commonMetres[eighths]!
+    }
+
+    static func eighthsLong(_ bar: BarMerge.Bar) -> Int {
+        SystemReading.StaffName.allCases.map { s in
+            Int((bar.notes(s).reduce(0) { $0 + $1.note.quarters } * 2).rounded())
+        }.max() ?? 0
+    }
+
+    /// Whether six-eighth bars move in two beats of three eighths (6/8: a note starts on the 4th
+    /// eighth) rather than three beats of two (3/4: a note starts on the 5th).
+    static func isCompound(_ bars: [BarMerge.Bar]) -> Bool {
+        var onFourth = 0, onFifth = 0
+        for bar in bars {
+            for s in SystemReading.StaffName.allCases {
+                var at = 0.0  // in eighths
+                for n in bar.notes(s) {
+                    if at == 3 { onFourth += 1 } else if at == 4 { onFifth += 1 }
+                    at += n.note.quarters * 2
+                }
+            }
+        }
+        return onFourth > onFifth
     }
 
     static func clef(_ bars: [BarMerge.Bar], _ staff: SystemReading.StaffName) -> Clef {

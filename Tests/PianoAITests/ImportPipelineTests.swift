@@ -58,4 +58,29 @@ final class ImportPipelineTests: XCTestCase {
         XCTAssertEqual(Set(sequence.notes.map(\.track)), [0, 1])
         XCTAssertEqual(sequence.notes.filter { $0.track == 1 }.first?.pitch, 60)
     }
+
+    func testOddBarLengthsGetACommonMetre() {
+        func bar(_ durations: [SystemReading.Duration]) -> BarMerge.Bar {
+            let notes = durations.map { BarMerge.Note(note: SystemReading.Note(position: 4, duration: $0), clef: .treble) }
+            return BarMerge.Bar(upper: notes, lower: [], upperStatus: .confirmed, lowerStatus: .confirmed, pageBar: 0)
+        }
+        // A worksheet line with no barlines: eight half notes and a quarter read as one bar of 17/4.
+        let worksheet = bar(Array(repeating: .half, count: 8) + [.quarter])
+        let piece = ScoreWriter.write([worksheet], title: "")
+        XCTAssertEqual(piece.score.timeSignature, TimeSignature(numerator: 4, denominator: 4))
+        XCTAssertEqual(piece.score.measures[0].length, 68)  // the bar keeps every note
+
+        // A misread bar doesn't outvote the common metre around it.
+        let waltz = Array(repeating: bar([.half, .quarter]), count: 3) + [bar([.half, .half, .quarter])]
+        XCTAssertEqual(ScoreWriter.timeSignature(of: waltz), TimeSignature(numerator: 3, denominator: 4))
+        XCTAssertEqual(ScoreWriter.timeSignature(of: [bar([.eighth, .eighth, .eighth])]), TimeSignature(numerator: 3, denominator: 8))
+        XCTAssertEqual(ScoreWriter.timeSignature(of: [bar([.half, .half, .quarter])]), TimeSignature(numerator: 5, denominator: 4))
+        XCTAssertEqual(ScoreWriter.timeSignature(of: [bar([.quarter, .quarter, .eighth])]), TimeSignature(numerator: 5, denominator: 8))
+        XCTAssertEqual(ScoreWriter.timeSignature(of: [bar([.quarter, .quarter, .quarter, .eighth])]),
+                       TimeSignature(numerator: 7, denominator: 8))
+        // Six eighths: 6/8 when the notes fall in threes, 3/4 when in twos.
+        XCTAssertEqual(ScoreWriter.timeSignature(of: [bar([.quarter, .eighth, .quarter, .eighth])]),
+                       TimeSignature(numerator: 6, denominator: 8))
+        XCTAssertEqual(ScoreWriter.timeSignature(of: [bar([.quarter, .quarter, .quarter])]), TimeSignature(numerator: 3, denominator: 4))
+    }
 }

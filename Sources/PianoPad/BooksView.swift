@@ -218,6 +218,25 @@ struct BookPagePicker: View {
             .offset(x: CGFloat(s.left) * scale, y: CGFloat(s.top) * scale)
     }
 
+    /// Asked before reading when the staves don't print a treble clef over a bass clef.
+    private var handsQuestion: some View {
+        VStack(alignment: .leading, spacing: PP.Space.s2) {
+            Text("Which hand plays which staff?").font(.ppCallout.weight(.semibold))
+            Text("These staves don't show a treble clef above a bass clef, so it isn't clear. A staff with no clef is read as treble.")
+                .font(.ppCaption).foregroundColor(PP.inkMuted).fixedSize(horizontal: false, vertical: true)
+            Button { model.answerHands(.rightOnly) } label: {
+                Label("Both right hand, one line after the other", systemImage: "hand.raised")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            Button { model.answerHands(.split) } label: {
+                Label("Right hand on top, left hand below, together", systemImage: "hands.clap")
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+        .padding(PP.Space.s3)
+        .background(RoundedRectangle(cornerRadius: PP.Radius.sm).stroke(PP.warning, lineWidth: 1.5))
+    }
+
     private var sidePanel: some View {
         VStack(alignment: .leading, spacing: PP.Space.s3) {
             Text("Pick a piece").font(.ppHeadline)
@@ -241,6 +260,7 @@ struct BookPagePicker: View {
             Button(model.savedForSelection != nil && !model.freshRead ? "Open saved piece" : "Read this piece") { model.read() }
                 .buttonStyle(PPPrimaryButtonStyle(height: PP.Size.targetMin))
                 .disabled(!model.canRead)
+            if model.asksHands { handsQuestion }
             Toggle("Ask Muse Wonder again", isOn: $model.freshRead)
                 .font(.ppCallout)
                 .help("Lines read before are reused (instant and free). Turn this on to read them again.")
@@ -299,6 +319,15 @@ struct ReadingProgressView: View {
 struct ReviewView: View {
     @ObservedObject var model: BookImportModel
     @State private var selected: Int?
+    /// How far the lines from the page are zoomed in: 1 fits the line to the width (no taller
+    /// than `pageMaxHeight`).
+    @State private var zoom: CGFloat = 1
+    /// The width a line from the page has to fit in.
+    @State private var pageWidth: CGFloat = 600
+
+    /// The tallest the line from the page is drawn, unzoomed.
+    static let pageMaxHeight: CGFloat = 220
+    static let zoomSteps: [CGFloat] = [0.5, 0.75, 1, 1.5, 2, 3, 4]
 
     var body: some View {
         VStack(alignment: .leading, spacing: PP.Space.s3) {
@@ -307,6 +336,7 @@ struct ReviewView: View {
                 Text(model.toReview == 0 ? "All bars checked" : "\(model.toReview) bar\(model.toReview == 1 ? "" : "s") to check")
                     .font(.ppCallout).foregroundColor(model.toReview == 0 ? PP.success : PP.warning)
                 Spacer()
+                zoomButtons
                 Button("Start over") { model.startOver() }
                 Button("Save and practise") { model.save() }
                     .buttonStyle(PPPrimaryButtonStyle(height: PP.Size.compact))
@@ -319,6 +349,26 @@ struct ReviewView: View {
                 }
                 .padding(.bottom, PP.Space.s6)
             }
+            .background(GeometryReader { geo in
+                Color.clear.preference(key: PageWidthKey.self, value: geo.size.width)
+            })
+            .onPreferenceChange(PageWidthKey.self) { width in
+                // Less the line's own padding (`ppGlass`, s3 each side).
+                pageWidth = max(100, width - 2 * PP.Space.s3)
+            }
+        }
+    }
+
+    private var zoomButtons: some View {
+        HStack(spacing: 2) {
+            Button { zoom = Self.zoomSteps.last { $0 < zoom } ?? zoom } label: { Image(systemName: "minus.magnifyingglass") }
+                .disabled(zoom <= Self.zoomSteps.first!)
+                .help("Zoom out of the page")
+            Button { zoom = 1 } label: { Text("\(Int((zoom * 100).rounded()))%").monospacedDigit().frame(minWidth: 40) }
+                .help("Fit the page to the width")
+            Button { zoom = Self.zoomSteps.first { $0 > zoom } ?? zoom } label: { Image(systemName: "plus.magnifyingglass") }
+                .disabled(zoom >= Self.zoomSteps.last!)
+                .help("Zoom in on the page")
         }
     }
 
@@ -327,10 +377,15 @@ struct ReviewView: View {
         VStack(alignment: .leading, spacing: PP.Space.s2) {
             Text("Line \(r.id + 1)").font(.ppEyebrow).foregroundColor(PP.inkMuted)
             // The page, with each bar marked: amber to check, green checked.
-            GeometryReader { geo in
-                let scale = geo.size.width / CGFloat(max(1, r.gray.width))
+            // Fitted to the width but capped in height, so a tall crop (a worksheet, a line with
+            // text around it) doesn't push the engraving and the bars to check off the screen;
+            // then zoomed, scrolling sideways when it's wider than the window.
+            let fit = min(pageWidth / CGFloat(max(1, r.gray.width)), Self.pageMaxHeight / CGFloat(max(1, r.gray.height)))
+            let scale = max(0.01, fit * zoom)
+            ScrollView(.horizontal) {
                 ZStack(alignment: .topLeading) {
-                    Image(nsImage: r.image).resizable().frame(width: geo.size.width, height: CGFloat(r.gray.height) * scale)
+                    Image(nsImage: r.image).resizable().interpolation(.high)
+                        .frame(width: CGFloat(r.gray.width) * scale, height: CGFloat(r.gray.height) * scale)
                     if let g = r.geometry {
                         ForEach(model.bars(inSystem: r.id)) { b in
                             if let j = b.bar.pageBar, j + 1 < g.barEdges.count {
@@ -350,7 +405,7 @@ struct ReviewView: View {
                 }
                 .background(Color.white)
             }
-            .aspectRatio(CGFloat(r.gray.width) / CGFloat(max(1, r.gray.height)), contentMode: .fit)
+            .frame(height: CGFloat(r.gray.height) * scale)
 
             // What PerfectPiano read, engraved: red bars to check, green bars checked.
             if let engraved = model.engraving(ofSystem: r.id) {
@@ -367,6 +422,11 @@ struct ReviewView: View {
     }
 }
 
+private struct PageWidthKey: PreferenceKey {
+    static var defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) { value = max(value, nextValue()) }
+}
+
 /// One bar to check: the bar from the page, why it was flagged, its notes with ↑/↓ to nudge,
 /// and Listen, That's right, Fix this bar.
 struct BarCard: View {
@@ -377,7 +437,7 @@ struct BarCard: View {
         HStack(alignment: .top, spacing: PP.Space.s4) {
             if let image = bar.image {
                 Image(nsImage: image).resizable().aspectRatio(contentMode: .fit)
-                    .frame(width: 180).background(Color.white)
+                    .frame(maxWidth: 180, maxHeight: 120).background(Color.white)
                     .clipShape(RoundedRectangle(cornerRadius: 6))
             }
             VStack(alignment: .leading, spacing: PP.Space.s2) {

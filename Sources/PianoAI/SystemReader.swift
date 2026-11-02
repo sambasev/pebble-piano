@@ -15,8 +15,10 @@ public struct SystemReader: Sendable {
 
     /// One system image (PNG) → its reading. `expectedMeasures`: how many bars were measured on
     /// the image, so the model doesn't stop after the first few (it sometimes does).
-    public func read(png: Data, expectedMeasures: Int? = nil) async throws -> SystemReading {
+    /// `singleStaff`: the image is one staff on its own, all of it for one hand.
+    public func read(png: Data, expectedMeasures: Int? = nil, singleStaff: Bool = false) async throws -> SystemReading {
         var prompt = Self.prompt
+        if singleStaff { prompt += "\n" + Self.singleStaffNote }
         if let n = expectedMeasures, n > 0 {
             prompt += "\nThe bar lines measured in this image give \(n) measure\(n == 1 ? "" : "s"): read every one of them, "
                 + "left to right (check against the image if a bar line seems missing or extra)."
@@ -36,10 +38,16 @@ public struct SystemReader: Sendable {
       0 = bottom line, 1 = space above the bottom line, 2 = second line, 3 = second space, 4 = middle line,
       5 = third space, 6 = fourth line, 7 = top space, 8 = top line, 9 = space just above the top line,
       10 = first ledger line above, -1 = space just below the bottom line, -2 = first ledger line below.
-    Read each staff's clef from the image; in this book BOTH staves are often treble.
+    Read each staff's clef from the image; in this book BOTH staves are often treble. Beginner music sometimes
+    prints no clef (a letter like "G" may mark the first note instead): a staff with no clef is treble.
     Durations: whole (hollow, no stem), half (hollow, stem), quarter (filled, stem), eighth (filled, flag or beam).
     finger = a printed fingering number (1-5) above or below that note, else null. Ignore text, slurs and dynamics.
     Count the barlines first so the number of measures is right.
+    """
+
+    static let singleStaffNote = """
+    This image is ONE staff on its own, not a pair: put all of its notes in "upper" and give "lower" clef treble
+    and no notes. Notes or text from a neighbouring staff cut off at the image's edge are not part of it.
     """
 
     static let staffSchema: JSONValue = [
