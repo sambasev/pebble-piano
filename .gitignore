@@ -10,3 +10,5 @@ App/build/
 __pycache__/
 Fixtures/lilypond/
 Fixtures/benchmark_expanded/
+test-runs/
+scripts/cu/driver
