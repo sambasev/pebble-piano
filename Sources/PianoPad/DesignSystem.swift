@@ -753,11 +753,53 @@ struct PPFieldModifier: ViewModifier {
             .padding(.horizontal, PP.Space.s2 + 2)
             .padding(.vertical, 6)
             .background(shape.fill(PP.surfaceGlass))
-            .overlay(shape.strokeBorder(focused ? PP.focusRing : PP.inkStaff.opacity(0.45), lineWidth: focused ? 2 : 1))
-            // The box is taller than the line of text in it: a click anywhere in it starts typing,
-            // or the keys would go to the piano instead.
-            .contentShape(shape)
-            .onTapGesture { focused = true }
+            .overlay(shape.strokeBorder(focused ? PP.focusRing : PP.inkStaff.opacity(0.45), lineWidth: focused ? 2 : 1)
+                .allowsHitTesting(false))
+            .ppClickToFocus($focused)
+    }
+}
+
+enum PPFocus {
+    /// Focuses a field even when its focus state is stale: selecting text elsewhere (a chat reply)
+    /// takes the keyboard without clearing it, and setting true again would then do nothing.
+    static func refocus(_ focused: FocusState<Bool>.Binding) {
+        focused.wrappedValue = false
+        DispatchQueue.main.async { focused.wrappedValue = true }
+    }
+
+}
+
+/// Over a text box: while nothing is being typed, a click anywhere in the box focuses its field.
+/// The box is taller than its line of text, and selecting text elsewhere (a chat reply) leaves
+/// SwiftUI thinking the field still has focus, so it ignores a click on the field; either way the
+/// keys would go to the piano. While typing, clicks pass through, so the caret can still be placed.
+private struct PPClickToFocus: NSViewRepresentable {
+    let focus: () -> Void
+
+    func makeNSView(context: Context) -> CatcherView { CatcherView(focus: focus) }
+    func updateNSView(_ view: CatcherView, context: Context) { view.focus = focus }
+
+    final class CatcherView: NSView {
+        var focus: () -> Void
+        init(focus: @escaping () -> Void) { self.focus = focus; super.init(frame: .zero) }
+        required init?(coder: NSCoder) { fatalError("init(coder:) is not used") }
+
+        override func hitTest(_ point: NSPoint) -> NSView? {
+            let typing = (window?.firstResponder as? NSTextView)?.isEditable ?? false
+            return typing ? nil : super.hitTest(point)
+        }
+
+        override func mouseDown(with event: NSEvent) {
+            // Take the keyboard back from whatever holds it (selected text), then focus the field.
+            window?.makeFirstResponder(nil)
+            focus()
+        }
+    }
+}
+
+extension View {
+    func ppClickToFocus(_ focused: FocusState<Bool>.Binding) -> some View {
+        overlay(PPClickToFocus { PPFocus.refocus(focused) })
     }
 }
 

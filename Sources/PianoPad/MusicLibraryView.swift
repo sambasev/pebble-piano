@@ -273,19 +273,24 @@ private struct LibrarySearchField: View {
                 .font(.system(size: 13, weight: .medium))
                 .focused($focused)
                 .accessibilityLabel("Search music")
-            if !text.isEmpty {
-                Button { text = "" } label: { Image(systemName: "xmark.circle.fill") }
-                    .buttonStyle(.plain)
-                    .foregroundColor(PP.inkMuted)
-                    .accessibilityLabel("Clear search")
-            }
+            // Room for the clear button, which sits above the click-to-focus layer.
+            Color.clear.frame(width: text.isEmpty ? 0 : 14)
         }
         .padding(.horizontal, PP.Space.s3)
         .frame(height: PP.Size.compact)
         .background(Capsule().fill(PP.surfaceGlass))
-        .overlay(Capsule().strokeBorder(focused ? PP.focusRing : PP.inkStaff.opacity(0.45), lineWidth: focused ? 2 : 1))
-        .contentShape(Capsule())
-        .onTapGesture { focused = true }
+        .overlay(Capsule().strokeBorder(focused ? PP.focusRing : PP.inkStaff.opacity(0.45), lineWidth: focused ? 2 : 1)
+            .allowsHitTesting(false))
+        .ppClickToFocus($focused)
+        .overlay(alignment: .trailing) {
+            if !text.isEmpty {
+                Button { text = "" } label: { Image(systemName: "xmark.circle.fill") }
+                    .buttonStyle(.plain)
+                    .foregroundColor(PP.inkMuted)
+                    .padding(.trailing, PP.Space.s3)
+                    .accessibilityLabel("Clear search")
+            }
+        }
         .frame(minWidth: 200, maxWidth: .infinity)
     }
 }
