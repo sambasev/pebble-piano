@@ -6,23 +6,31 @@ import PianoLessons
 struct TutorChatView: View {
     @EnvironmentObject var session: PlaySession
     @State private var draft = ""
+    @State private var focused = false
+    @State private var composerHeight: CGFloat = 34
 
     var body: some View {
-        VStack(alignment: .leading, spacing: PP.Space.s2) {
-            if session.tutorChat.turns.isEmpty {
-                Text("Ask about this piece, the book page, technique, theory or anything else about music.")
-                    .font(.callout).foregroundColor(PP.inkMuted)
-            }
+        VStack(alignment: .leading, spacing: PP.Space.s3) {
             // The conversation scrolls on its own, newest at the bottom; the question box stays put.
             ScrollViewReader { proxy in
                 ScrollView {
-                    VStack(alignment: .leading, spacing: PP.Space.s2) {
+                    VStack(alignment: .leading, spacing: PP.Space.s3) {
+                        if session.tutorChat.turns.isEmpty {
+                            Text("Ask about this piece, the book page, technique, theory or anything else about music.")
+                                .font(.callout).foregroundColor(PP.inkMuted)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
                         ForEach(session.tutorChat.turns) { turn in
                             bubble(turn).id(turn.id)
                         }
                     }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.vertical, PP.Space.s2)
                 }
-                .frame(maxHeight: session.tutorChat.turns.isEmpty ? 0 : 320)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .onAppear {
+                    if let last = session.tutorChat.turns.last { proxy.scrollTo(last.id, anchor: .bottom) }
+                }
                 .onChange(of: session.tutorChat.turns.last?.id) { last in
                     guard let last else { return }
                     withAnimation { proxy.scrollTo(last, anchor: .bottom) }
@@ -39,27 +47,27 @@ struct TutorChatView: View {
             if let note = session.tutorChatNote {
                 Text(note).font(.caption).foregroundStyle(.secondary)
             }
-            HStack(alignment: .bottom) {
-                TextField("Ask your tutor", text: $draft, axis: .vertical)
-                    .lineLimit(1...4)
-                    .ppField()
-                    .onSubmit(send)
-                Button(action: send) { Image(systemName: "arrow.up.circle.fill").font(.title2) }
-                    .buttonStyle(.plain)
-                    .foregroundColor(PP.accent)
-                    .disabled(TutorChat.clean(draft) == nil || session.tutorChatBusy)
-                    .help("Send")
+            HStack(alignment: .bottom, spacing: PP.Space.s2) {
+                TutorChatComposer(text: $draft, focused: $focused, height: $composerHeight,
+                                  send: send)
+                    .frame(height: composerHeight)
+                Button(action: send) {
+                    Image(systemName: "arrow.up").font(.system(size: 14, weight: .bold))
+                }
+                .buttonStyle(PPIconButtonStyle(kind: .mode, isOn: true))
+                .disabled(TutorChat.clean(draft) == nil || session.tutorChatBusy)
+                .accessibilityLabel("Send question")
+                .help("Send question (Return). Shift-Return adds a new line.")
+                .padding(.bottom, 1)
             }
-            .disabled(session.phase == .recording)
-            HStack {
-                if let book = session.tutorChatBookLabel {
-                    Toggle(isOn: $session.tutorChatUsesBook) { Text("Use \(book)").font(.caption) }
-                        .help("Send the book page's text and a picture of it with each question")
-                }
-                Spacer()
-                if !session.tutorChat.turns.isEmpty {
-                    Button("New chat") { session.resetTutorChat() }
-                }
+            .padding(6)
+            .background(RoundedRectangle(cornerRadius: PP.Radius.sm).fill(PP.surfaceRaised))
+            .overlay(RoundedRectangle(cornerRadius: PP.Radius.sm)
+                .strokeBorder(focused ? PP.focusRing : PP.inkStaff.opacity(0.45), lineWidth: focused ? 2 : 1)
+                .allowsHitTesting(false))
+            if let book = session.tutorChatBookLabel {
+                Toggle(isOn: $session.tutorChatUsesBook) { Text("Use \(book)").font(.caption) }
+                    .help("Send the book page's text and a picture of it with each question")
             }
         }
     }
@@ -76,6 +84,7 @@ struct TutorChatView: View {
             if mine { Spacer(minLength: 24) }
             Text(turn.text)
                 .font(.callout)
+                .fixedSize(horizontal: false, vertical: true)
                 .textSelection(.enabled)
                 .foregroundColor(turn.refused && !mine ? PP.inkMuted : PP.ink)
                 .padding(.horizontal, PP.Space.s3).padding(.vertical, PP.Space.s2)

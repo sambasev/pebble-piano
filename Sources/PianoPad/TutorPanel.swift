@@ -12,7 +12,17 @@ struct TutorPanel: View {
     @AppStorage("PianoPad.tutor.asking") private var asking = false
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack { Text("Piece tutor").font(.ppHeadline); Spacer(); Button("AI settings") { settings = true } }
+            HStack {
+                Text("Piece tutor").font(.ppHeadline)
+                Spacer()
+                if asking && session.canChatWithTutor && !session.tutorChat.turns.isEmpty {
+                    Button { session.resetTutorChat() } label: { Image(systemName: "square.and.pencil") }
+                        .buttonStyle(PPIconButtonStyle())
+                        .accessibilityLabel("New chat")
+                        .help("New chat")
+                }
+                Button("AI settings") { settings = true }
+            }
             if session.canChatWithTutor {
                 PPSegmented(selection: $asking, [
                     (false, "Lesson"),

@@ -293,18 +293,22 @@ struct ContentView: View {
 
     /// The grade, or how a take works, on a glass panel beside the music.
     private var reportPanel: some View {
-        ScrollView {
-            VStack(alignment: .leading) {
+        Group {
+            if askingTutor && session.canChatWithTutor {
+                // The transcript owns scrolling; the composer stays at the bottom of the panel.
                 TutorPanel().environmentObject(session)
-                // Asking the tutor: the chat has the panel to itself.
-                if !(askingTutor && session.canChatWithTutor) {
-                    Divider()
-                    ReportView(report: session.tutorDisplayReport, phase: session.phase)
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading) {
+                        TutorPanel().environmentObject(session)
+                        Divider()
+                        ReportView(report: session.tutorDisplayReport, phase: session.phase)
+                    }
                 }
             }
         }
-            .frame(maxWidth: .infinity, alignment: .topLeading)
-            .ppGlass()
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            .ppGlass(padding: askingTutor && session.canChatWithTutor && compact ? PP.Space.s3 : PP.Space.s6)
             .frame(width: 340, alignment: .topLeading)
             .tourAnchor(.report)
     }

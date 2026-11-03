@@ -1,5 +1,7 @@
 #if os(macOS)
 import XCTest
+import AppKit
+import SwiftUI
 import PianoAI
 import PianoLessons
 import PianoPadState
@@ -33,6 +35,63 @@ final class TutorChatSessionTests: XCTestCase {
         await waitForAnswer(session)
         XCTAssertEqual(fake.calls.count, 1)
         XCTAssertEqual(session.tutorChat.turns.last?.text, "A whole note gets four beats.")
+    }
+
+    @MainActor func testFollowUpQuestionsKeepTheConversationAndReleaseBusyState() async {
+        let session = sandbox.session()
+        session.addLearner(name: "Sam", kind: .adult)
+        let fake = FakeChat()
+        session.tutorChatClient = fake
+        for question in ["What is a whole note?", "And a half note?", "How do I count them?"] {
+            let previousTurns = session.tutorChat.history
+            session.sendTutorChat(question)
+            await waitForAnswer(session)
+            XCTAssertFalse(session.tutorChatBusy)
+            XCTAssertEqual(fake.calls.last?.question, question)
+            XCTAssertEqual(fake.calls.last?.history, previousTurns)
+        }
+        XCTAssertEqual(fake.calls.count, 3)
+        XCTAssertEqual(session.tutorChat.turns.count, 6)
+    }
+
+    /// A note can start a take while the learner reads a reply. It must not disable Ask.
+    @MainActor func testComposerCanTypeAndSendAfterATakeStartsBetweenTurns() async throws {
+        let session = sandbox.session()
+        session.addLearner(name: "Sam", kind: .adult)
+        let fake = FakeChat()
+        session.tutorChatClient = fake
+        session.sendTutorChat("What is a whole note?")
+        await waitForAnswer(session)
+
+        let host = NSHostingView(rootView: TutorChatView().environmentObject(session))
+        let window = NSWindow(contentRect: NSRect(x: 0, y: 0, width: 300, height: 400),
+                              styleMask: [.titled], backing: .buffered, defer: false)
+        window.contentView = host
+        defer { window.contentView = nil }
+        host.layoutSubtreeIfNeeded()
+        session.mouseDown(on: 60)
+        session.mouseUp()
+        XCTAssertEqual(session.phase, .recording)
+        try await Task.sleep(nanoseconds: 20_000_000)
+        host.layoutSubtreeIfNeeded()
+
+        func editor(in view: NSView) -> TutorChatComposer.Editor? {
+            if let found = view as? TutorChatComposer.Editor { return found }
+            return view.subviews.lazy.compactMap { editor(in: $0) }.first
+        }
+        let input = try XCTUnwrap(editor(in: host))
+        XCTAssertTrue(input.isEditable)
+        XCTAssertTrue(input.isSelectable)
+        XCTAssertTrue(window.makeFirstResponder(input))
+        input.insertText("And a half note?", replacementRange: NSRange(location: NSNotFound, length: 0))
+        try await Task.sleep(nanoseconds: 20_000_000)
+        XCTAssertEqual(input.string, "And a half note?")
+        _ = input.delegate?.textView?(input, doCommandBy: #selector(NSResponder.insertNewline(_:)))
+        await waitForAnswer(session)
+        XCTAssertEqual(fake.calls.count, 2)
+        XCTAssertEqual(fake.calls.last?.question, "And a half note?")
+        XCTAssertEqual(session.tutorChat.turns.count, 4)
+        XCTAssertFalse(session.tutorChatBusy)
     }
 
     @MainActor func testChildCanNeverChat() async {
