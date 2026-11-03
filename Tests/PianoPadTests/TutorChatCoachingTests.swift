@@ -213,14 +213,22 @@ final class TutorChatCoachingTests: XCTestCase {
         let fake = CoachingChat()
         session.tutorChatClient = fake
         _ = session.applyTutorChatAction(.init(kind: .practicePassage, fromBar: 4, toBar: 4, mode: .timed))
+        XCTAssertTrue(session.tutorChatAwaitingStart)
+        XCTAssertEqual(session.phase, .waiting)
+        XCTAssertFalse(session.isPlayingAlong)
+        session.startPreparedTutorChatExercise()
+        XCTAssertEqual(session.phase, .recording)
         session.finishTake()
         await settle(session)
         XCTAssertTrue(fake.calls.isEmpty)
-        XCTAssertTrue(session.tutorHeardNothing)
+        XCTAssertNil(session.report)
+        XCTAssertTrue(session.tutorChatAwaitingStart)
+        XCTAssertEqual(session.phase, .waiting)
+        XCTAssertTrue(session.learnerStore.history(for: try XCTUnwrap(session.learner?.id)).allTakes().isEmpty)
         session.pauseTutorChatCoaching(); session.endTutoring()
     }
 
-    @MainActor func testPausingPreventsAutomaticFollowUpAndStopKeepsRecordedTake() async throws {
+    @MainActor func testStopKeepsTheTakeUngradedUntilTheLearnerFinishesIt() async throws {
         let session = try player()
         let fake = CoachingChat()
         session.tutorChatClient = fake
@@ -229,10 +237,87 @@ final class TutorChatCoachingTests: XCTestCase {
         _ = session.applyTutorChatAction(.init(kind: .stop))
         await settle(session)
         XCTAssertFalse(session.tutorChatCoaching)
-        XCTAssertNil(session.tutor)
+        XCTAssertEqual(session.noteCount, 1)
+        XCTAssertNil(session.report)
+        XCTAssertTrue(session.tutorChatOffersGrade)
         XCTAssertTrue(fake.calls.isEmpty)
         let history = session.learnerStore.history(for: try XCTUnwrap(session.learner?.id))
+        XCTAssertTrue(history.allTakes().isEmpty)
+        session.finishTutorChatTake()
         XCTAssertEqual(history.allTakes().count, 1)
+        XCTAssertFalse(session.tutorChatCoaching)
+        session.endTutoring()
+    }
+
+    @MainActor func testTimedPracticeWaitsForStartEvenAfterAResponse() async throws {
+        let session = try player()
+        let fake = CoachingChat()
+        fake.replies = [.init(onTopic: true, reply: "Ready for bar 4.", action: .init(kind: .practicePassage, fromBar: 4, toBar: 4, tempoPercent: 100, mode: .timed))]
+        session.tutorChatClient = fake
+        session.sendTutorChat("Practise bar 4 in time")
+        await settle(session)
+        try await Task.sleep(nanoseconds: 100_000_000)
+        XCTAssertEqual(session.phase, .waiting)
+        XCTAssertFalse(session.isPlayingAlong)
+        XCTAssertEqual(session.noteCount, 0)
+        XCTAssertNil(session.report)
+        XCTAssertTrue(session.tutorChatAwaitingStart)
+        XCTAssertEqual(fake.calls.count, 1)
+        session.mouseDown(on: 65); session.mouseUp()
+        XCTAssertEqual(session.noteCount, 0, "Notes before Start are warm-up, not a take")
+        _ = session.applyTutorChatAction(.init(kind: .gradeTake))
+        XCTAssertNil(session.report)
+        XCTAssertFalse(session.tutorChatOffersGrade)
+        XCTAssertEqual(fake.calls.count, 1)
+        session.startPreparedTutorChatExercise()
+        XCTAssertTrue(session.isPlayingAlong)
+        XCTAssertFalse(session.tutorChatAwaitingStart)
+        session.pauseTutorChatCoaching(); session.endTutoring()
+    }
+
+    @MainActor func testPausingTheCoachDoesNotMakeAnEmptyTimedRunGradeable() async throws {
+        let session = try player()
+        _ = session.applyTutorChatAction(.init(kind: .practicePassage, fromBar: 4, toBar: 4, mode: .timed))
+        session.startPreparedTutorChatExercise()
+        session.pauseTutorChatCoaching()
+        session.finishTake()
+        XCTAssertNil(session.report)
+        XCTAssertEqual(session.phase, .waiting)
+        XCTAssertTrue(session.tutorChatAwaitingStart)
+        session.endTutoring()
+    }
+
+    @MainActor func testTempoChangePreservesPassageAndDoesNotGradeAPartialTake() async throws {
+        let session = try player()
+        _ = session.applyTutorChatAction(.init(kind: .practicePassage, fromBar: 3, toBar: 4, tempoPercent: 100))
+        session.mouseDown(on: 64); session.mouseUp()
+        let result = session.applyTutorChatAction(.init(kind: .setTempo, tempoPercent: 50))
+        XCTAssertTrue(result.contains("50%"))
+        XCTAssertEqual(session.phase, .recording)
+        XCTAssertEqual(session.noteCount, 1)
+        XCTAssertNil(session.report)
+        XCTAssertEqual(session.tutorAttempt?.measures, 3...4)
+        XCTAssertEqual(session.tutorAttempt?.tempoPercent, 50)
+        XCTAssertEqual(session.tutor?.exercise.tempoPercent, 50)
+        XCTAssertTrue(session.learnerStore.history(for: try XCTUnwrap(session.learner?.id)).allTakes().isEmpty)
+        session.pauseTutorChatCoaching(); session.endTutoring()
+    }
+
+    @MainActor func testModelGradeRequestCannotFinishAPartialTakeByItself() async throws {
+        let session = try player()
+        _ = session.applyTutorChatAction(.init(kind: .practicePassage, fromBar: 3, toBar: 4))
+        session.mouseDown(on: 64); session.mouseUp()
+        let fake = CoachingChat()
+        fake.replies = [.init(onTopic: true, reply: "I'll grade first.", action: .init(kind: .gradeTake))]
+        session.tutorChatClient = fake
+        session.sendTutorChat("Can you reduce the tempo?")
+        await settle(session)
+        XCTAssertEqual(session.phase, .recording)
+        XCTAssertEqual(session.noteCount, 1)
+        XCTAssertNil(session.report)
+        XCTAssertTrue(session.tutorChatOffersGrade)
+        XCTAssertEqual(fake.calls.count, 1)
+        session.pauseTutorChatCoaching(); session.endTutoring()
     }
 
     @MainActor func testStockLessonOpensWithoutLosingTheConversation() async throws {

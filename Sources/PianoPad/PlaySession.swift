@@ -519,13 +519,15 @@ final class PlaySession: ObservableObject {
     /// Send the book page (its text and a picture) with each question.
     @Published var tutorChatUsesBook = true
     @Published var tutorChatCoaching = false
+    @Published var tutorChatAwaitingStart = false
+    @Published var tutorChatOffersGrade = false
+    var tutorChatControlsExercise = false
     var tutorChatActionResults: [String] = []
     var tutorChatRecentGrades: [String] = []
     var tutorChatFocus = ""
     var tutorChatPendingObservation: TutorChatObservation?
     var tutorChatRequestTurn: UUID?
     var tutorChatPreservesConversation = false
-    var tutorChatIsStopping = false
     var tutorChatTask: Task<Void, Never>?
     var tutorChatGeneration = UUID()
     /// Tests inject a fake; nil uses Muse Spark when a key is configured.
@@ -1376,6 +1378,8 @@ final class PlaySession: ObservableObject {
     /// - Parameter keepingHeld: for a new take started by a key going down, whose release must
     ///   still count. Everything else (Reset, a new block) starts with no keys down.
     func resetTake(keepingHeld: Bool = false) {
+        tutorChatAwaitingStart = false
+        tutorChatOffersGrade = false
         cancelAutoGrade()
         passageCompletedAt = nil
         if !keepingHeld { releaseHeldNotes() }
@@ -2549,6 +2553,12 @@ extension PlaySession {
         let wasRecording = phase == .recording
         stopPlayAlong(discard: false)
         guard wasRecording else { return }
+        if tutorChatControlsExercise && notes.isEmpty {
+            resetTake()
+            tutorChatAwaitingStart = tutorAttempt?.isTimed == true
+            message = "No notes were played. Press Start practice when you're ready."
+            return
+        }
         playAlongState = .finished
         synth?.allNotesOff()
         guard !notes.isEmpty || tutor != nil else {
@@ -2834,6 +2844,7 @@ extension PlaySession {
     func endTutoring() {
         tutorReadiness = nil
         guard tutor != nil else { return }
+        tutorChatControlsExercise = false
         tutorSavesProgress = false; tutorHeardNothing = false
         tutorGeneration = UUID(); tutorTask?.cancel(); tutorTask = nil; tutorBusy = false
         tutorPlanTask?.cancel(); tutorPlanTask = nil; tutorPlanID = UUID(); tutorPlanning = false; tutorPlanNote = nil
@@ -2862,8 +2873,9 @@ extension PlaySession {
         return full.measures(e.measures).hand(e.hand)
     }
 
-    func startTutorExercise() {
+    func startTutorExercise(waitForReady: Bool = false) {
         guard !tutorPlanning, let e = tutor?.exercise, let full = tutorFullReference else { return }
+        tutorChatControlsExercise = waitForReady
         tutorGeneration = UUID(); tutorTask?.cancel(); tutorBusy = false; tutorAI = ""; tutorNote = nil
         tutorHeardNothing = false
         resetAll(); tutorBeforeAttempt = tutor; tutorAttempt = e
@@ -2883,7 +2895,10 @@ extension PlaySession {
             }
             return
         }
-        if e.isTimed { startTimedRun() }
+        if e.isTimed {
+            if waitForReady { tutorChatAwaitingStart = true }
+            else { startTimedRun() }
+        }
     }
     func retryTutorExercise() {
         if let previous = tutorBeforeAttempt { tutor = previous }
@@ -3029,7 +3044,7 @@ extension PlaySession {
             tutorNote = "I didn't hear any notes, so the next step waits for you."
             return
         }
-        if !tutorChatCoaching && !tutorChatIsStopping {
+        if !tutorChatCoaching {
             askTutor("Tell me how that attempt went, like my piano teacher, and guide me into the selected exercise.")
         }
     }

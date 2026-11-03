@@ -19,6 +19,7 @@ extension PlaySession {
             + "Listening: \(isAuditioning). Coaching after takes: \(tutorChatCoaching). "
             + "Marked printed bars: \(markedBars.sorted())."
         context.screen += " Current coaching focus: \(tutorChatFocus)."
+        context.screen += " Awaiting learner's Start practice: \(tutorChatAwaitingStart). Count-in: \(playAlongState == .countIn). A recording clock alone does not mean the learner has played."
         context.screen += " Keys expected now: \(expected.sorted().map(PitchName.of)); held: \(held.sorted().map(PitchName.of)); wrong held keys: \(wrong.sorted().map(PitchName.of))."
         if let q = tutorPlayhead { context.screen += " Playhead: \(q) quarter notes from the piece's start." }
         if let plan = tutor?.plan {

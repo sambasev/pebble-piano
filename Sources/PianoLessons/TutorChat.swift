@@ -43,7 +43,7 @@ public struct TutorChatReply: Codable, Equatable, Sendable {
 /// A request to the player, never executable code. The app checks it against live state.
 public struct TutorChatAction: Codable, Equatable, Sendable {
     public enum Kind: String, Codable, Sendable, CaseIterable {
-        case practicePassage, listenPassage, startLesson, openLesson, continueLesson, gradeTake, stop, setGoal
+        case practicePassage, listenPassage, startLesson, openLesson, continueLesson, gradeTake, stop, setGoal, setTempo
     }
     public enum Mode: String, Codable, Sendable { case wait, timed }
     public var kind: Kind
@@ -153,13 +153,17 @@ public enum TutorChatInstructions {
     fingering or grades that the context doesn't support.
     Actions: practicePassage or listenPassage uses printed fromBar/toBar (inclusive), hand
     R/L/LR, tempoPercent 25–100, mode wait (note by note) or timed (with count-in).
-    practicePassage starts a single graded repetition; after the take the app sends you
+    practicePassage prepares a single graded repetition. A timed repetition waits for the
+    learner to press Start practice before the count-in; note-by-note practice starts on
+    their first note. After the take the app sends you
     fresh grading evidence so you can repeat it, adjust speed/hand, or move on. Use small
     passages, one concrete thing to improve per take, and judge improvement from the grader.
     startLesson plans and starts teaching the open piece; openLesson opens an unlocked
     lessonID from availableLessons; continueLesson starts the deterministic next lesson step.
-    gradeTake finishes and grades an ongoing take. If a take is recording and a different
-    exercise is requested, gradeTake first; choose the exercise once its evidence arrives.
+    setTempo changes only the current exercise's tempoPercent, preserving its passage and
+    hand. Use it for requests to slow down or speed up. Never finish or grade a take merely
+    to change its settings. gradeTake offers a Grade take button; it does not finish the
+    performance until the learner presses it. Offer it only when the learner asks for grading.
     stop pauses coaching and playback. setGoal stores the learner's own musical goal in goal.
     Do not invent a goal or change it just because the context contains one. Other actions
     may include goal only when the learner has just stated it. Unused action fields are null.

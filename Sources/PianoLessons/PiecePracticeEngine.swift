@@ -392,6 +392,14 @@ public struct PiecePracticeEngine: Sendable {
     }
     public mutating func learnNotes() { reassess(); exercise.kind = .notes }
 
+    /// Adjust the current step without changing its passage, hand, or earned progress.
+    @discardableResult
+    public mutating func setExerciseTempo(_ percent: Double) -> Bool {
+        guard percent.isFinite, (25...100).contains(percent) else { return false }
+        exercise.tempoPercent = percent
+        return true
+    }
+
     /// An explicitly selected drill. Its outcome still goes through the deterministic grader.
     @discardableResult
     public mutating func selectExercise(_ selected: PracticeExercise) -> Bool {

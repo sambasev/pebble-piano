@@ -826,6 +826,7 @@ struct ContentView: View {
     }
 
     private var statusColor: Color {
+        if session.tutorChatAwaitingStart { return PP.inkStaff }
         if session.mode == .playAlong {
             if session.playAlongState == .idle && session.reference != nil && !session.hasBackingTrack { return PP.warning }
             switch session.playAlongState {
@@ -844,6 +845,7 @@ struct ContentView: View {
     }
 
     private var statusText: String {
+        if session.tutorChatAwaitingStart { return "Ready: press Start practice when you're ready for the count-in" }
         if session.mode == .playAlong, let text = playAlongStatus { return text }
         switch session.phase {
         case .waiting where session.isPlayingReference: return "Playing the reference… Space or Esc to stop"

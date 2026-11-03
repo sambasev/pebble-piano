@@ -52,6 +52,18 @@ struct TutorChatView: View {
             if let note = session.tutorChatNote {
                 Text(note).font(.caption).foregroundStyle(.secondary)
             }
+            if session.tutorChatAwaitingStart {
+                Button { session.startPreparedTutorChatExercise() } label: {
+                    Label("Start practice", systemImage: "play.fill").frame(maxWidth: .infinity)
+                }
+                .buttonStyle(PPPrimaryButtonStyle(height: PP.Size.compact))
+                .disabled(session.tutorChatBusy)
+                .help("Start the count-in when you're ready to play")
+            }
+            if session.tutorChatOffersGrade && session.phase == .recording {
+                Button("Grade take") { session.finishTutorChatTake() }
+                    .buttonStyle(PPGlassButtonStyle())
+            }
             HStack(alignment: .bottom, spacing: PP.Space.s2) {
                 TutorChatComposer(text: $draft, focused: $focused, height: $composerHeight,
                                   send: send)

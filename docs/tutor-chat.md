@@ -18,11 +18,17 @@ Examples:
 - “Open a beginner lesson on the notes I am missing.”
 - “Stop coaching.”
 
-Practice requests start one graded repetition at a time. With coaching enabled, each
+Practice requests prepare one repetition at a time. Timed exercises wait for **Start practice**
+before their count-in; note-by-note exercises wait for the learner's first note. Empty timed
+runs return to ready without a grade or saved take. Tempo requests use `setTempo`, keeping
+the current passage and hand instead of grading the take to change settings. A model's
+`gradeTake` request offers **Grade take**; only pressing that button ends the take early.
+With coaching enabled, each
 completed take sends fresh grader evidence to the tutor, which can repeat a passage,
 adjust speed or hand, continue a lesson step, or stop. Silent takes do not generate
 automatic model requests. The pause button beside Send disables these follow-ups without
-discarding the current recording. A requested Stop grades and saves a recorded take first.
+discarding the current recording. A requested Stop keeps a played take ungraded for the learner
+to finish with **Grade take**.
 The Tutor button in the header keeps chat accessible while a stock Learn lesson is open.
 
 Player actions are checked locally: bars must exist, an excerpt is at most 16 bars,
