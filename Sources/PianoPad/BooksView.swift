@@ -48,7 +48,7 @@ struct BooksView: View {
         }
         .onAppear { model.refreshLibrary() }
         .sheet(isPresented: $showAISettings) {
-            AISettingsView { showAISettings = false; model.aiKeyNote = nil }
+            AISettingsView { showAISettings = false; model.aiKeyNote = nil }.ppDefaultButtons()
         }
     }
 

@@ -19,4 +19,48 @@ public struct EarTrainingAppearance {
         self.displayFont = displayFont; self.titleFont = titleFont; self.embedded = embedded
     }
 }
+
+/// A button's weight: the one action to take, or one beside it.
+public enum EarButtonRole { case primary, secondary }
+
+/// The host's button styles, so embedded screens match it. Without them (the standalone ear
+/// trainer) buttons keep the system's bordered look.
+public struct EarButtonStyles {
+    public var primary: (AnyView) -> AnyView
+    public var secondary: (AnyView) -> AnyView
+
+    public init(primary: @escaping (AnyView) -> AnyView, secondary: @escaping (AnyView) -> AnyView) {
+        self.primary = primary; self.secondary = secondary
+    }
+}
+
+private struct EarButtonStylesKey: EnvironmentKey {
+    static let defaultValue: EarButtonStyles? = nil
+}
+
+extension EnvironmentValues {
+    public var earButtonStyles: EarButtonStyles? {
+        get { self[EarButtonStylesKey.self] }
+        set { self[EarButtonStylesKey.self] = newValue }
+    }
+}
+
+private struct EarButtonModifier: ViewModifier {
+    let role: EarButtonRole
+    @Environment(\.earButtonStyles) private var styles
+
+    func body(content: Content) -> some View {
+        if let styles {
+            (role == .primary ? styles.primary : styles.secondary)(AnyView(content))
+        } else if role == .primary {
+            content.buttonStyle(.borderedProminent)
+        } else {
+            content.buttonStyle(.bordered)
+        }
+    }
+}
+
+extension View {
+    func earButton(_ role: EarButtonRole) -> some View { modifier(EarButtonModifier(role: role)) }
+}
 #endif

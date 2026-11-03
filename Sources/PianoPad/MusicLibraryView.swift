@@ -98,7 +98,7 @@ struct MusicLibraryView: View {
                     Label(active ? "Stop" : "Preview", systemImage: active ? "stop.fill" : "play.fill")
                         .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.bordered).controlSize(.small)
+                .buttonStyle(PPGlassButtonStyle(height: 24))
                 .accessibilityLabel("\(active ? "Stop preview of" : "Preview") \(piece.title)")
             }.width(95)
         }
@@ -136,17 +136,20 @@ struct MusicLibraryView: View {
                     Link("PDF score", destination: piece.pdfURL)
                     Link("LilyPond source", destination: piece.lilypondURL)
                 }
-            }.font(.ppCaption).frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .font(.ppCaption)
+            // Credits stay text links, not pills.
+            .buttonStyle(.link)
+            .frame(maxWidth: .infinity, alignment: .leading)
             VStack(spacing: 8) {
                 Button {
                     model.open(piece) { session.openCatalogPiece($0, piece: piece, tutored: true) }
                 } label: { Label("Start learning", systemImage: "graduationcap.fill").frame(maxWidth: .infinity) }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(PPPrimaryButtonStyle(height: PP.Size.compact))
                     .disabled(model.downloadingID != nil)
                 Button {
                     model.open(piece) { session.openCatalogPiece($0, piece: piece, tutored: false) }
                 } label: { Label("Practise freely", systemImage: "pianokeys").frame(maxWidth: .infinity) }
-                    .buttonStyle(.bordered)
                     .disabled(model.downloadingID != nil)
             }.frame(width: 180)
         }.ppGlass(cornerRadius: PP.Radius.lg, padding: PP.Space.s3)

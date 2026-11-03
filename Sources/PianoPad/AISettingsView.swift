@@ -86,7 +86,9 @@ struct AISettingsView: View {
 
             HStack {
                 Spacer()
-                Button("Done") { saveSettings(); onDone() }.keyboardShortcut(.defaultAction)
+                Button("Done") { saveSettings(); onDone() }
+                    .buttonStyle(PPPrimaryButtonStyle(height: PP.Size.compact))
+                    .keyboardShortcut(.defaultAction)
             }
         }
         .padding(PP.Space.s6)

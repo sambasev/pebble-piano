@@ -33,7 +33,7 @@ struct TutorChatView: View {
                     ProgressView().controlSize(.small)
                     Text("Your tutor is thinking…").font(.caption).foregroundColor(PP.inkMuted)
                     Spacer()
-                    Button("Stop") { session.stopTutorChat() }.controlSize(.small)
+                    Button("Stop") { session.stopTutorChat() }
                 }
             }
             if let note = session.tutorChatNote {
@@ -59,7 +59,7 @@ struct TutorChatView: View {
                 }
                 Spacer()
                 if !session.tutorChat.turns.isEmpty {
-                    Button("New chat") { session.resetTutorChat() }.font(.caption).buttonStyle(.link)
+                    Button("New chat") { session.resetTutorChat() }
                 }
             }
         }

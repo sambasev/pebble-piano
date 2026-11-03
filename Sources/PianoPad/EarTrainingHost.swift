@@ -27,6 +27,14 @@ import PianoPadState
     }
 }
 
+extension EarButtonStyles {
+    /// Ear-training lessons inside the app use the app's pills.
+    static let perfectPiano = EarButtonStyles(
+        primary: { AnyView($0.buttonStyle(PPPrimaryButtonStyle(height: PP.Size.targetMin))) },
+        secondary: { AnyView($0.buttonStyle(PPGlassButtonStyle(height: PP.Size.targetMin))) }
+    )
+}
+
 /// Shared daily statistics are shown by both kinds of session summary.
 struct PracticeDayStatistics: View {
     let sessions: [PracticeSession]

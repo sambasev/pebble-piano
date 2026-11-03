@@ -108,6 +108,7 @@ struct LearnerPickerView: View {
             OnboardingView(onCancel: { adding = false }, onFinish: { adding = false })
                 .padding(PP.Space.s6)
                 .environmentObject(session)
+                .ppDefaultButtons()
         }
     }
 }
@@ -153,14 +154,17 @@ struct LearnerMenu: View {
             OnboardingView(onCancel: { adding = false }, onFinish: { adding = false })
                 .padding(PP.Space.s6)
                 .environmentObject(session)
+                .ppDefaultButtons()
         }
         .sheet(isPresented: $managing) {
             ManageLearnersView { managing = false }
                 .environmentObject(session)
+                .ppDefaultButtons()
         }
         .sheet(item: $overview) { learner in
             StudentOverviewView(learner: learner) { overview = nil }
                 .environmentObject(session)
+                .ppDefaultButtons()
         }
     }
 }
@@ -337,11 +341,13 @@ struct ManageLearnersView: View {
                 .padding(PP.Space.s6)
                 .frame(width: 440)
                 .environmentObject(session)
+                .ppDefaultButtons()
         }
         .background(
             Color.clear.sheet(item: $overview) { learner in
                 StudentOverviewView(learner: learner) { overview = nil }
                     .environmentObject(session)
+                    .ppDefaultButtons()
             }
         )
         .background(

@@ -12,7 +12,7 @@ struct TutorPanel: View {
     @AppStorage("PianoPad.tutor.asking") private var asking = false
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            HStack { Text("Piece tutor").font(.headline); Spacer(); Button("AI settings") { settings = true } }
+            HStack { Text("Piece tutor").font(.ppHeadline); Spacer(); Button("AI settings") { settings = true } }
             if session.canChatWithTutor {
                 Picker("", selection: $asking) {
                     Text("Lesson").tag(false)
@@ -27,7 +27,7 @@ struct TutorPanel: View {
             } else {
                 lesson
             }
-        }.sheet(isPresented: $settings) { AISettingsView { settings = false } }
+        }.sheet(isPresented: $settings) { AISettingsView { settings = false }.ppDefaultButtons() }
     }
 
     @ViewBuilder private var lesson: some View {
@@ -57,13 +57,16 @@ struct TutorPanel: View {
                         session.beginTutoring(planLesson: true)
                     } label: {
                         Label(saved.mastered ? "Open the lesson" : "Continue the lesson", systemImage: "play.fill")
-                            .frame(maxWidth: .infinity).padding(.vertical, 6)
+                            .frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(PPPrimaryButtonStyle(height: PP.Size.targetMin))
                     Button("Start the lesson over") { session.beginTutoring(planLesson: true, startOver: true) }
                         .help("Same plan, from the first step; your progress on it is forgotten")
                 } else {
-                    Button("Teach me this piece") { session.beginTutoring(planLesson: true) }
+                    Button { session.beginTutoring(planLesson: true) } label: {
+                        Label("Teach me this piece", systemImage: "graduationcap.fill").frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(PPPrimaryButtonStyle(height: PP.Size.targetMin))
                         .help("Plan a lesson for this piece: listen, new notes, phrase by phrase, then perform")
                 }
             }
@@ -96,9 +99,8 @@ struct TutorPanel: View {
             } label: {
                 Label(startLabel(e), systemImage: e.kind == .listen ? "speaker.wave.2.fill" : "play.fill")
                     .frame(maxWidth: .infinity)
-                    .padding(.vertical, 6)
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(PPPrimaryButtonStyle(height: PP.Size.targetMin))
             .disabled(session.phase == .recording)
         }
         if session.tutorCanStopHere {
@@ -107,7 +109,6 @@ struct TutorPanel: View {
             } label: {
                 Label("Stop here and plan from what I played", systemImage: "stop.fill").frame(maxWidth: .infinity)
             }
-            .buttonStyle(.bordered)
             .help("Only the bars played so far are graded; the tutor teaches the rest from the start")
         } else if session.tutorAttempt == nil && (e.kind == .placement || e.kind == .assessment) {
             HStack {
@@ -285,9 +286,9 @@ private struct ReadinessCard: View {
             if let first = readiness.suggestions.first {
                 if session.learner?.kind == .child {
                     Button { session.openStockLesson(first.pageID) } label: {
-                        Label("Learn \(first.title) first", systemImage: "book.fill").frame(maxWidth: .infinity).padding(.vertical, 6)
+                        Label("Learn \(first.title) first", systemImage: "book.fill").frame(maxWidth: .infinity)
                     }
-                    .buttonStyle(.borderedProminent)
+                    .buttonStyle(PPPrimaryButtonStyle(height: PP.Size.targetMin))
                 } else {
                     ForEach(Array(readiness.suggestions.enumerated()), id: \.element.pageID) { i, s in
                         HStack {
@@ -298,7 +299,7 @@ private struct ReadinessCard: View {
                             Spacer()
                             if i == 0 {
                                 Button("Open") { session.openStockLesson(s.pageID) }
-                                    .buttonStyle(.borderedProminent).controlSize(.small)
+                                    .buttonStyle(PPPrimaryButtonStyle(height: PP.Size.compact))
                             }
                         }
                     }
@@ -350,7 +351,6 @@ private struct MarkedBarsSection: View {
                     Label("Practise \(session.markedBars.count == 1 ? "this bar" : "these \(session.markedBars.count) bars")",
                           systemImage: "scope").frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.bordered)
                 .help("Note by note, slowly, at full speed, then with the bars around them")
             }
             HStack {

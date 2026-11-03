@@ -23,8 +23,8 @@ import PianoGraderCore
                     Text(passed ? "Well listened. Ready for the next step." : "Listen to the reference and try again. Aim for \(Int((passAccuracy * 100).rounded()))%.")
                     if !result.missed.isEmpty { Text("Revisit: " + result.missed.map(\.title).joined(separator: " · ")).foregroundStyle(.secondary) }
                     HStack {
-                        Button("Try again") { session.startQuiz() }.buttonStyle(.bordered)
-                        if passed { Button("Continue", action: onContinue).buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction) }
+                        Button("Try again") { session.startQuiz() }.earButton(.secondary)
+                        if passed { Button("Continue", action: onContinue).earButton(.primary).keyboardShortcut(.defaultAction) }
                     }
                 } else if let question = session.question, let quiz = session.quiz {
                     Text("Question \(quiz.index + 1) of \(quiz.questions.count)").font(.headline)
@@ -40,9 +40,9 @@ import PianoGraderCore
                     }
                     HStack {
                         Button(session.heardQuestion ? "Replay" : "Play") { session.playQuestion() }
-                            .buttonStyle(.borderedProminent).keyboardShortcut(.space, modifiers: [])
-                        Button(question.referenceLabel) { session.playReference() }.buttonStyle(.bordered)
-                        if session.isPlaying { Button("Stop") { session.stop() } }
+                            .earButton(.primary).keyboardShortcut(.space, modifiers: [])
+                        Button(question.referenceLabel) { session.playReference() }.earButton(.secondary)
+                        if session.isPlaying { Button("Stop") { session.stop() }.earButton(.secondary) }
                     }
                     Text(session.isPlaying ? "Listening…" : session.heardQuestion ? "Choose an answer." : "Listen to the complete example before answering.")
                         .font(.caption).foregroundStyle(.secondary)
@@ -55,7 +55,7 @@ import PianoGraderCore
                                     .frame(maxWidth: .infinity, minHeight: 56)
                                     .padding(.horizontal, 8)
                             }
-                                .buttonStyle(.bordered).controlSize(.large)
+                                .earButton(.secondary).controlSize(.large)
                                 .keyboardShortcut(KeyEquivalent(Array("1234567890-=")[i]), modifiers: [])
                                 .disabled(!session.canAnswer)
                         }
@@ -64,10 +64,10 @@ import PianoGraderCore
                         Label(response.isCorrect ? "Correct" : "Answer: \(question.correctAnswer.title)",
                               systemImage: response.isCorrect ? "checkmark.circle.fill" : "info.circle")
                         Text(question.explanation)
-                        Button("Hear the solution") { session.playSolution() }
+                        Button("Hear the solution") { session.playSolution() }.earButton(.secondary)
                         Button(quiz.index + 1 == quiz.questions.count ? "See results" : "Next") { session.next() }
-                            .buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction)
-                    } else { Button("Skip question") { session.skip() } }
+                            .earButton(.primary).keyboardShortcut(.defaultAction)
+                    } else { Button("Skip question") { session.skip() }.earButton(.secondary) }
                 }
             }.padding(20).frame(maxWidth: .infinity, alignment: .leading)
         }.onDisappear { session.stop() }

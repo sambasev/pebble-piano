@@ -7,7 +7,7 @@ struct SessionSummaryHost: ViewModifier {
     @ObservedObject var runner: LessonRunner
     func body(content: Content) -> some View {
         content.sheet(item: $runner.sessionSummary) { summary in
-            SessionSummaryView(runner: runner, summary: summary)
+            SessionSummaryView(runner: runner, summary: summary).ppDefaultButtons()
         }
     }
 }

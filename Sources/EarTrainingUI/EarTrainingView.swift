@@ -169,9 +169,9 @@ import PianoGraderCore
                 .foregroundStyle(.secondary).fixedSize(horizontal: false, vertical: true)
             HStack(spacing: 12) {
                 Button { session.startQuiz() } label: { Label("Start Quiz", systemImage: "play.fill") }
-                    .buttonStyle(.borderedProminent).controlSize(.large)
+                    .earButton(.primary).controlSize(.large)
                 Button { session.learn() } label: { Label("Learn the sounds", systemImage: "book") }
-                    .buttonStyle(.bordered).controlSize(.large)
+                    .earButton(.secondary).controlSize(.large)
             }
             if let progress = session.progress.stages[stage.id.id] {
                 Label("Best: \(progress.bestCorrect)/10 · \(progress.completedQuizzes) completed quizzes", systemImage: "chart.bar.fill")
@@ -191,7 +191,7 @@ import PianoGraderCore
                         .font(.callout).foregroundStyle(.secondary)
                 }
                 Spacer()
-                Button("Start Quiz") { session.startQuiz() }.buttonStyle(.borderedProminent)
+                Button("Start Quiz") { session.startQuiz() }.earButton(.primary)
             }
             ForEach(session.examples) { example in
                 VStack(alignment: .leading, spacing: 12) {
@@ -228,10 +228,10 @@ import PianoGraderCore
                     Button { session.playQuestion() } label: {
                         Label(session.heardQuestion ? "Replay" : "Play", systemImage: "play.fill")
                     }
-                    .buttonStyle(.borderedProminent).controlSize(.large)
+                    .earButton(.primary).controlSize(.large)
                     .keyboardShortcut(.space, modifiers: [])
                     Button(question.referenceLabel) { session.playReference() }
-                        .buttonStyle(.bordered).controlSize(.large)
+                        .earButton(.secondary).controlSize(.large)
                     if session.isPlaying {
                         Button { session.stop() } label: { Label("Stop", systemImage: "stop.fill") }
                             .buttonStyle(.borderless)
@@ -256,7 +256,7 @@ import PianoGraderCore
                             Button { session.playSolution() } label: { Label("Hear the solution", systemImage: "speaker.wave.2") }
                             Spacer()
                             Button(quiz.index == quiz.questions.count - 1 ? "See Results" : "Next") { session.next() }
-                                .buttonStyle(.borderedProminent).keyboardShortcut(.defaultAction)
+                                .earButton(.primary).keyboardShortcut(.defaultAction)
                         }
                     }
                     .padding(18)
@@ -323,11 +323,11 @@ import PianoGraderCore
                      : "Suggested next step: \(stageLabel(result.recommendedStage))")
                     .font(.callout)
                 HStack(spacing: 12) {
-                    Button("Retry with new sounds") { session.startQuiz() }.buttonStyle(.borderedProminent)
+                    Button("Retry with new sounds") { session.startQuiz() }.earButton(.primary)
                     if result.recommendedStage != result.stage {
-                        Button("Next stage") { session.select(result.recommendedStage) }.buttonStyle(.bordered)
+                        Button("Next stage") { session.select(result.recommendedStage) }.earButton(.secondary)
                     }
-                    Button("Review examples") { session.learn() }.buttonStyle(.bordered)
+                    Button("Review examples") { session.learn() }.earButton(.secondary)
                 }
                 Text("First answers only. Skips count as incorrect; replays and references are free.")
                     .font(.caption).foregroundStyle(.secondary)

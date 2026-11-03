@@ -97,7 +97,7 @@ struct UnitMapView: View {
                     }
                     .buttonStyle(.borderless)
                     .help("This week, notes learned, where they're stuck, a tip, and the teacher")
-                    .sheet(isPresented: $showGrownUps) { GrownUpsView(runner: runner) }
+                    .sheet(isPresented: $showGrownUps) { GrownUpsView(runner: runner).ppDefaultButtons() }
                 } else {
                 Menu {
                     ForEach(Persona.builtIn, id: \.id) { p in

@@ -359,6 +359,12 @@ struct PPPaperModifier: ViewModifier {
 
 // MARK: - Buttons
 
+extension View {
+    /// Buttons that don't pick a style get the glass pill. Set on the window, and again on each
+    /// sheet and popover, which don't inherit it.
+    func ppDefaultButtons() -> some View { buttonStyle(PPGlassButtonStyle()) }
+}
+
 /// The one bold action per screen: an iris pill. 60 pt in the lesson flow, `compact` in toolbars.
 struct PPPrimaryButtonStyle: ButtonStyle {
     var height: CGFloat = PP.Size.targetPrimary

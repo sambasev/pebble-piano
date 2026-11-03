@@ -120,7 +120,7 @@ struct ContentView: View {
             .frame(maxWidth: 280, alignment: .trailing)
             .help("How you play: microphone, Bluetooth MIDI piano or computer keyboard")
             .popover(isPresented: $showInput, arrowEdge: .bottom) {
-                InputSettingsView().environmentObject(session)
+                InputSettingsView().environmentObject(session).ppDefaultButtons()
             }
             .tourAnchor(.inputStatus)
             if let learner = session.learner {
@@ -144,6 +144,7 @@ struct ContentView: View {
                 .sheet(item: $progressLearner) { learner in
                     StudentOverviewView(learner: learner) { progressLearner = nil }
                         .environmentObject(session)
+                        .ppDefaultButtons()
                 }
             }
             Button {
@@ -429,7 +430,7 @@ struct ContentView: View {
             .help(needsBackingTrack ? "Practice settings: this piece has no backing track linked"
                                     : "Practice settings: backing track, metronome, judge and rubric")
             .accessibilityLabel("Practice settings")
-            .popover(isPresented: $showSettings, arrowEdge: .bottom) { practiceSettings }
+            .popover(isPresented: $showSettings, arrowEdge: .bottom) { practiceSettings.ppDefaultButtons() }
 
             Menu {
                 Button("Open book…") { session.chooseBook() }
@@ -456,7 +457,7 @@ struct ContentView: View {
             .menuIndicator(.hidden)
             .fixedSize()
             .help("Open, export, MIDI devices, microphone calibration and AI settings")
-            .sheet(isPresented: $showAISettings) { AISettingsView { showAISettings = false } }
+            .sheet(isPresented: $showAISettings) { AISettingsView { showAISettings = false }.ppDefaultButtons() }
         }
     }
 

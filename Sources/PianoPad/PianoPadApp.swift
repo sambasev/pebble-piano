@@ -49,6 +49,7 @@ struct PianoPadApp: App {
                 }
                 .animation(.easeInOut(duration: 0.2), value: session.activeTour)
                 .tint(PP.accent)
+                .ppDefaultButtons()
                 .ppPaperStyle()
                 .background(PPBackdrop())
         }
