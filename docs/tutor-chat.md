@@ -17,6 +17,8 @@ Examples:
 - “Grade this take and tell me what to practise next.”
 - “Open a beginner lesson on the notes I am missing.”
 - “Stop coaching.”
+- “Find me something easier by Bach.” / “Open Ode to Joy.” / “Let me hear the first one.”
+- “Show me page 12 of the book.”
 
 Each answer can offer up to three **follow-up chips** (“Slower, left hand only”, “Play it for
 me”); tapping one asks it. A reply can also carry a short **plan** of up to three actions, run
@@ -51,11 +53,30 @@ must be unlocked. An active take must be graded before another exercise replaces
 Cancelled or stale replies cannot act after a piece or learner changes. Model output
 never determines a pass or awards mastery; grading remains deterministic.
 
+**Library and navigation.** `searchLibrary {query, composer?, difficulty?}` searches, on the
+device and without another model request, the Music Library catalog, the goal songs, the open
+book's passages, pieces read from books and the learner's recent pieces. The top five go into
+the chat as an app observation, each as `#n [id] title — composer · level · where`, with a
+stable ID (`catalog:mutopia-61`, `goal:odeToJoy`, `passage:<id>`, `book:<folder>`,
+`recent:<piece id>`). A search doesn't wait for the player, so a plan can go on to
+`openPiece {pieceRef}`, whose `pieceRef` must be an ID a search returned in this conversation
+or `#1`–`#5` for the latest search's results; titles and other free text are refused, and the
+ID is checked again against what exists now. Opening goes through the usual paths
+(`openCatalogPiece` after the validated download, `selectPassage`, the saved piece, or the recent
+file's bookmark), switches to Practice and keeps the conversation. `previewPiece` plays a
+Music Library piece in that tab (other music has no preview); `openBookPage {page}` shows a page
+of the open piece's book (or the one open in Books) there. Opening, previewing or showing a
+page ends the plan. A new chat forgets what was found. The context's **Library** section lists
+the catalog's counts by level, a suggested level from `LearnerSkills` (Intermediate only after
+three passed pieces, hands together and 96 BPM), the open piece's level, recent pieces, the
+goal song and, on the Music Library tab, its filters and selected piece, so “something easier”
+has something to compare against.
+
 Context is bounded: score excerpts prioritize requested/current/error bars; recent saved
 takes, lesson history and model conversation are capped. An excerpt image is rendered
 from music data; it does not capture other apps or the desktop.
 
 Validation: `swift test --filter 'TutorChat|PiecePractice|LearnerStoreTests|LessonProgress'`
-(includes `TutorChatMemoryTests`).
+(includes `TutorChatMemoryTests` and `TutorChatLibraryTests`).
 The opt-in live tutor test requires `PIANOAI_LIVE=1` and `MODEL_API_KEY`; it sends a synthetic
 eight-bar score and checks score reading and the requested passage action against Meta.

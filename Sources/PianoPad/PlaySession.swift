@@ -447,6 +447,19 @@ final class PlaySession: ObservableObject {
     lazy var backingEditor = BackingEditorModel(store: backingStore)
     /// The Books tab: reading a piece from a PDF music book.
     lazy var bookImport = BookImportModel(session: self)
+    /// The Music Library tab's catalog and browsing state; the tutor searches and opens from it too.
+    var musicLibrary: MusicLibraryModel {
+        get {
+            MainActor.assumeIsolated {
+                if let musicLibraryStorage { return musicLibraryStorage }
+                let model = MusicLibraryModel()
+                musicLibraryStorage = model
+                return model
+            }
+        }
+        set { musicLibraryStorage = newValue }
+    }
+    private var musicLibraryStorage: MusicLibraryModel?
 
     /// Plays one note (nudging a note while checking a piece read from a book).
     func previewPitch(_ pitch: Int) {
@@ -534,6 +547,10 @@ final class PlaySession: ObservableObject {
     var tutorChatPendingObservation: TutorChatObservation?
     var tutorChatRequestTurn: UUID?
     var tutorChatPreservesConversation = false
+    /// Library search results in this conversation, by ID: the only music `openPiece` opens.
+    var tutorChatFoundPieces: [String: TutorLibraryItem] = [:]
+    /// The latest search's IDs, best first ("#1" is the first).
+    var tutorChatLatestSearch: [String] = []
     var tutorChatTask: Task<Void, Never>?
     var tutorChatGeneration = UUID()
     /// Tests inject a fake; nil uses Muse Spark when a key is configured.
