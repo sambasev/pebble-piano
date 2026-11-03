@@ -12,6 +12,7 @@ public enum UnitError: Error, Equatable, CustomStringConvertible {
     case badFingering(page: String, block: Int, finger: Int)
     case badTempo(page: String, block: Int)
     case badEarTraining(page: String, block: Int)
+    case badSightReading(page: String, block: Int)
 
     public var description: String {
         switch self {
@@ -24,6 +25,7 @@ public enum UnitError: Error, Equatable, CustomStringConvertible {
         case .badFingering(let page, let block, let finger): return "Page \"\(page)\" block \(block + 1): finger \(finger) (use 1–5)."
         case .badTempo(let page, let block): return "Page \"\(page)\" block \(block + 1): tempo must be above 0."
         case .badEarTraining(let page, let block): return "Page \"\(page)\" block \(block + 1): invalid ear-training stage, question count, threshold, or note pool."
+        case .badSightReading(let page, let block): return "Page \"\(page)\" block \(block + 1): invalid sight-reading stage, question count, or threshold."
         }
     }
 }
@@ -92,6 +94,10 @@ public struct LoadedUnit: Sendable {
                         || pool.map({ !Set($0).isSubset(of: Set(available)) }) == true {
                         errors.append(.badEarTraining(page: page.id, block: i))
                     }
+                }
+                if case .sightReading(let b) = block, SightCurriculum.stage(b.stageID) == nil || !(1...20).contains(b.questions)
+                    || !b.passAccuracy.isFinite || !(0...1).contains(b.passAccuracy) {
+                    errors.append(.badSightReading(page: page.id, block: i))
                 }
                 if let path = block.midi, !fileExists(url(for: path)) {
                     errors.append(.missingMIDI(page: page.id, block: i, path: path))

@@ -10,7 +10,7 @@ import EarTrainingUI
 /// through `PlayerControl`, turns player events into engine events, and saves progress.
 /// Everything runs on the main thread.
 final class LessonRunner: ObservableObject, PlayerObserver {
-    enum Course: String, CaseIterable { case piano = "Piano lessons", ear = "Ear training", pieces = "My pieces" }
+    enum Course: String, CaseIterable { case piano = "Piano lessons", ear = "Ear training", sight = "Sight reading", pieces = "My pieces" }
     @Published private(set) var course: Course = .piano
     @Published private(set) var earResult: EarQuizResult?
     /// Catalog data is read by path, independent of the lesson currently loaded in the player.
@@ -25,6 +25,43 @@ final class LessonRunner: ObservableObject, PlayerObserver {
     func openEarPage(_ id: String) {
         selectCourse(.ear)
         open(id)
+    }
+
+    /// The sight-reading quiz on the shown page, if any.
+    let sightReading = SightReadingSession()
+
+    var sightPathProgress: [String: PageProgress] {
+        guard let history else { return [:] }
+        let all = history.lessonProgress()
+        return Dictionary(uniqueKeysWithValues: SightReadingCourse.unit.pages.compactMap { page in
+            all[.lessonPage(unit: SightReadingCourse.unitID, page: page.id)].map { (page.id, $0) }
+        })
+    }
+
+    func openSightPage(_ id: String) {
+        selectCourse(.sight)
+        open(id)
+    }
+
+    func finishSightExercise() {
+        guard case .sightReading(let b) = shownBlock, let result = sightReading.result,
+              result.accuracy >= b.passAccuracy else { return }
+        send(.graded(BlockResult(passed: true)))
+    }
+
+    private func startSightExercise(_ config: Block.SightReading) {
+        sightReading.start(config)
+        sightReading.onAnswered = { [weak self] correct in
+            guard let self, self.shownBlock?.kind == .sightReading else { return }
+            self.noteActivity()
+            self.react(correct ? .cheer : .oops)
+            self.saveSession()
+        }
+        sightReading.onFinished = { [weak self] result in
+            guard let self, self.shownBlock?.kind == .sightReading else { return }
+            Usage.event("SightReading.quizFinished", ["stage": result.stage.id, "correct": String(result.correct)])
+            if result.accuracy < config.passAccuracy { self.send(.graded(BlockResult(passed: false))) }
+        }
     }
 
     /// A lesson made by Teach me this piece (PieceLessonStore), from the My pieces section.
@@ -248,6 +285,8 @@ final class LessonRunner: ObservableObject, PlayerObserver {
             switch shownBlock {
             case .earTraining:
                 return "Replay the reference, then compare it with the example. You can listen as often as you need."
+            case .sightReading:
+                return "Open the examples and compare. Count the lines and spaces up from a landmark note you know."
             case .timed, .songChallenge:
                 return "No rush. Press Listen to hear it again, then play along, counting the clicks."
             default:
@@ -482,6 +521,8 @@ final class LessonRunner: ObservableObject, PlayerObserver {
         defer { resumingQuietly = false }
         if EarLessonCourse.unit.page(pageID) != nil {
             openEarPage(pageID)
+        } else if SightReadingCourse.unit.page(pageID) != nil {
+            openSightPage(pageID)
         } else if pageID.hasPrefix("piece-") {
             openPiecePage(pageID)
         } else {
@@ -778,6 +819,9 @@ final class LessonRunner: ObservableObject, PlayerObserver {
         switch shownBlock {
         case .explain(let b): target = b.advanceOn?.pitch
         case .concept(let b): target = b.check?.pitch
+        case .sightReading:
+            sightNotePlayed(pitch, source: source)
+            return
         default: return
         }
         guard let target, pendingWork == nil else { return }
@@ -800,6 +844,23 @@ final class LessonRunner: ObservableObject, PlayerObserver {
         feedback = Feedback(kind: .success, text: "That's it: \(NoteName(pitch: pitch).name).")
         react(.cheer)
         send(.notePlayed(pitch: pitch), pause: true)
+    }
+
+    /// A key played during a reading quiz answers a note-name question. The mic must hear it
+    /// twice in a row, as for find-it notes.
+    private func sightNotePlayed(_ pitch: Int, source: InputSource) {
+        guard sightReading.canAnswer, sightReading.question?.playPitch != nil else { return }
+        if source == .microphone {
+            let now = ProcessInfo.processInfo.systemUptime
+            guard let first = micCandidate, first.pitch == pitch, now - first.at < 3 else {
+                micCandidate = (pitch, now)
+                feedback = Feedback(kind: .hint, text: "Heard \(NoteName(pitch: pitch).name). Play it once more.")
+                return
+            }
+            micCandidate = nil
+        }
+        feedback = nil
+        sightReading.play(pitch)
     }
 
     func playerWrongNote(onChord chord: Int) {
@@ -917,6 +978,8 @@ final class LessonRunner: ObservableObject, PlayerObserver {
         if player.tab != .learn { player.tab = .learn }
         if EarLessonCourse.unit.page(pageID) != nil {
             openEarPage(pageID)
+        } else if SightReadingCourse.unit.page(pageID) != nil {
+            openSightPage(pageID)
         } else if pageID.hasPrefix("piece-") {
             openPiecePage(pageID)
         } else {
@@ -1059,6 +1122,11 @@ final class LessonRunner: ObservableObject, PlayerObserver {
             loadError = nil
             return
         }
+        if course == .sight {
+            unit = LoadedUnit(unit: SightReadingCourse.unit, folder: FileManager.default.temporaryDirectory)
+            loadError = nil
+            return
+        }
         if course == .pieces {
             guard let pieces = PieceLessonStore.unit() else {
                 loadError = "No piece lessons yet: open a piece in Practice and choose Teach me this piece."
@@ -1096,6 +1164,7 @@ final class LessonRunner: ObservableObject, PlayerObserver {
     private func closePage() {
         player.prepareEarLesson(false)
         earResult = nil
+        sightReading.stop()
         pendingWork?.cancel()
         pendingWork = nil
         if page != nil { player.endLesson() }
@@ -1183,6 +1252,7 @@ final class LessonRunner: ObservableObject, PlayerObserver {
     private func reloadBlock() {
         player.prepareEarLesson(false)
         earResult = nil
+        sightReading.stop()
         resetKeyboard()
         guard let unit, let page, let block = shownBlock else { return }
         let piece = PieceID.lesson(unit: unit.unit.id, page: page.id, block: shownIndex)
@@ -1195,6 +1265,9 @@ final class LessonRunner: ObservableObject, PlayerObserver {
         case .earTraining(let b):
             player.showNothing()
             startEarExercise(b)
+        case .sightReading(let b):
+            player.showNothing()
+            startSightExercise(b)
         case .explain, .concept:
             player.showNothing()
         case .wait(let b):

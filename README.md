@@ -42,6 +42,22 @@ reuses the quiz engine without standalone navigation. `swift run EarTrainer` rem
 available as a development tool. Learner progress reset clears both lesson and ear scores.
 
 Checks: `swift test --filter 'Ear|LessonEngine|LessonModel|UnitLoader|PracticeSessions'`.
+
+## Sight reading
+
+The lesson map also has a **Sight reading path** (between the piano lessons and ear
+training): 15 pages over five levels. They cover the staff and clefs, Middle C, treble
+clef notes, bass clef notes, note values (whole, half, dotted half, quarter, eighth) and
+rests. Each page is a short lesson, with the stage's keys lit, followed by a ten-question
+quiz. Every question shows a single staff, drawn by the score renderer. Note-name
+questions can be answered with a letter button or by playing the exact key (MIDI, mouse,
+musical typing or mic; the mic has to hear the note twice). Answering turns the symbol
+green or red and gives a one-line reason. Examples of every answer sit under the
+question. Reach 80% to Continue.
+
+`PianoLessons.Block.sightReading` takes `level`, `stage`, optional `questions` (default 10)
+and `passAccuracy` (default 0.8). The curriculum and question generator live in
+`PianoGraderCore/SightReading` and have no UI code. Checks: `swift test --filter SightReading`.
 Debug UI previews can set `PERFECTPIANO_PREVIEW_DATA` to an isolated learner directory;
 those previews do not start usage analytics.
 

@@ -13,6 +13,8 @@ public struct ScoreLayout: Sendable {
         public var systemMargin: Double = 4.5 // in spacings
         /// Extra space between systems.
         public var systemGap: Double = 1.5    // in spacings
+        /// Print the time signature on the first system (off for single-symbol pictures).
+        public var timeSignature = true
 
         public init(spacing: Double = 9) { self.spacing = spacing }
     }
@@ -164,7 +166,7 @@ public struct ScoreLayout: Sendable {
         var current: [Int] = []
         var used = 0.0
         for (i, n) in natural.enumerated() {
-            let available = width - headerWidth(timeSignature: lines.isEmpty)
+            let available = width - headerWidth(timeSignature: lines.isEmpty && metrics.timeSignature)
             if !current.isEmpty && used + n.width > available {
                 lines.append(current)
                 current = []
@@ -182,7 +184,7 @@ public struct ScoreLayout: Sendable {
         var systems: [System] = []
         var top = 0.0
         for (index, line) in lines.enumerated() {
-            let showTime = index == 0
+            let showTime = index == 0 && metrics.timeSignature
             let header = headerWidth(timeSignature: showTime)
             let available = width - header
             let used = line.reduce(0) { $0 + natural[$1].width }
