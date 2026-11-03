@@ -114,29 +114,34 @@ struct LibrarySidebar: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 2) {
                     ForEach(model.pieces) { piece in
-                        Button { model.practise(piece) } label: {
-                            HStack(spacing: PP.Space.s2) {
-                                let status = model.status(piece)
-                                Circle().fill(status.color).frame(width: 8, height: 8)
-                                VStack(alignment: .leading, spacing: 1) {
-                                    Text(piece.title).font(.ppCallout).lineLimit(1)
-                                    Text("\(piece.book.replacingOccurrences(of: ".pdf", with: "")), p. \(piece.page + 1)")
-                                        .font(.ppCaption).foregroundColor(PP.inkMuted).lineLimit(1)
+                        HStack(spacing: PP.Space.s1) {
+                            Button { model.practise(piece) } label: {
+                                HStack(spacing: PP.Space.s2) {
+                                    let status = model.status(piece)
+                                    Circle().fill(status.color).frame(width: 8, height: 8)
+                                    VStack(alignment: .leading, spacing: 1) {
+                                        Text(piece.title).font(.ppCallout).lineLimit(1)
+                                        Text("\(piece.book.replacingOccurrences(of: ".pdf", with: "")), p. \(piece.page + 1)")
+                                            .font(.ppCaption).foregroundColor(PP.inkMuted).lineLimit(1)
+                                    }
+                                    Spacer(minLength: 0)
+                                    PieceStatusTag(status: status)
                                 }
-                                Spacer(minLength: 0)
-                                PieceStatusTag(status: status)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .padding(.vertical, 5).padding(.horizontal, PP.Space.s2)
+                                .contentShape(Rectangle())
                             }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.vertical, 5).padding(.horizontal, PP.Space.s2)
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                        .help("Practise it")
-                        .contextMenu {
-                            Button("Practise") { model.practise(piece) }
-                            Button("Check and correct…") { model.correct(piece) }
-                            Button("Read again from scratch…") { rereading = piece }
-                            Button("Show in Finder") { model.showInFinder(piece) }
+                            .buttonStyle(.plain)
+                            .help("Practise it")
+                            .contextMenu {
+                                Button("Practise") { model.practise(piece) }
+                                Button("Check and correct…") { model.correct(piece) }
+                                Button("Read again from scratch…") { rereading = piece }
+                                Button("Show in Finder") { model.showInFinder(piece) }
+                            }
+                            PreviewButton(id: "saved:" + piece.id, title: piece.title, size: 26) {
+                                (piece.folder.appendingPathComponent("piece.mid"), nil)
+                            }
                         }
                     }
                 }

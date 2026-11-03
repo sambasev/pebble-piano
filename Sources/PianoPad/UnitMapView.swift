@@ -180,6 +180,10 @@ private struct PiecesSection: View {
                         .overlay(RoundedRectangle(cornerRadius: PP.Radius.lg).strokeBorder(PP.surfaceGlassEdge))
                         .contentShape(Rectangle())
                     }.buttonStyle(.plain).help("Open the lesson for \(page.title)")
+                    .overlay(alignment: .bottomTrailing) {
+                        PreviewButton(id: "piece-page:" + page.id, title: page.title) { runner.preview(ofPiecePage: page) }
+                            .padding(PP.Space.s3)
+                    }
                 }
             }
         }
@@ -324,6 +328,13 @@ private struct PageCard: View {
         .disabled(locked)
         .opacity(locked ? 0.55 : 1)
         .help(locked ? "Finish the page before to open this one" : "Open \(page.title)")
+        // Outside the card's button, so a locked page can still be heard.
+        .overlay(alignment: .bottomTrailing) {
+            if page.previewBlock != nil {
+                PreviewButton(id: "page:" + page.id, title: page.title) { runner.preview(of: page) }
+                    .padding(PP.Space.s3)
+            }
+        }
     }
 
     @ViewBuilder
@@ -448,6 +459,12 @@ private struct GoalCard: View {
         .buttonStyle(.plain)
         .disabled(!unlocked)
         .help(unlocked ? "Play your goal song" : "Finish the pages before to unlock your song")
+        .overlay(alignment: .bottomTrailing) {
+            if let page {
+                PreviewButton(id: "page:" + page.id, title: runner.goalSong?.title ?? "your song") { runner.preview(of: page) }
+                    .padding(PP.Space.s3)
+            }
+        }
     }
 }
 #endif

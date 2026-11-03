@@ -386,6 +386,7 @@ struct OnboardingView: View {
                                 Text(song.blurb).font(.ppCallout).foregroundColor(PP.inkMuted)
                             }
                             Spacer()
+                            Color.clear.frame(width: PP.Size.compact) // room for the play button
                         }
                         .padding(PP.Space.s3)
                         .background(RoundedRectangle(cornerRadius: PP.Radius.sm, style: .continuous)
@@ -393,9 +394,17 @@ struct OnboardingView: View {
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
+                    .overlay(alignment: .trailing) {
+                        PreviewButton(id: "goal:" + song.id, title: song.title) {
+                            PlaySession.bundledResource("Lessons/unit1/" + Block.SongChallenge.goalSongPath(song.id)).map { ($0, nil) }
+                        }
+                        .padding(.trailing, PP.Space.s3)
+                    }
                 }
             }
         }
+        // Moving on (or away) ends the preview.
+        .onDisappear { session.preview.stop() }
     }
 
     private var readyStep: some View {

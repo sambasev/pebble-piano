@@ -39,6 +39,13 @@ final class MusicLibraryModel: ObservableObject {
         downloaded = await cache.downloadedIDs(in: pieces)
     }
 
+    /// The piece's MIDI file to preview, downloaded (and checked) first if need be.
+    func previewFile(_ piece: CatalogPiece) async -> URL? {
+        guard let url = try? await cache.prepare(piece) else { return nil }
+        downloaded.insert(piece.id)
+        return url
+    }
+
     func cancel() {
         requestID = nil
         task?.cancel(); task = nil
