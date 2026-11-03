@@ -62,6 +62,11 @@ per answer; anything else the model asks for is dropped. The grown-ups' button i
 adult language from progress and trends, with no actions. Follow-up chips, the coaching
 toggle, the book toggle and AI settings are hidden for children.
 
+**Streaming.** Answers stream in: `ModelClient.chatStreaming` reads the server-sent events
+as they arrive, and `TutorChatStreaming.partialReply` pulls the reply text out of the
+unfinished JSON. Text shows only once `"on_topic": true` has arrived, so an off-topic answer
+never flashes before the refusal. Actions still run only on the finished, checked reply.
+
 Practice requests prepare one repetition at a time. Timed exercises wait for **Start practice**
 before their count-in; note-by-note exercises wait for the learner's first note. Empty timed
 runs return to ready without a grade or saved take. Tempo requests use `setTempo`, keeping
@@ -133,3 +138,16 @@ Validation: `swift test --filter 'TutorChat|PiecePractice|LearnerStoreTests|Less
 `TutorChatProgressTests`, `MistakeTrendsTests`, `TutorChatHelpTests`, `TutorAppGuideTests` and `TutorChatChildTests`).
 The opt-in live tutor test requires `PIANOAI_LIVE=1` and `MODEL_API_KEY`; it sends a synthetic
 eight-bar score and checks score reading and the requested passage action against Meta.
+
+## Evals
+
+- **The app end to end:** `PIANOAI_LIVE=1 MODEL_API_KEY=… swift test --filter TutorLiveEvalTests`
+  runs 20 scenarios (sections A–G of the plan) through the real app against the live model:
+  real pieces, takes played on the on-screen keyboard and graded, the real library (opening
+  downloads the piece), lessons, memory and action checks. Each case passes on what the app
+  did. Results: `docs/tutor_live_evaluation.md`.
+- **The model alone:** `python3 scripts/evaluate_tutor.py` runs 31 short-context checks
+  (guardrails, jailbreaks, pedagogy, a scanned Beyer page, single actions). It reads the
+  instructions and schema from `docs/tutor_contract.json`, which the app's code writes;
+  `TutorContractTests` fails when the file is stale (`UPDATE_TUTOR_CONTRACT=1 swift test
+  --filter TutorContractTests`). Results: `docs/tutor_evaluation.md`.

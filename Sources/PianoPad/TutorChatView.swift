@@ -33,6 +33,9 @@ struct TutorChatView: View {
                         ForEach(session.tutorChat.turns) { turn in
                             bubble(turn).id(turn.id)
                         }
+                        if session.tutorChatBusy, let text = session.tutorChatStreamingText {
+                            bubble(TutorChatTurn(role: .tutor, text: text)).id("streaming")
+                        }
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.vertical, PP.Space.s2)
@@ -44,6 +47,9 @@ struct TutorChatView: View {
                 .onChange(of: session.tutorChat.turns.last?.id) { last in
                     guard let last else { return }
                     withAnimation { proxy.scrollTo(last, anchor: .bottom) }
+                }
+                .onChange(of: session.tutorChatStreamingText) { text in
+                    if text != nil { proxy.scrollTo("streaming", anchor: .bottom) }
                 }
             }
             if !session.tutorChatQueuedActions.isEmpty {
@@ -75,7 +81,8 @@ struct TutorChatView: View {
             if session.tutorChatBusy {
                 HStack {
                     ProgressView().controlSize(.small)
-                    Text("Your tutor is thinking…").font(.caption).foregroundColor(PP.inkMuted)
+                    Text(session.tutorChatStreamingText == nil ? "Your tutor is thinking…" : "Your tutor is answering…")
+                        .font(.caption).foregroundColor(PP.inkMuted)
                     Spacer()
                     Button("Stop") { session.stopTutorChat() }
                 }

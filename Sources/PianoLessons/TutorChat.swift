@@ -307,10 +307,17 @@ public protocol TutorChatClient: Sendable {
     func reply(history: [TutorChatTurn], context: TutorChatContext, question: String) async throws -> TutorChatReply
     /// A few lines for the tutor's notes about a finished conversation; nil to use the app's own.
     func summarize(_ turns: [TutorChatTurn]) async throws -> String?
+    /// `reply`, with the answer's text so far passed to `partial` as it arrives.
+    func reply(history: [TutorChatTurn], context: TutorChatContext, question: String,
+               partial: @escaping @Sendable (String) -> Void) async throws -> TutorChatReply
 }
 
 public extension TutorChatClient {
     func summarize(_ turns: [TutorChatTurn]) async throws -> String? { nil }
+    func reply(history: [TutorChatTurn], context: TutorChatContext, question: String,
+               partial: @escaping @Sendable (String) -> Void) async throws -> TutorChatReply {
+        try await reply(history: history, context: context, question: question)
+    }
 }
 
 /// C6: a child never types. They tap one of these, and the tutor may only demonstrate, show
@@ -550,5 +557,43 @@ public enum BookTextSearch {
     public static func excerpt(_ text: String) -> String {
         let collapsed = text.split(whereSeparator: \.isWhitespace).joined(separator: " ")
         return String(collapsed.prefix(pageLimit))
+    }
+}
+
+/// The reply so far, from a streamed `{on_topic, reply, …}` JSON that hasn't finished yet.
+public enum TutorChatStreaming {
+    /// The `reply` text received so far, once `on_topic` has arrived as true (so an off-topic
+    /// answer never shows before the refusal replaces it); nil until then.
+    public static func partialReply(_ json: String) -> String? {
+        guard let topic = json.range(of: #""on_topic"\s*:\s*true"#, options: .regularExpression),
+              let key = json.range(of: #""reply"\s*:\s*""#, options: .regularExpression),
+              topic.upperBound <= key.lowerBound else { return nil }
+        var out = ""
+        var i = key.upperBound
+        while i < json.endIndex {
+            let c = json[i]
+            if c == "\"" { return out }
+            if c == "\\" {
+                let next = json.index(after: i)
+                guard next < json.endIndex else { return out } // the escape hasn't arrived yet
+                switch json[next] {
+                case "n": out.append("\n")
+                case "t": out.append("\t")
+                case "r": break
+                case "u":
+                    let start = json.index(after: next)
+                    guard let end = json.index(start, offsetBy: 4, limitedBy: json.endIndex), end <= json.endIndex else { return out }
+                    if let code = UInt32(json[start..<end], radix: 16), let scalar = Unicode.Scalar(code) { out.unicodeScalars.append(scalar) }
+                    i = end
+                    continue
+                default: out.append(json[next]) // \" \\ \/
+                }
+                i = json.index(after: next)
+                continue
+            }
+            out.append(c)
+            i = json.index(after: i)
+        }
+        return out
     }
 }

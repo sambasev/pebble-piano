@@ -553,6 +553,8 @@ final class PlaySession: ObservableObject {
     @Published var tutorChatConfirmation: TutorChatConfirmation?
     /// A settings panel to open, for `ContentView` (which owns the popovers and sheets).
     @Published var tutorChatOpenPanel: TutorChatPanel?
+    /// The answer's text so far while it streams in; nil when nothing is arriving.
+    @Published var tutorChatStreamingText: String?
     var tutorChatRecentGrades: [String] = []
     var tutorChatFocus = ""
     var tutorChatPendingObservation: TutorChatObservation?

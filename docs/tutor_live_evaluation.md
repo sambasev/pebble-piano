@@ -1,148 +1,151 @@
 # Tutor live evaluation
 
-Model `muse-spark-1.3`, 2026-11-03T23:41:23Z. The real app end to end: real pieces and graded takes, library, lessons, memory and action checks; only the model is live.
+Model `muse-spark-1.3`, 2026-11-03T23:46:54Z. The real app end to end: real pieces and graded takes, library, lessons, memory and action checks; only the model is live.
 
 **20 of 20 passed.** Regenerate: `PIANOAI_LIVE=1 MODEL_API_KEY=… swift test --filter TutorLiveEvalTests`.
 
 | Scenario | Case | Result | Seconds | What happened |
 |---|---|---|---|---|
-| A | `a1_count_rhythm` | ✅ | 7.0 | Explains the rhythm of a real bar from the score data and offers follow-ups |
-| A | `a2_tap_follow_up` | ✅ | 12.4 | A tapped follow-up chip is answered in the same conversation |
-| B | `b1_listen_then_try` | ✅ | 11.6 | “Play it, then let me try” runs a demonstration and queues the practice |
-| B | `b2_recurring_mistakes` | ✅ | 19.2 | After three real takes with the same slip, names the bar |
-| B | `b3_not_ready_from_wait_mode` | ✅ | 20.7 | Doesn't call the piece ready from note-by-note takes |
-| B | `b4_plan_session` | ✅ | 14.9 | Plans a 15-minute session as a saved checklist |
-| C | `c1_search_then_open` | ✅ | 12.6 | Searches the real library, then opens and downloads the first result |
-| D | `d1_scale_exercise` | ✅ | 7.7 | “Teach me G major” opens a generated, graded scale exercise |
-| D | `d2_play_chord` | ✅ | 6.2 | Demonstrates a chord with playNotes |
-| D | `d3_ear_training` | ✅ | 9.1 | Opens ear training for hearing major vs minor |
-| E | `e1_last_time` | ✅ | 22.3 | Remembers the previous conversation through its own notes |
-| E | `e2_weekly_progress` | ✅ | 14.2 | Answers “how did I do this week” from real practice sessions |
-| E | `e3_dated_goal` | ✅ | 10.0 | Saves a goal with its target date |
-| F | `f1_cant_hear_me` | ✅ | 7.8 | After a take where few notes were heard, points at the input or calibration |
-| F | `f2_change_teacher` | ✅ | 5.0 | Finds the teacher setting from the app guide |
-| F | `f3_switch_input_waits` | ✅ | 6.5 | Offers to switch input and changes nothing until tapped |
-| F | `f4_played_it_right` | ✅ | 13.7 | Keeps a disputed take (the bar the grader flagged) for checking, without regrading |
-| G | `g1_child_what_note` | ✅ | 5.7 | Child in a real Learn lesson: names the next note simply |
-| G | `g2_child_slower` | ✅ | 5.8 | Child: “Make it slower” slows the exercise |
-| G | `g3_grown_up` | ✅ | 15.7 | Grown-up: answers in adult language from the child's real progress |
+| A | `a1_count_rhythm` | ✅ | 10.0 | Explains the rhythm of a real bar, streamed as it arrives, and offers follow-ups |
+| A | `a2_tap_follow_up` | ✅ | 12.8 | A tapped follow-up chip is answered in the same conversation |
+| B | `b1_listen_then_try` | ✅ | 16.6 | “Play it, then let me try” runs a demonstration and queues the practice |
+| B | `b2_recurring_mistakes` | ✅ | 18.7 | After three real takes with the same slip, names the bar |
+| B | `b3_not_ready_from_wait_mode` | ✅ | 23.8 | Doesn't call the piece ready from note-by-note takes |
+| B | `b4_plan_session` | ✅ | 15.3 | Plans a 15-minute session as a saved checklist |
+| C | `c1_search_then_open` | ✅ | 12.9 | Searches the real library, then opens and downloads the first result |
+| D | `d1_scale_exercise` | ✅ | 6.0 | “Teach me G major” opens a generated, graded scale exercise |
+| D | `d2_play_chord` | ✅ | 7.3 | Demonstrates a chord with playNotes |
+| D | `d3_ear_training` | ✅ | 6.5 | Opens ear training for hearing major vs minor |
+| E | `e1_last_time` | ✅ | 19.3 | Remembers the previous conversation through its own notes |
+| E | `e2_weekly_progress` | ✅ | 12.6 | Answers “how did I do this week” from real practice sessions |
+| E | `e3_dated_goal` | ✅ | 8.0 | Saves a goal with its target date |
+| F | `f1_cant_hear_me` | ✅ | 8.9 | After a take where few notes were heard, points at the input or calibration |
+| F | `f2_change_teacher` | ✅ | 3.4 | Finds the teacher setting from the app guide |
+| F | `f3_switch_input_waits` | ✅ | 5.7 | Offers to switch input and changes nothing until tapped |
+| F | `f4_played_it_right` | ✅ | 14.9 | Keeps a disputed take (the bar the grader flagged) for checking, without regrading |
+| G | `g1_child_what_note` | ✅ | 10.8 | Child in a real Learn lesson: names the next note simply |
+| G | `g2_child_slower` | ✅ | 4.4 | Child: “Make it slower” slows the exercise |
+| G | `g3_grown_up` | ✅ | 16.4 | Grown-up: answers in adult language from the child's real progress |
 
 ## Transcripts
 
 ### a1_count_rhythm
 
 - learner: How do I count the rhythm in bar 4?
-- tutor: Good looking at the score — bar 4 is a rest bar.  In this piece it's a whole-bar rest in 4/4, so you count just like you play:  **1 - 2 - 3 - 4** silently, no keys down.  Try tapping your knee or nodding on each number to keep the pulse, then come in on bar 6 with E E F G.  Bars 1-5 are all the same — 5 bars of waiting before the tune starts.
+- tutor: Bar 4 is a rest bar - you don't play anything, you just count it.  In 4/4, count steady: 1 - 2 - 3 - 4.  Try tapping your knee on each number while the playhead moves across that bar. That keeps you in time so you come in right on the E's in bar 6.
+- app: Highlighted bar 4.
 
 ### a2_tap_follow_up
 
 - learner: What notes are in bar 1?
-- tutor: Good checking! Bar 1 has no notes to play — it's a whole-bar rest.  In this 4/4 piece that means 4 beats of silence: count 1-2-3-4 quietly and don't play.  Bars 1-5 are all rests like that. The tune itself starts in bar 6 with E - E - F - G.
-- learner: Where does the tune start?
-- tutor: The tune starts in bar 6, after five bars of rest.  Count 1-2-3-4 through those silent bars, then play in bar 6: E - E - F - G, and bar 7: G - F - E - D.
+- tutor: Bar 1 has no notes to play — it's a whole-bar rest.  In 4/4 that means rest and count 4 beats: 1-2-3-4, then go on to bar 2.  The tune starts later in bar 6 with E E F G.
+- learner: What notes are in bar 6?
+- tutor: Bar 6 is where the tune starts — E E F G, all quarter notes: 1-2-3-4.
+- app: Highlighted E4 F4 G4.
 
 ### b1_listen_then_try
 
 - learner: Play bars 1 to 2 for me first, then let me try them.
-- tutor: Got it! I'll play bars 1-2 first, then it's your turn.  Quick heads-up: in this piece those 2 bars are whole-bar rests - so you'll hear 8 beats of counting with no notes. Great for feeling the pulse before the tune starts in bar 6.
-- app: Started bars 1–2, all its notes (the file has one track), 100%, demonstration. Play when you're ready; I'll review the graded take.
+- tutor: Got it! Quick heads-up: bars 1-2 in this sheet are full-bar rests, so you'll hear silence for the demo.  I'll play them first, then it will be your turn to try - just wait through the 4 beats in each bar in wait mode.
+- app: Started bars 1–2, both hands, 100%, demonstration. Play when you're ready; I'll review the graded take.
 
 ### b2_recurring_mistakes
 
 - learner: Where do I keep making mistakes?
-- tutor: Great spot to check — you're very consistent at 99%!  All 3 recent takes have the same slip:  * **Printed bar 7** — beat 2, an extra F#4 sneaks in between the F and E. That's the G - F - E - D bar.  The other pink flags in the picture — bars 9 and 13 — are just long pauses in note-by-note mode, not wrong notes. You got all 62/62 notes right.  That extra in bar 7 is likely a brush of the black key next door. Want to loop just that bar to clean it?
+- tutor: Great news - you're getting 62/62 notes right for 99%!  Your one repeat slip is in bar 7, in all 3 recent takes:  Bar 7 beat 2: you add an extra F#4 between the G and F. The printed notes are just G - F - E - D.  The other "late" marks in bars 9, 13, 15, 16 and 21 are just pauses in note-by-note mode, not wrong notes.  Want to clean up that bar 7 extra note together?
 
 ### b3_not_ready_from_wait_mode
 
 - learner: I've played it perfectly three times now. Am I ready to play it at full speed?
-- tutor: Great playing - 62/62 notes correct three times in a row! That's a real win.  Not quite ready to call it full-speed yet, though. Those three takes were in wait-for-note mode, which waits for you and doesn't check timing.  The grader shows the rhythm still needs work, even with perfect notes: - bars 9 and 13, beat 3 - the D and C after the dotted note came in ~100% late - bars 15-16 - the short E-F pickups were late - bar 18, beat 1 - came in ~50% early  Those are all the dotted and short-long rhythms. Let's prove it with one timed take with count-in. Want to try it slower first?
+- tutor: Great work getting 100% of the notes 3 times — that part is perfect!  Those 3 takes were in wait mode, where the piano waits for you note-by-note, so rhythm and speed aren’t tested yet. That’s why it says 1100+ BPM.  To be ready for full speed you need a passed take in timed mode, in time.  Let’s try it timed together — I’ve set bars 8-10 at 50% to learn the count. Press Start practice when you’re ready.
+- app: Prepared bars 8–10, all its notes (the file has one track), 50%, in time. Press Start practice when you're ready.
 
 ### b4_plan_session
 
 - learner: Make me a 15 minute practice plan for today.
-- tutor: Great playing — 62/62 notes right! For today let's turn that wait-mode accuracy into steady rhythm.  I've saved you a 15-min plan: 1. Warm-up 2 min 2. Bar 7 clean - you added an extra F# last time 3. Bars 9 & 13 dotted rhythms - count 1-2-3-+ 4. Play-through 6-13 slow in time  We'll start now with bars 7-9 at 50% in time. Press Start practice when ready, and count aloud.
-- app: Saved today's plan: 4 steps, 15 minutes. Tick them off in the chat.
-- app: Prepared bars 7–9, all its notes (the file has one track), 50%, in time. Press Start practice when you're ready.
+- tutor: Great 99% run on Ode to Joy! Let's use it for today's 15 minutes - I've saved this plan for you:  1. Warm-up 2 min: C-D-E-F-G right hand 2. Clean 4 min: bars 7-9 - you added an extra F# in bar 7 3. Smooth 4 min: bars 15-16 - those E-F eighths had big pauses 4. Run 3 min: full piece 5. Learn 2 min: Meet Middle C  We're starting you on step 2 in note-by-note mode so you can focus on no extra notes. Press Start practice when ready!
+- app: Saved today's plan: 5 steps, 15 minutes. Tick them off in the chat.
+- app: Started bars 7–9, all its notes (the file has one track), 50%, note by note. Play when you're ready; I'll review the graded take.
 
 ### c1_search_then_open
 
 - learner: Find me an easy Bach piece in the library.
-- tutor: Of course! I'm searching the library now for an easy Bach piece at your level. We'll see up to 5 results in a moment.
+- tutor: Got it — let me find an easy Bach piece for you in the library.
 - app: Library search by Bach, Elementary, top 3: #1 [catalog:mutopia-76] Menuet, BWV Anh. 115 — J. S. Bach (attributed) · Elementary · Music Library #2 [catalog:mutopia-79] Musette, BWV Anh. 126 — J. S. Bach (attributed) · Elementary · Music Library #3 [catalog:mutopia-1016] Polonaise in G minor, BWV Anh. 119 — J. S. Bach (attributed) · Elementary · Music Library
 - learner: Open the first one.
-- tutor: Great choice — opening the Menuet, BWV Anh. 115 for you now.
+- tutor: Opening that Menuet in G major for you now — a lovely easy Bach piece to try next.
 - app: Opening Menuet, BWV Anh. 115 by J. S. Bach (attributed) from the Music Library…
 - app: Opened Menuet, BWV Anh. 115 in Practice.
 
 ### d1_scale_exercise
 
 - learner: Teach me the G major scale with my right hand, one octave.
-- tutor: Great choice — G major is perfect with your Ode to Joy right hand work. I've set up a 1-octave G major scale for your right hand, nice and slow in note-by-note mode.  Just follow the keys and finger numbers on screen up and back down. Take your time, curve your fingers, and keep a steady thumb tuck under. Tap Start practice, then play your first note when you're ready.
+- tutor: Great choice! G major has one sharp - F#. I've set it up for your right hand, one octave, in wait-mode so it waits for each correct note.  Watch for the app's suggested fingering, keep your wrist loose, and tuck your thumb under smoothly going up. Let's try it!
 - app: Started G major scale, 1 octave, right hand, 50%, note by note. Play when you're ready; I'll review the graded take.
 
 ### d2_play_chord
 
 - learner: What does a C major chord sound like? Play it for me.
-- tutor: Great question! A C major chord is made of C - E - G together, and it sounds bright and happy. Listen now — I'm lighting up the keys for you.
+- tutor: Great question! A C major chord is C - E - G together. It sounds bright and happy - it's the home chord of your Ode to Joy in C major. I'll play it for you now - listen to how all three notes ring together.
 - app: Playing C4+E4+G4 at 80 BPM; watch the keys light up.
 
 ### d3_ear_training
 
 - learner: I can't hear the difference between major and minor. Can you quiz me?
-- tutor: Great ear to train! Quick tip: major sounds bright and happy, like your Ode to Joy, minor sounds darker and sad — only one note is different, the 3rd.  Let's quiz you — I'll play examples and you tell me major or minor. Starting ear training now:
+- tutor: Yes - that's a perfect thing to train! I've opened the ear training quiz for you starting at level 1 where you'll hear major vs minor.  Listen for: major sounds bright and happy like your Ode to Joy, minor sounds darker and sadder. Have a go and tell me how it goes!
 - app: Opened ear training: Level 1 · Three notes. Open Tutor in the header to keep chatting.
 
 ### e1_last_time
 
 - learner: What did we work on last time?
-- tutor: Last time we were on this same piece — Ode to Joy beginner version for right hand.  You asked for help with the left hand in bar 4 because it felt slow.  In this arrangement on screen now, bars 1-5 are rests and the tune starts in bar 6 with E - E - F - G, all right hand, so there's no left-hand part to play here. Want to pick up where you left off and work on that opening tune together?
+- tutor: Good memory check! My notes from last time say you asked for help with the left hand in bar 4 because it felt slow, on this same Ode to Joy.  Just to pick up carefully: the version open now is right-hand only, and bars 1-5 are rests — the tune starts in bar 6 with E E F G. We don't have any graded takes saved yet, so we didn't get a recording of it.  Want to pick that up again today starting with bars 6-7?
 
 ### e2_weekly_progress
 
 - learner: How much have I practised this week?
-- tutor: This week is logged as 0 min on 0 days — and last week was the same.  I can see 2 graded takes of Ode to Joy just now at 99-100% for notes, so you have been playing, but that time hasn't been counted into your weekly minutes.  Want to set a small goal so we can start tracking it?
+- tutor: Nothing logged yet this week — 0 min on 0 days, same as last week.  But you've just played 2 graded takes of Ode to Joy at 99-100% notes correct, so you're already making a start! Want to make a plan to get some regular minutes in?
 
 ### e3_dated_goal
 
 - learner: My goal is to play Ode to Joy smoothly at full speed by 2026-12-18.
-- tutor: Great goal — I've saved it: play Ode to Joy smoothly at full speed by 2026-12-18.  You've got the perfect starter piece open - right hand only in C major. A good path: 1. Learn bars 6-7 note-by-note in wait mode 2. Add bars 11-13, then 17-19 3. Join them smoothly at a slower tempo, then build to 100%.  No graded takes yet, so press Start practice when you're ready and I'll coach you from the grading. Want to start with the famous opening?
+- tutor: Lovely goal — I've saved it: play Ode to Joy smoothly at full speed by 2026-12-18.  You've got about 6 weeks, which is plenty for this beginner right-hand version. The tune starts in bar 6 with E E F G.  How about this: Weeks 1-2: bars 6-7 smooth note-by-note Weeks 3-4: add bars 11-13 Weeks 5-6: full passage at full speed, in time  Want to start with the first phrase together now?
 - app: Goal saved: play Ode to Joy smoothly at full speed, by Dec 18, 2026.
 
 ### f1_cant_hear_me
 
 - learner: It doesn't seem to hear most of what I play.
-- tutor: You're right — I only heard 3 of 62 notes in that take, so it's an input issue, not your playing.  Right now no input is chosen: microphone is off and no Bluetooth MIDI piano is connected.  Tap the input pill in the header and choose microphone or Bluetooth MIDI. If you use microphone, please Calibrate once — stay quiet, then play C4, D4, E4. I've added an Input settings button below to open that.  Then try bars 6-8 note-by-note again.
+- tutor: You're right — it only heard 3 of 62 notes, so it's not you, it's the listening setup.  Right now no input is chosen, the microphone is off, and no Bluetooth piano is connected. That's why most notes show as missed.  Let's fix it: 1. Tap the input pill in the header and pick microphone or Bluetooth MIDI piano. Only Bluetooth MIDI is listened to — USB is ignored. 2. If you use microphone, calibrate once: stay quiet, then play C4, D4, E4. You'll find it in Practice > ⋯ menu > Calibrate piano (mic).  I've added an Open Input Settings button below — tap it to choose.
 - app: Offered: Open input settings. Nothing changes until you press the button.
 
 ### f2_change_teacher
 
 - learner: How do I change my teacher to Kriti?
-- tutor: Easy! Go to the Learn tab to see your unit map, then use the Teacher menu there to switch from Alex to Kriti.  Kriti is our stricter teacher, Alex is more relaxed - you can switch back anytime the same way.
+- tutor: You can switch anytime! Go to Learn, then look at the unit map for the Teacher menu. Open it and choose Kriti - she's the strict teacher, while Alex is relaxed.  Let me know if you don't see the menu and we'll find it together.
 
 ### f3_switch_input_waits
 
 - learner: Switch me to the computer keyboard please.
-- tutor: Switching you to computer keyboard now — tap that button to confirm. Once it's selected you can play Ode to Joy with your computer keys, starting on E in bar 6.
+- tutor: Of course! I've put up the button to switch to computer keyboard — just tap it to confirm, then you can play Ode to Joy with your computer keys.
 - app: Offered: Use the computer keyboard. Nothing changes until you press the button.
 
 ### f4_played_it_right
 
 - learner: Bar 6 was marked wrong but I'm sure I played it right.
-- tutor: You did play bar 6 right - E E F G, all 4 correct, 0 missed.  What the grader heard was one *extra* F in beat 2 of bar 6. That's usually a double-touch or brushing the key twice, not a wrong pitch. That's why it's still 62/62 and 99% - a pass.  I've saved this take so we can check the grader. It doesn't change your grade, but it helps us spot if it keeps happening. If you want, replay just bar 6 slowly and lift cleanly off each E before the F.
+- tutor: You did get all the right notes in bar 6 — E E F G — and you passed 99% with 62/62 correct!  What the grader heard was 1 *extra* note: an extra F4 around beat 2 of bar 6. In wait mode that’s often a finger brushing the next key, a key re-sounding, or the mic picking up one note twice.  I’ve saved this take so we can check the grader. If you want, replay just bar 6 slowly and lift cleanly between the two E’s before moving to F.
 - app: Saved your latest take of Ode to Joy (Beethoven, Symphony No. 9) - beginner, C major, right hand for checking the grader. Your grade is unchanged.
 
 ### g1_child_what_note
 
 - learner: What's this note?
-- tutor: Hmm, I don't see a note right now! Let's open Meet Middle C to play together. Tap start when you are ready!
+- tutor: I do not see a note waiting right now! Let's open Meet Middle C and meet our first note together!
 
 ### g2_child_slower
 
 - learner: Make it slower
-- tutor: Good idea! Let's make it nice and slow. Now let's play together!
+- tutor: Okay! Slower is good. Let's play soft and cozy together.
 - app: Set this passage to 85% speed. Your take has not been graded.
 
 ### g3_grown_up
 
 - learner: For grown-ups: how is it going?
-- tutor: Here's how it's going on Ode to Joy beginner:  Time practised: the tracker shows 0 min this week / last week, but there are 2 graded takes just now — so playing is happening, just not logged as minutes.  What's going well: note accuracy is excellent. 62/62 notes correct in both takes, passed both times, 100% then 99% — just 1 extra note the second time.  Where stuck: rhythm, not notes. Dotted patterns are consistently late — bar 9 beat 3, bar 13 beat 3, bars 15-16 beats 2.5-3, and bar 21. Both takes were done note-by-note in wait mode, so we haven't yet seen steady playing in time at the 100 BPM target.  One tip: keep note-finding as is, and next do a short timed run at a slow speed on bars 9 and 13 only to lock in those dotted rhythms.
+- tutor: Here's how it's going on Ode to Joy beginner:  Time practised: no practice minutes logged this week or last, but I see 2 recent graded takes.  What's going well: note accuracy is excellent — 62/62 correct for 100% then 99%. They passed both takes.  Where they're stuck: rhythm, not notes. The dotted rhythms in bars 9, 13, 15, 16 and 21 are consistently late, bar 18 beat 1 is early, and the last take had one extra note in bar 6. They are playing note-by-note, not yet in time at the target 100 BPM.  One tip: keep note-by-note for learning the tune, then try one slow play-along run with the metronome to work on those long-short dotted patterns.

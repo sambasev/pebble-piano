@@ -62,10 +62,15 @@ final class TutorLiveEvalTests: XCTestCase {
         try? await Task.sleep(nanoseconds: 50_000_000)
     }
 
+    /// Partial answers seen while waiting: more than one means the reply really streamed in.
+    private var streamedSteps = 0
+
     @MainActor private func answer(_ session: PlaySession, timeout: Double = 60) async {
         let start = Date()
+        var last: String?
         while session.tutorChatBusy && Date().timeIntervalSince(start) < timeout {
-            try? await Task.sleep(nanoseconds: 50_000_000)
+            if let text = session.tutorChatStreamingText, text != last { streamedSteps += 1; last = text }
+            try? await Task.sleep(nanoseconds: 20_000_000)
         }
     }
 
@@ -133,10 +138,12 @@ final class TutorLiveEvalTests: XCTestCase {
         }
 
         // A · Understanding the music in front of me
-        await run("a1_count_rhythm", "A", "Explains the rhythm of a real bar from the score data and offers follow-ups") {
+        await run("a1_count_rhythm", "A", "Explains the rhythm of a real bar, streamed as it arrives, and offers follow-ups") {
             let s = try session(client: client)
+            streamedSteps = 0
             let reply = await ask(s, "How do I count the rhythm in bar 4?")
             var f: [String] = []
+            if streamedSteps < 2 { f.append("The answer didn't stream in (\(streamedSteps) partial updates)") }
             if !Self.has(reply, ["beat", "count", "1"]) { f.append("Reply doesn't count beats: \(reply)") }
             if s.tutorChat.suggestions.isEmpty { f.append("No follow-up chips offered") }
             return (s, f)

@@ -81,6 +81,17 @@ struct ModelTutorChatClient: TutorChatClient {
         return (try? result.decode(TutorChatReply.self)) ?? TutorChatReply(onTopic: false, reply: "")
     }
 
+    /// Streamed: the reply's text shows as it arrives (`TutorChatStreaming.partialReply`).
+    func reply(history: [TutorChatTurn], context: TutorChatContext, question: String,
+               partial: @escaping @Sendable (String) -> Void) async throws -> TutorChatReply {
+        let result = try await client.chatStreaming(
+            Self.messages(history: history, context: context, question: question),
+            options: .init(model: model, schema: (name: "tutor_chat", schema: Self.schema),
+                           reasoningEffort: "low", maxTokens: 2048, requestTimeout: 45),
+            onText: { json in if let text = TutorChatStreaming.partialReply(json), !text.isEmpty { partial(text) } })
+        return (try? result.decode(TutorChatReply.self)) ?? TutorChatReply(onTopic: false, reply: "")
+    }
+
     func summarize(_ turns: [TutorChatTurn]) async throws -> String? {
         let transcript = turns.filter { !$0.refused }.suffix(TutorChatMemory.savedTurns).map { turn in
             "\(turn.role == .learner ? "Learner" : turn.role == .tutor ? "Teacher" : "App"): \(turn.text)"

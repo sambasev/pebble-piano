@@ -63,7 +63,13 @@ extension PlaySession {
         tutorChatBusy = true
         tutorChatTask = Task { @MainActor [weak self] in
             do {
-                let reply = try await client.reply(history: history, context: context, question: question)
+                let reply = try await client.reply(history: history, context: context, question: question, partial: { text in
+                    Task { @MainActor [weak self] in
+                        guard let self, self.tutorChatGeneration == generation, self.tutorChatBusy else { return }
+                        self.tutorChatStreamingText = text
+                    }
+                })
+                self?.tutorChatStreamingText = nil
                 guard let self, !Task.isCancelled, self.tutorChatGeneration == generation, self.canAskTutor else { return }
                 self.tutorChat.answer(reply, to: id)
                 self.tutorChatBusy = false
@@ -80,6 +86,7 @@ extension PlaySession {
                 self.flushTutorChatObservation()
             } catch {
                 guard let self, self.tutorChatGeneration == generation else { return }
+                self.tutorChatStreamingText = nil
                 self.tutorChat.withdraw(id)
                 self.tutorChatBusy = false
                 self.tutorChatRequestTurn = nil
@@ -148,6 +155,7 @@ extension PlaySession {
         tutorChatTask?.cancel()
         tutorChatGeneration = UUID()
         tutorChatBusy = false
+        tutorChatStreamingText = nil
         if let id = tutorChatRequestTurn { tutorChat.withdraw(id) }
         tutorChatRequestTurn = nil
         tutorChatTask = nil
