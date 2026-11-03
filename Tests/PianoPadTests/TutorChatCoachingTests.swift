@@ -137,8 +137,7 @@ final class TutorChatCoachingTests: XCTestCase {
     @MainActor func testInvalidActionsAndRecordingDoNotReplaceTheMusic() throws {
         let session = try player()
         for action in [TutorChatAction(kind: .practicePassage, fromBar: 999, toBar: 999),
-                       .init(kind: .practicePassage, fromBar: 1, toBar: 2, tempoPercent: -5),
-                       .init(kind: .practicePassage, fromBar: 1, toBar: 2, hand: .left)] {
+                       .init(kind: .practicePassage, fromBar: 1, toBar: 2, tempoPercent: -5)] {
             _ = session.applyTutorChatAction(action)
             XCTAssertNil(session.tutor)
             XCTAssertEqual(session.reference?.notes.count, 8)
@@ -149,6 +148,16 @@ final class TutorChatCoachingTests: XCTestCase {
         XCTAssertTrue(result.contains("still recording"))
         XCTAssertEqual(session.noteCount, 1)
         XCTAssertEqual(session.phase, .recording)
+    }
+
+    /// Found by the live eval: on a one-track file, "right hand" can only mean its notes.
+    @MainActor func testOneHandOnAOneTrackFileUsesAllItsNotes() throws {
+        let session = try player()
+        let outcome = session.applyTutorChatAction(.init(kind: .practicePassage, fromBar: 1, toBar: 2, hand: .right))
+        XCTAssertTrue(outcome.contains("all its notes (the file has one track)"), outcome)
+        XCTAssertNotNil(session.tutor)
+        XCTAssertNil(session.tutorAttempt?.hand ?? session.tutor?.exercise.hand)
+        session.pauseTutorChatCoaching(); session.endTutoring()
     }
 
     @MainActor func testRefusedModelResponseCannotRunAnAction() async throws {

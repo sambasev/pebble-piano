@@ -94,11 +94,14 @@ public struct ModelClient: Sendable {
     public let endpoint: ModelEndpoint
     let transport: Transport
     let log: UsageLog
+    /// Set when no transport was injected: `chatStreaming` then reads the reply as it arrives.
+    let streamingSession: URLSession?
 
     public init(endpoint: ModelEndpoint, log: UsageLog = .shared, transport: Transport? = nil) {
         self.endpoint = endpoint
         self.log = log
         self.transport = transport ?? ModelClient.urlSession()
+        self.streamingSession = transport == nil ? .shared : nil
     }
 
     /// The configured client for a provider (Keychain key, saved Modal URL).
@@ -117,17 +120,7 @@ public struct ModelClient: Sendable {
     // MARK: Chat
 
     public func chat(_ messages: [ChatMessage], options: ChatOptions = .init()) async throws -> ChatResult {
-        var body: [String: JSONValue] = ["model": .string(options.model), "messages": .array(messages.map(\.json))]
-        if let s = options.schema {
-            body["response_format"] = ["type": "json_schema", "json_schema": ["name": .string(s.name), "schema": s.schema]]
-        }
-        if let e = options.reasoningEffort { body["reasoning_effort"] = .string(e) }
-        if let m = options.maxTokens { body["max_tokens"] = .number(Double(m)) }
-        if let t = options.temperature { body["temperature"] = .number(t) }
-        if options.stream {
-            body["stream"] = true
-            body["stream_options"] = ["include_usage": true]
-        }
+        let body = chatBody(messages, options: options)
 
         let started = Date()
         do {
@@ -146,6 +139,70 @@ public struct ModelClient: Sendable {
             await record(options.model, "chat", started, error: error)
             throw error
         }
+    }
+
+    /// A streamed chat whose text so far is passed to `onText` as each piece arrives; the
+    /// result is the whole reply, as `chat` returns it. With an injected transport (tests) the
+    /// body arrives at once, so `onText` is called once with all of it.
+    public func chatStreaming(_ messages: [ChatMessage], options: ChatOptions = .init(),
+                              onText: @escaping @Sendable (String) -> Void) async throws -> ChatResult {
+        var options = options
+        options.stream = true
+        guard let session = streamingSession else {
+            let result = try await chat(messages, options: options)
+            onText(result.text)
+            return result
+        }
+        let started = Date()
+        do {
+            var req = try request("chat/completions", json: .object(chatBody(messages, options: options)))
+            if let timeout = options.requestTimeout { req.timeoutInterval = timeout }
+            req.setValue("text/event-stream", forHTTPHeaderField: "Accept")
+            let (bytes, response) = try await session.bytes(for: req)
+            guard let http = response as? HTTPURLResponse else { throw ModelError.badResponse("not HTTP") }
+            var raw = Data()
+            guard (200..<300).contains(http.statusCode) else {
+                for try await byte in bytes { raw.append(byte) }
+                throw ModelError.fromHTTP(status: http.statusCode, body: raw)
+            }
+            var text = ""
+            for try await line in bytes.lines {
+                // `lines` drops the blank line that ends each event; put it back for the parser.
+                raw.append(Data((line + "\n\n").utf8))
+                guard line.hasPrefix("data:") else { continue }
+                let payload = line.dropFirst(5).trimmingCharacters(in: .whitespaces)
+                guard payload != "[DONE]", let event = try? JSONValue(parsing: Data(payload.utf8)) else { continue }
+                var grew = false
+                for choice in event["choices"]?.arrayValue ?? [] {
+                    if let piece = choice["delta"]?["content"]?.stringValue, !piece.isEmpty { text += piece; grew = true }
+                }
+                if grew { onText(text) }
+            }
+            let parsed = try Self.parseChatStream(raw)
+            let result = ChatResult(text: parsed.text, model: parsed.model ?? options.model,
+                                    inputTokens: parsed.inputTokens, outputTokens: parsed.outputTokens,
+                                    seconds: Date().timeIntervalSince(started))
+            await record(options.model, "chat", started, input: result.inputTokens, output: result.outputTokens)
+            return result
+        } catch {
+            await record(options.model, "chat", started, error: error)
+            throw error
+        }
+    }
+
+    private func chatBody(_ messages: [ChatMessage], options: ChatOptions) -> [String: JSONValue] {
+        var body: [String: JSONValue] = ["model": .string(options.model), "messages": .array(messages.map(\.json))]
+        if let s = options.schema {
+            body["response_format"] = ["type": "json_schema", "json_schema": ["name": .string(s.name), "schema": s.schema]]
+        }
+        if let e = options.reasoningEffort { body["reasoning_effort"] = .string(e) }
+        if let m = options.maxTokens { body["max_tokens"] = .number(Double(m)) }
+        if let t = options.temperature { body["temperature"] = .number(t) }
+        if options.stream {
+            body["stream"] = true
+            body["stream_options"] = ["include_usage": true]
+        }
+        return body
     }
 
     struct ParsedChat {

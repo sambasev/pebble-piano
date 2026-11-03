@@ -183,8 +183,9 @@ extension PlaySession {
             }
             let speed = action.tempoPercent ?? 60
             guard speed.isFinite, (25...100).contains(speed) else { return "Choose a practice speed from 25% to 100%. No player settings changed." }
-            let hand: Hand? = action.hand == .both ? nil : action.hand
-            if hand != nil, !full.hasTwoHands { return "This MIDI file has no separate hand tracks. I can practise the passage with all its notes instead." }
+            // One track: a one-hand request can only mean all of its notes.
+            let oneTrack = action.hand != nil && action.hand != .both && !full.hasTwoHands
+            let hand: Hand? = action.hand == .both || oneTrack ? nil : action.hand
             if let hand, full.measures(played).hand(hand).notes.isEmpty { return "The selected passage has no notes for that hand." }
             let kind: PracticeExercise.Kind = action.kind == .listenPassage ? .listen : action.mode == .timed ? .slow : .notes
             guard startTutorChatPractice(PracticeExercise(kind: kind, measures: played, tempoPercent: speed, hand: hand, label: "Your practice passage"),
@@ -192,7 +193,7 @@ extension PlaySession {
             else { return "This practice passage could not be started." }
             saveChatGoal(from: action)
             let mode = action.kind == .listenPassage ? "demonstration" : action.mode == .timed ? "in time" : "note by note"
-            return ran("\(tutorChatAwaitingStart ? "Prepared" : "Started") bars \(start)–\(end), \(hand?.rawValue ?? "both hands"), \(Int(speed))%, \(mode). "
+            return ran("\(tutorChatAwaitingStart ? "Prepared" : "Started") bars \(start)–\(end), \(oneTrack ? "all its notes (the file has one track)" : hand?.rawValue ?? "both hands"), \(Int(speed))%, \(mode). "
                 + (tutorChatAwaitingStart ? "Press Start practice when you're ready." : "Play when you're ready; I'll review the graded take."))
 
         // Library and navigation (PlaySession+TutorLibrary).
