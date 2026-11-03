@@ -17,6 +17,8 @@ struct ContentView: View {
     /// The note under the pointer on the score, ringed on the keyboard.
     @State private var hoveredPitch: Int?
     @AppStorage(PaperStyle.storageKey) private var paperStyle = PaperStyle.matchAppearance
+    /// The tutor panel is on Ask (TutorPanel).
+    @AppStorage("PianoPad.tutor.asking") private var askingTutor = false
     @Environment(\.ppCompact) private var compact
 
     var body: some View {
@@ -292,8 +294,11 @@ struct ContentView: View {
         ScrollView {
             VStack(alignment: .leading) {
                 TutorPanel().environmentObject(session)
-                Divider()
-                ReportView(report: session.tutorDisplayReport, phase: session.phase)
+                // Asking the tutor: the chat has the panel to itself.
+                if !(askingTutor && session.canChatWithTutor) {
+                    Divider()
+                    ReportView(report: session.tutorDisplayReport, phase: session.phase)
+                }
             }
         }
             .frame(maxWidth: .infinity, alignment: .topLeading)

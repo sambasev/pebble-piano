@@ -8,9 +8,29 @@ struct TutorPanel: View {
     @State private var settings = false
     /// Start the tutor's next step by itself after a short countdown (hover pauses it).
     @AppStorage("PianoPad.tutor.autoContinue") private var autoContinue = true
+    /// Lesson, or Ask your tutor (adults only). Kept from piece to piece.
+    @AppStorage("PianoPad.tutor.asking") private var asking = false
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack { Text("Piece tutor").font(.headline); Spacer(); Button("AI settings") { settings = true } }
+            if session.canChatWithTutor {
+                Picker("", selection: $asking) {
+                    Text("Lesson").tag(false)
+                    Text("Ask").tag(true)
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .help("Ask your tutor about this piece, the book page, or anything about music")
+            }
+            if asking && session.canChatWithTutor {
+                TutorChatView()
+            } else {
+                lesson
+            }
+        }.sheet(isPresented: $settings) { AISettingsView { settings = false } }
+    }
+
+    @ViewBuilder private var lesson: some View {
             if let engine = session.tutor {
                 Text(session.tutorAI.isEmpty ? session.tutorText : session.tutorAI)
                 if session.tutorBusy { ProgressView("Preparing explanation…") }
@@ -50,7 +70,6 @@ struct TutorPanel: View {
             if session.reference?.notes.isEmpty == false && session.score != nil {
                 MarkedBarsSection()
             }
-        }.sheet(isPresented: $settings) { AISettingsView { settings = false } }
     }
 
     @ViewBuilder private func current(_ engine: PiecePracticeEngine) -> some View {

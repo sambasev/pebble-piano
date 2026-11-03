@@ -508,6 +508,18 @@ final class PlaySession: ObservableObject {
     var tutorPieceKey: String?
     /// Tests inject a fake planner; nil uses Muse Spark when a key is configured.
     var tutorPlanModel: (any LessonPlanModel)?
+    /// Ask your tutor (adults only): the conversation, and whether an answer is on its way.
+    @Published var tutorChat = TutorChat()
+    @Published var tutorChatBusy = false
+    /// Why the last question got no answer (no key, no connection).
+    @Published var tutorChatNote: String?
+    /// Send the book page (its text and a picture) with each question.
+    @Published var tutorChatUsesBook = true
+    var tutorChatTask: Task<Void, Never>?
+    var tutorChatGeneration = UUID()
+    /// Tests inject a fake; nil uses Muse Spark when a key is configured.
+    var tutorChatClient: (any TutorChatClient)?
+    var makeTutorChatClient: () throws -> any TutorChatClient = { try ModelTutorChatClient.configured() }
 
     private var fileRubric: Rubric?
     /// The reference as read from the file. `reference` is this retimed to a linked backing
@@ -612,7 +624,10 @@ final class PlaySession: ObservableObject {
 
     let learnerStore: LearnerStore
     /// The learner whose settings, recent pieces and (later) takes are in use; nil until one is added.
-    @Published var learner: Learner?
+    @Published var learner: Learner? {
+        // Ask your tutor is one adult's conversation: it's cleared for anyone else, and never kept for a child.
+        didSet { if oldValue?.id != learner?.id || learner?.kind != .adult { resetTutorChat() } }
+    }
     @Published var learners: [Learner] = []
     /// True at launch when there is more than one learner, until someone picks who's playing.
     @Published var needsLearnerPick = false
@@ -1601,6 +1616,7 @@ final class PlaySession: ObservableObject {
         do { parsed = try MIDIFile.read(url: url) }
         catch { message = "Couldn’t read \(url.lastPathComponent): \(error)"; return false }
         endTutoring()
+        resetTutorChat() // a new piece, a new conversation about it
         stopPlayAlong(discard: false)
         if !keepPassage {
             passage = nil
