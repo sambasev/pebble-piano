@@ -74,6 +74,16 @@ public struct PracticeExercise: Equatable, Codable, Sendable {
     }
 }
 
+/// How the plan teaches a phrase it knows nothing about yet (not played in "Show me what you
+/// can do", or that run was skipped or stopped before it).
+public enum Pace: String, Codable, Sendable {
+    /// Note by note first (hands separately when the plan says so), then slowly in time.
+    case noteByNote
+    /// Straight into time: slowly, then at full speed. Two failed runs still drop back to note
+    /// by note on the bars that went wrong.
+    case passageByPassage
+}
+
 private extension String {
     var lowercasedFirst: String { prefix(1).lowercased() + dropFirst() }
     var capitalizedFirst: String { prefix(1).uppercased() + dropFirst() }
@@ -118,6 +128,8 @@ public struct PiecePracticeEngine: Sendable {
     public private(set) var failStreak = 0
     /// The last graded run passed (80%+ of the notes, rhythm fine) but had slips to mention.
     public private(set) var lastRunPassedWithSlips = false
+    /// How phrases with no grade are taught.
+    public private(set) var pace: Pace = .noteByNote
     private var queue: [PracticeExercise] = []
 
     /// Where the learner got to in a planned lesson, to save and resume.
@@ -138,6 +150,8 @@ public struct PiecePracticeEngine: Sendable {
         public var grades: [Int: PhraseGrade]?
         public var completedKeys: [String]?
         public var stepKey: String?
+        /// How ungraded phrases are taught (nil in progress saved before this was kept).
+        public var pace: Pace?
 
         /// Something has been done: a step passed, a later step reached, a Perform played, or
         /// the plan left for the drills. Opening a lesson and leaving it isn't progress.
@@ -151,7 +165,7 @@ public struct PiecePracticeEngine: Sendable {
                             exercise: exercise, lastStars: lastStars, mastered: mastered, saved: Date(),
                             stepCount: steps.count, grades: grades,
                             completedKeys: completedSteps.sorted().map { steps[$0].key },
-                            stepKey: stepIndex.map { steps[$0].key }) }
+                            stepKey: stepIndex.map { steps[$0].key }, pace: pace) }
     }
 
     /// Picks up where `saved` left off, if it's for this plan. Returns whether it did.
@@ -159,7 +173,8 @@ public struct PiecePracticeEngine: Sendable {
     public mutating func restore(_ saved: Progress) -> Bool {
         guard let plan, saved.planSignature == Self.signature(plan) else { return false }
         grades = saved.grades ?? [:]
-        steps = Self.steps(for: plan, measureCount: measureCount, persona: persona, grades: grades)
+        pace = saved.pace ?? .noteByNote
+        steps = Self.steps(for: plan, measureCount: measureCount, persona: persona, grades: grades, pace: pace)
         if let keys = saved.completedKeys {
             completedSteps = Set(steps.indices.filter { keys.contains(steps[$0].key) })
         } else {
@@ -205,7 +220,7 @@ public struct PiecePracticeEngine: Sendable {
 
     /// The steps for a plan, in teaching order.
     public static func steps(for plan: LessonPlan, measureCount: Int, persona: Persona,
-                             grades: [Int: PhraseGrade] = [:]) -> [PracticeExercise] {
+                             grades: [Int: PhraseGrade] = [:], pace: Pace = .noteByNote) -> [PracticeExercise] {
         let count = max(1, measureCount)
         let whole = 1...count
         let slow = persona.drill.slowTempoPercent
@@ -219,6 +234,11 @@ public struct PiecePracticeEngine: Sendable {
             // After "Show me what you can do", the phrase's steps fit how it went.
             if let grade = grades[i], grade != .major {
                 out += phraseSteps(grade, bars: bars, label: p.label, persona: persona, count: count, plan: plan)
+                continue
+            }
+            if pace == .passageByPassage && grades[i] == nil {
+                out += [.init(kind: .slow, measures: bars, tempoPercent: slow, label: p.label),
+                        .init(kind: .fullSpeed, measures: bars, label: p.label)]
                 continue
             }
             let knowsNotes = known.knownPhrases.contains(i) && grades[i] == nil
@@ -289,16 +309,42 @@ public struct PiecePracticeEngine: Sendable {
         guard let plan else { return }
         let done = Set(completedSteps.map { steps[$0].key })
         let current = stepIndex.map { steps[$0].key }
-        steps = Self.steps(for: plan, measureCount: measureCount, persona: persona, grades: grades)
+        steps = Self.steps(for: plan, measureCount: measureCount, persona: persona, grades: grades, pace: pace)
         completedSteps = Set(steps.indices.filter { done.contains(steps[$0].key) })
         stepIndex = current.flatMap { key in steps.firstIndex { $0.key == key } }
+    }
+
+    /// Teach the phrases not yet graded note by note, or passage by passage. Keeps what's done;
+    /// if the current step goes away, on to the first step still to do.
+    public mutating func setPace(_ newPace: Pace) {
+        guard newPace != pace else { return }
+        pace = newPace
+        guard plan != nil else { return }
+        let wasFollowing = isFollowingPlan
+        rebuild()
+        if wasFollowing && stepIndex == nil { jumpToFirstUndone() }
+    }
+
+    /// Skip "Show me what you can do" (or the assessment): the plan teaches every phrase from
+    /// the start, at `pace`.
+    public mutating func skipAssessment(pace newPace: Pace) {
+        setPace(newPace)
+        skip()
+    }
+
+    private mutating func jumpToFirstUndone() {
+        if let first = steps.indices.first(where: { !completedSteps.contains($0) && steps[$0].skipReason == nil }) {
+            jump(to: first)
+        } else if !steps.isEmpty {
+            jump(to: steps.count - 1)
+        }
     }
 
     /// Starts following `plan` from its first step.
     public mutating func follow(_ plan: LessonPlan) {
         self.plan = plan
         grades = [:]
-        steps = Self.steps(for: plan, measureCount: measureCount, persona: persona)
+        steps = Self.steps(for: plan, measureCount: measureCount, persona: persona, pace: pace)
         completedSteps = []
         queue = []; mastered = false; lastStars = nil
         jump(to: steps.indices.first { steps[$0].skipReason == nil } ?? 0)
@@ -377,15 +423,43 @@ public struct PiecePracticeEngine: Sendable {
 
     public static let focusLabel = "Your marked bars"
     public mutating func skip() {
-        if let i = stepIndex { completedSteps.insert(i); nextStep() } else { advance() }
+        if let i = stepIndex { completedSteps.insert(i); nextStep(); return }
+        guard exercise.kind == .assessment && queue.isEmpty else { advance(); return }
+        // Skipping the whole-piece run: back to the plan where it was left, else the piece in parts.
+        if steps.indices.contains(where: { !completedSteps.contains($0) && steps[$0].skipReason == nil && steps[$0].kind != .placement }) {
+            jumpToFirstUndone()
+            if exercise.kind == .placement, let i = stepIndex { completedSteps.insert(i); nextStep() }
+            return
+        }
+        mastered = false
+        queue = phrases.flatMap { partSteps($0.bars, label: $0.label) }
+        advance()
+    }
+
+    /// The plan's phrases, or the piece in fours.
+    private var phrases: [(bars: ClosedRange<Int>, label: String?)] {
+        if let plan, !plan.phrases.isEmpty {
+            return plan.phrases.map { (max(1, $0.bars.lowerBound)...min(measureCount, max(1, $0.bars.upperBound)), $0.label) }
+        }
+        return stride(from: 1, through: measureCount, by: 4).map { ($0...min(measureCount, $0 + 3), nil) }
+    }
+
+    /// Learning one part of the piece from scratch, at `pace`.
+    private func partSteps(_ bars: ClosedRange<Int>, label: String?) -> [PracticeExercise] {
+        let slow = PracticeExercise(kind: .slow, measures: bars, tempoPercent: persona.drill.slowTempoPercent, label: label)
+        let full = PracticeExercise(kind: .fullSpeed, measures: bars, label: label)
+        return pace == .noteByNote ? [.init(kind: .notes, measures: bars, label: label), slow, full] : [slow, full]
     }
 
     /// Records a graded run of the current exercise. `stars`: the Perform run's stars.
-    public mutating func record(_ report: GradeReport, replays: Int = 0, completedNotes: Bool = false, stars: Int? = nil) {
+    /// `playedThrough`: a whole-piece run (Show me what you can do, an assessment) stopped early
+    /// after this bar; only the bars up to it count, and `report` should hold only those.
+    public mutating func record(_ report: GradeReport, replays: Int = 0, completedNotes: Bool = false, stars: Int? = nil,
+                                playedThrough: Int? = nil) {
         lastRunPassedWithSlips = !exercise.isWaitMode && report.timing != nil
             && RemediationPlanner.passedWithSlips(report, replays: replays)
         if exercise.kind == .listen { completeStep(); return }
-        if exercise.kind == .placement { place(after: report); return }
+        if exercise.kind == .placement { place(after: report, playedThrough: playedThrough); return }
         if exercise.kind == .perform {
             lastStars = stars
             // A passing run (80%+ of the notes right and on time, rhythm fine), whatever the stars.
@@ -402,6 +476,11 @@ public struct PiecePracticeEngine: Sendable {
             return
         }
         if exercise.kind == .assessment {
+            if let playedThrough, playedThrough < measureCount {
+                mastered = false
+                planDrills(after: report, playedThrough: playedThrough)
+                return
+            }
             mastered = RemediationPlanner.isClean(report, replays: replays) && report.timing != nil
             // Passed: the plan's steps are all done (the checklist shouldn't look like a restart).
             guard !mastered else { completedSteps = Set(steps.indices); return }
@@ -430,14 +509,19 @@ public struct PiecePracticeEngine: Sendable {
     /// extra, early or late notes in its bars) is done, and so is a new note met only in clean
     /// phrases. All clean and passed at full speed: straight to Perform. Then the first step
     /// still to do.
-    private mutating func place(after report: GradeReport) {
+    ///
+    /// Stopped early (`playedThrough`): only the phrases played to their end are graded; the
+    /// rest keep their steps, taught at `pace`.
+    private mutating func place(after report: GradeReport, playedThrough: Int? = nil) {
         guard let plan, let here = stepIndex else { return }
         completedSteps.insert(here)
         var graded: [Int: PhraseGrade] = [:]
         // A passing run at full speed (80%+ of the notes right and on time) counts as clean on
         // every phrase that passes by itself (a few slips): straight on, not back into the lesson.
-        let passedRun = RemediationPlanner.isClean(report, replays: 0) && report.timing != nil
+        let stoppedEarly = playedThrough.map { $0 < measureCount } ?? false
+        let passedRun = !stoppedEarly && RemediationPlanner.isClean(report, replays: 0) && report.timing != nil
         for (i, p) in plan.phrases.enumerated() {
+            if stoppedEarly, let through = playedThrough, p.bars.upperBound > through { continue }
             let grade = PhraseGrade.grade(p.bars, in: report)
             let passes = passedRun && RemediationPlanner.passScore(report, bars: p.bars) >= RemediationPlanner.passingScore
             graded[i] = passes ? .clean : grade
@@ -445,7 +529,7 @@ public struct PiecePracticeEngine: Sendable {
         grades = graded
         rebuild()
         let cleanBars = Set(plan.phrases.enumerated().filter { graded[$0.offset] == .clean }.flatMap { Array($0.element.bars) })
-        let allClean = cleanBars.count >= measureCount && report.timing != nil
+        let allClean = !stoppedEarly && cleanBars.count >= measureCount && report.timing != nil
         for (i, step) in steps.enumerated() where !completedSteps.contains(i) {
             switch step.kind {
             case .newNote:
@@ -457,11 +541,7 @@ public struct PiecePracticeEngine: Sendable {
                 break
             }
         }
-        if let first = steps.indices.first(where: { !completedSteps.contains($0) && steps[$0].skipReason == nil }) {
-            jump(to: first)
-        } else {
-            jump(to: steps.count - 1)
-        }
+        jumpToFirstUndone()
     }
 
     /// The practice after a whole-piece run that wasn't good enough, sized to how far off it
@@ -470,7 +550,10 @@ public struct PiecePracticeEngine: Sendable {
     /// two → those bars, then the phrase; timing → slowly in time, then full speed; wrong notes
     /// → note by note on those bars only, then in time; most notes wrong → note by note from
     /// the start of the bar.
-    private mutating func planDrills(after report: GradeReport) {
+    ///
+    /// Stopped early (`playedThrough`): the drills look only at the bars played; nothing wrong
+    /// there, and the next part is learnt from scratch, at `pace`, joined onto what came before.
+    private mutating func planDrills(after report: GradeReport, playedThrough: Int? = nil) {
         let whole = 1...measureCount
         let slow = persona.drill.slowTempoPercent
         queue = []
@@ -482,9 +565,21 @@ public struct PiecePracticeEngine: Sendable {
             return
         }
         let worst = RemediationPlanner.worstMeasure(in: [report]).map { min(measureCount, max(1, $0)) }
-        let phrases = plan?.phrases.map(\.bars) ?? stride(from: 1, through: measureCount, by: 4).map { $0...min(measureCount, $0 + 3) }
+        let phrases = self.phrases.map(\.bars)
         let index = worst.flatMap { w in phrases.firstIndex { $0.contains(w) } }
             ?? phrases.firstIndex { PhraseGrade.grade($0, in: report) != .clean }
+        if index == nil, let through = playedThrough,
+           let next = self.phrases.firstIndex(where: { $0.bars.upperBound > through }) {
+            let part = self.phrases[next]
+            let bars = max(part.bars.lowerBound, min(through + 1, part.bars.upperBound))...part.bars.upperBound
+            queue = partSteps(bars, label: part.label)
+            // Then joined onto the bar before it.
+            if bars.lowerBound > 1 {
+                queue.append(.init(kind: .context, measures: (bars.lowerBound - 1)...min(measureCount, bars.upperBound)))
+            }
+            advance()
+            return
+        }
         guard let index else {
             // Nothing wrong with the notes (timing couldn't be measured, say): the piece in time.
             queue = [.init(kind: .slow, measures: whole, tempoPercent: slow), .init(kind: .fullSpeed, measures: whole)]
@@ -492,7 +587,7 @@ public struct PiecePracticeEngine: Sendable {
             return
         }
         let range = max(1, phrases[index].lowerBound)...min(measureCount, phrases[index].upperBound)
-        let label = plan?.phrases[index].label
+        let label = self.phrases[index].label
         let context = max(1, range.lowerBound - 1)...min(measureCount, range.upperBound + 1)
         switch PhraseGrade.grade(range, in: report) {
         case .clean, .timing:
