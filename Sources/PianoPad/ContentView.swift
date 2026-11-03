@@ -4,8 +4,10 @@ import PianoGraderCore
 import PianoPadState
 import SwiftUI
 
+@MainActor
 struct ContentView: View {
     @EnvironmentObject var session: PlaySession
+    @StateObject private var musicLibrary = MusicLibraryModel()
     @State private var showJudgeSettings = false
     @State private var showSettings = false
     @State private var showAISettings = false
@@ -29,6 +31,9 @@ struct ContentView: View {
             case .practice:
                 practice
                     .onAppear { session.startTourIfNew(.practice) }
+            case .musicLibrary:
+                MusicLibraryView(model: musicLibrary)
+                    .onAppear { session.startTourIfNew(.musicLibrary) }
             case .books:
                 BooksView(model: session.bookImport)
                     .padding(PP.Space.s4)
@@ -87,12 +92,13 @@ struct ContentView: View {
             Picker("Section", selection: $session.tab) {
                 Text("Learn").tag(PlaySession.AppTab.learn)
                 Text("Practice").tag(PlaySession.AppTab.practice)
+                Text("Music Library").tag(PlaySession.AppTab.musicLibrary)
                 Text("Books").tag(PlaySession.AppTab.books)
                 Text("Backing tracks").tag(PlaySession.AppTab.backingTracks)
             }
             .pickerStyle(.segmented)
             .labelsHidden()
-            .frame(width: 430)
+            .frame(width: 520)
             Spacer()
             Button {
                 showInput.toggle()

@@ -11,6 +11,7 @@ extension PlaySession {
         switch tab {
         case .learn: return lessonRunner.page != nil && lessonRunner.result == nil ? .lessonPage : .learnMap
         case .practice: return .practice
+        case .musicLibrary: return .musicLibrary
         case .books: return .books
         case .backingTracks: return backingEditor.draft != nil ? .backingEditor : .backingTracks
         }

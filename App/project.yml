@@ -58,6 +58,8 @@ targets:
       - package: PianoGrader
         product: PianoAI
       - package: PianoGrader
+        product: PianoCatalog
+      - package: PianoGrader
         product: EarTrainingUI
       - package: PianoGrader
         product: EarTrainingIntegration
