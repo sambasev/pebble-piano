@@ -546,6 +546,8 @@ final class PlaySession: ObservableObject {
     var tutorChatActionRan = false
     /// The learner whose saved conversation is open (`TutorChatMemory`); nil for a new one.
     var tutorChatOwner: UUID?
+    /// Today's practice plan from the tutor, saved in the learner's tutor memory.
+    @Published var tutorChatSessionPlan: TutorSessionPlan?
     var tutorChatRecentGrades: [String] = []
     var tutorChatFocus = ""
     var tutorChatPendingObservation: TutorChatObservation?

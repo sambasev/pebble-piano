@@ -114,3 +114,56 @@ public struct TutorChatMemory: Sendable {
         return d
     }
 }
+
+/// Today's practice plan, from the tutor's `planSession`: a checklist the learner ticks off.
+public struct TutorSessionPlan: Codable, Equatable, Sendable {
+    public struct Step: Codable, Equatable, Sendable {
+        public var text: String
+        public var done: Bool
+        public init(text: String, done: Bool = false) { self.text = text; self.done = done }
+    }
+
+    public static let stepLimit = 6
+    public static let stepLength = 80
+    public static let minutesRange = 5...120
+
+    public var date: Date
+    public var minutes: Int
+    public var steps: [Step]
+
+    public init(date: Date, minutes: Int, steps: [Step]) {
+        self.date = date; self.minutes = minutes; self.steps = steps
+    }
+
+    /// A plan from the model's fields, or nil when they don't make one.
+    public init?(minutes: Int?, steps: [String]?, date: Date = Date()) {
+        let cleaned = (steps ?? []).map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .filter { !$0.isEmpty }.map { String($0.prefix(Self.stepLength)) }
+        guard let minutes, Self.minutesRange.contains(minutes), (2...Self.stepLimit).contains(cleaned.count) else { return nil }
+        self.init(date: date, minutes: minutes, steps: cleaned.map { Step(text: $0) })
+    }
+
+    /// The plan as context: "Today's plan (20 min): [x] Warm up; [ ] Bars 5–6 slowly".
+    public var prompt: String {
+        "Today's plan (\(minutes) min): " + steps.map { "[\($0.done ? "x" : " ")] \($0.text)" }.joined(separator: "; ")
+    }
+}
+
+extension TutorChatMemory {
+    private var planURL: URL { folder.appendingPathComponent("plan.json") }
+
+    /// Today's plan; a plan from another day isn't returned.
+    public func plan(on day: Date = Date(), calendar: Calendar = .current) -> TutorSessionPlan? {
+        guard let data = try? Data(contentsOf: planURL),
+              let plan = try? Self.decoder().decode(TutorSessionPlan.self, from: data),
+              calendar.isDate(plan.date, inSameDayAs: day) else { return nil }
+        return plan
+    }
+
+    /// Saves the plan; nil removes it.
+    public func save(plan: TutorSessionPlan?) throws {
+        guard let plan else { try? FileManager.default.removeItem(at: planURL); return }
+        try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        try Self.encoder().encode(plan).write(to: planURL, options: .atomic)
+    }
+}

@@ -38,6 +38,8 @@ public struct LearnerSettings: Codable, Equatable, Sendable {
     public var goalSong: String?
     /// The learner's own longer-term musical goal, set through the tutor.
     public var tutorGoal: String? = nil
+    /// The day the learner wants to reach `tutorGoal` by, if they gave one.
+    public var tutorGoalDate: Date? = nil
     /// How the learner plays: an `InputSource` raw value ("midi", "microphone",
     /// "computerKeyboard"). nil: not asked.
     public var inputSource: String?
@@ -90,7 +92,7 @@ public struct LearnerSettings: Codable, Equatable, Sendable {
 
     private enum CodingKeys: String, CodingKey {
         case strictness, customPlayAlong, missMode, recentPieces, persona, goalSong, inputSource, onboardedAt, dancers, practiceMode
-        case lastTab, lastPiece, lastLessonPage, seenTours, tutorGoal
+        case lastTab, lastPiece, lastLessonPage, seenTours, tutorGoal, tutorGoalDate
     }
 
     public init(from decoder: Decoder) throws {
@@ -102,6 +104,7 @@ public struct LearnerSettings: Codable, Equatable, Sendable {
         persona = try c.decodeIfPresent(String.self, forKey: .persona)
         goalSong = try c.decodeIfPresent(String.self, forKey: .goalSong)
         tutorGoal = try c.decodeIfPresent(String.self, forKey: .tutorGoal)
+        tutorGoalDate = try c.decodeIfPresent(Date.self, forKey: .tutorGoalDate)
         inputSource = try c.decodeIfPresent(String.self, forKey: .inputSource)
         onboardedAt = try c.decodeIfPresent(Date.self, forKey: .onboardedAt)
         dancers = try c.decodeIfPresent(Bool.self, forKey: .dancers)

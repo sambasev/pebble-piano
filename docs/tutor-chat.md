@@ -34,6 +34,16 @@ return. Opening another piece or **New chat** ends it: the tutor writes a few li
 three notes go with every question as “Previous sessions”, so “what did we work on last
 time?” has an answer.
 
+**Progress and planning.** Every question carries this week's and last week's minutes and
+days, pieces under way, the coach's next lesson, and the open piece's trend over its last 12
+saved takes (`MistakeTrends`): first, latest and best note score, whether the last three takes
+improved on the three before, full-speed in-time takes kept apart from slowed or note-by-note
+ones, and the bars that went wrong in two or more takes with the usual slip ("bar 6, 4 of 7
+takes, usually E4 played as D4"). Drill takes are mapped to printed bar numbers. `planSession`
+saves today's plan (2–6 steps, 5–120 minutes) as a checklist card in the chat, kept in
+`tutor/plan.json` for that day; the tutor sees which steps are ticked. `setGoal` can carry a
+`goalDate`, shown to the tutor with the days left; a new goal without a date drops the old date.
+
 Practice requests prepare one repetition at a time. Timed exercises wait for **Start practice**
 before their count-in; note-by-note exercises wait for the learner's first note. Empty timed
 runs return to ready without a grade or saved take. Tempo requests use `setTempo`, keeping
@@ -101,6 +111,7 @@ Notes off the keyboard, unknown exercises or keys, more than two octaves and bar
 piece are refused without changing the player.
 
 Validation: `swift test --filter 'TutorChat|PiecePractice|LearnerStoreTests|LessonProgress|ExerciseGenerator'`
-(includes `TutorChatMemoryTests`, `TutorChatLibraryTests` and `TutorChatDemoTests`).
+(includes `TutorChatMemoryTests`, `TutorChatLibraryTests`, `TutorChatDemoTests`,
+`TutorChatProgressTests` and `MistakeTrendsTests`).
 The opt-in live tutor test requires `PIANOAI_LIVE=1` and `MODEL_API_KEY`; it sends a synthetic
 eight-bar score and checks score reading and the requested passage action against Meta.

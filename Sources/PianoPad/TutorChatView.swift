@@ -16,6 +16,7 @@ struct TutorChatView: View {
                 Text("Goal: " + session.tutorChatGoal)
                     .font(.caption).foregroundColor(PP.inkMuted).lineLimit(2)
             }
+            if let plan = session.tutorChatSessionPlan { planCard(plan) }
             // The conversation scrolls on its own, newest at the bottom; the question box stays put.
             ScrollViewReader { proxy in
                 ScrollView {
@@ -119,6 +120,29 @@ struct TutorChatView: View {
         guard !session.tutorChatBusy, TutorChat.clean(draft) != nil else { return }
         session.sendTutorChat(draft)
         draft = ""
+    }
+
+    /// Today's plan from the tutor: tick steps off; the tutor sees what's done.
+    private func planCard(_ plan: TutorSessionPlan) -> some View {
+        VStack(alignment: .leading, spacing: PP.Space.s1) {
+            HStack {
+                Text("Today's plan · \(plan.minutes) min").font(.caption.weight(.semibold)).foregroundColor(PP.ink)
+                Spacer()
+                Button { session.setTutorChatSessionPlan(nil) } label: { Image(systemName: "xmark") }
+                    .buttonStyle(PPIconButtonStyle(size: 22))
+                    .accessibilityLabel("Clear today's plan")
+                    .help("Clear today's plan")
+            }
+            ForEach(Array(plan.steps.enumerated()), id: \.offset) { index, step in
+                Toggle(isOn: Binding(get: { step.done }, set: { _ in session.toggleTutorChatPlanStep(index) })) {
+                    Text(step.text).font(.caption).foregroundColor(step.done ? PP.inkMuted : PP.ink)
+                        .strikethrough(step.done).fixedSize(horizontal: false, vertical: true)
+                }
+                .toggleStyle(PPCheckboxToggleStyle())
+            }
+        }
+        .padding(PP.Space.s2)
+        .background(RoundedRectangle(cornerRadius: PP.Radius.sm).fill(PP.surfaceRaised))
     }
 
     @ViewBuilder private func bubble(_ turn: TutorChatTurn) -> some View {

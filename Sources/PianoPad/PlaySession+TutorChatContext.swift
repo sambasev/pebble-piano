@@ -25,6 +25,10 @@ extension PlaySession {
     func addTutorChatEvidence(to context: inout TutorChatContext, question: String) {
         guard canChatWithTutor else { return }
         context.goal = tutorChatGoal.isEmpty ? "Not set; ask what the learner wants to achieve when relevant." : tutorChatGoal
+        if !tutorChatGoal.isEmpty, learnerSettings.tutorGoal != nil, let date = learnerSettings.tutorGoalDate {
+            let days = Calendar.current.dateComponents([.day], from: Calendar.current.startOfDay(for: Date()), to: date).day ?? 0
+            context.goal += " Target date: \(Self.tutorChatDay(date)) (\(days) days from today)."
+        }
         context.screen = "Section: \(tab.rawValue) (\(Self.tutorChatSectionMeaning(tab))). Player: \(phase). Mode: \(mode.rawValue). Speed: \(Int(tempoPercent))%. "
             + "Notes recorded in ongoing take: \(noteCount). Guide: \(guideProgress.done)/\(guideProgress.total). "
             + "Listening: \(isAuditioning). Coaching after takes: \(tutorChatCoaching). "
@@ -74,6 +78,8 @@ extension PlaySession {
                 "\(Self.chatDate($0.ended)): \($0.kind.rawValue), \($0.minutes) min, pages \($0.pages), completed \($0.completedPages), new notes \($0.notesLearned), takes \($0.takes), stars \($0.stars)."
             }
             context.history = (lessons + sessions).joined(separator: "\n")
+            context.progress = tutorChatProgress(history)
+            context.trends = tutorChatTrends(history)
             let saved = history.allTakes().suffix(5).compactMap { take -> String? in
                 guard let data = try? Data(contentsOf: take.reportURL),
                       let report = try? JSONDecoder().decode(GradeReport.self, from: data) else { return nil }
@@ -104,6 +110,53 @@ extension PlaySession {
     }
 
     private static func chatDate(_ date: Date) -> String { ISO8601DateFormatter().string(from: date) }
+
+    // MARK: C4 · Progress and trends
+
+    /// This week against last, pieces under way, the coach's next lesson and today's plan.
+    func tutorChatProgress(_ history: LearnerHistory, now: Date = Date()) -> String {
+        let sessions = history.sessions()
+        let lastWeek = now.addingTimeInterval(-7 * 86_400)
+        var lines = ["This week: \(WeeklyStreak.minutesThisWeek(sessions, now: now)) min on \(WeeklyStreak.daysThisWeek(sessions, now: now)) days. "
+            + "Last week: \(WeeklyStreak.minutesThisWeek(sessions, now: lastWeek)) min on \(WeeklyStreak.daysThisWeek(sessions, now: lastWeek)) days."]
+        let underway = history.progress().filter { !$0.value.isCompleted && !$0.key.rawValue.hasPrefix("lesson:") }
+            .sorted { $0.value.lastPlayed > $1.value.lastPlayed }.prefix(5)
+        if !underway.isEmpty {
+            lines.append("Pieces under way: " + underway.map { id, p in
+                let title = learnerSettings.recentPieces.first(where: { $0.id == id })?.title ?? String(id.rawValue.prefix(60))
+                return "\(title) (\(p.attempts) takes, best \(Int(p.bestScore * 100))%, last played \(Self.tutorChatDay(p.lastPlayed)))"
+            }.joined(separator: "; ") + ".")
+        }
+        if let unit = Self.unitOne?.unit {
+            let states = history.lessonProgress().reduce(into: [String: CoachPageState]()) { states, entry in
+                guard let page = unit.pages.first(where: { entry.key == .lessonPage(unit: unit.id, page: $0.id) }) else { return }
+                let p = entry.value
+                states[page.id] = CoachPageState(completed: p.isCompleted, inProgress: p.currentBlock > 0,
+                                                 bestStars: p.bestStars, flagged: !p.flaggedBlocks.isEmpty)
+            }
+            if let next = Coach.nextPage(in: unit, states: states) { lines.append("Coach's next lesson: \(next.id): \(next.title).") }
+        }
+        if let plan = tutorChatSessionPlan { lines.append(plan.prompt) }
+        return lines.joined(separator: "\n")
+    }
+
+    /// The open piece's saved takes over time, with drill bars mapped to printed numbers.
+    func tutorChatTrends(_ history: LearnerHistory) -> String {
+        guard let piece = currentPieceID else { return "" }
+        let pieceBPM = (tutorFullReference ?? reference)?.initialTempoBPM
+        let takes = history.takes(for: piece).suffix(MistakeTrends.takeLimit).compactMap { take -> TrendTake? in
+            guard let data = try? Data(contentsOf: take.reportURL),
+                  let report = try? JSONDecoder().decode(GradeReport.self, from: data) else { return nil }
+            let metadataURL = take.reportURL.deletingPathExtension().appendingPathExtension("tutor.json")
+            let metadata = (try? Data(contentsOf: metadataURL)).flatMap { try? JSONDecoder().decode(TutorAttemptContext.self, from: $0) }
+            // A take outside the tutor: its speed is its target tempo against the piece's.
+            let speed = metadata?.actualTempoPercent
+                ?? report.timing.flatMap { t in pieceBPM.map { t.targetBPM / max(1, $0) * 100 } }
+            return TrendTake(date: take.date, report: report, printedMeasures: metadata?.printedMeasures,
+                             tempoPercent: speed, noteByNote: metadata?.exercise.kind == .notes || report.timing == nil)
+        }
+        return MistakeTrends(takes).summary(title: tutorTitle)
+    }
 
     static func tutorChatGradeText(_ report: GradeReport) -> String {
         var text = "Passed: \(report.passed). Notes correct \(report.notes.correct)/\(report.notes.expected), wrong \(report.notes.wrongPitch), missed \(report.notes.missed), extra \(report.notes.extra), score \(Int(report.notes.score * 100))%."

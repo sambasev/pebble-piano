@@ -79,10 +79,18 @@ extension PlaySession {
             return ran("Set this passage to \(Int(speed))% speed. Your take has not been graded.")
 
         case .setGoal:
-            guard let goal = TutorChat.clean(action.goal ?? "") else { return "No musical goal was provided." }
-            learnerSettings.tutorGoal = String(goal.prefix(500))
-            saveLearnerSettings()
-            return ran("Goal saved: \(learnerSettings.tutorGoal!).")
+            guard TutorChat.clean(action.goal ?? "") != nil else { return "No musical goal was provided." }
+            if let problem = Self.tutorChatGoalDateProblem(action.goalDate) { return problem }
+            saveChatGoal(from: action)
+            return ran("Goal saved: \(learnerSettings.tutorGoal!)"
+                + (learnerSettings.tutorGoalDate.map { ", by \(Self.tutorChatDay($0))" } ?? "") + ".")
+
+        case .planSession:
+            guard let plan = TutorSessionPlan(minutes: action.minutes, steps: action.planSteps) else {
+                return "A plan needs 2–\(TutorSessionPlan.stepLimit) steps and 5–120 minutes. Nothing was saved."
+            }
+            setTutorChatSessionPlan(plan)
+            return ran("Saved today's plan: \(plan.steps.count) steps, \(plan.minutes) minutes. Tick them off in the chat.")
 
         case .gradeTake:
             guard phase == .recording, noteCount > 0, playAlongState != .countIn else {
@@ -352,7 +360,48 @@ extension PlaySession {
     private func saveChatGoal(from action: TutorChatAction) {
         guard let goal = TutorChat.clean(action.goal ?? "") else { return }
         learnerSettings.tutorGoal = String(goal.prefix(500))
+        // A new goal without a date drops the old goal's date.
+        learnerSettings.tutorGoalDate = Self.tutorChatGoalDateProblem(action.goalDate) == nil
+            ? action.goalDate.flatMap(Self.tutorChatParseDay) : nil
         saveLearnerSettings()
+    }
+
+    // MARK: C4 · Progress and planning
+
+    /// Why a goal date can't be used, or nil when it's absent or fine (today to two years ahead).
+    static func tutorChatGoalDateProblem(_ text: String?, now: Date = Date()) -> String? {
+        guard let text, !text.isEmpty else { return nil }
+        guard let day = tutorChatParseDay(text) else { return "Give the goal's date as YYYY-MM-DD. Nothing was saved." }
+        let today = Calendar.current.startOfDay(for: now)
+        guard day >= today, day <= today.addingTimeInterval(2 * 366 * 86_400) else {
+            return "Choose a goal date from today to two years ahead. Nothing was saved."
+        }
+        return nil
+    }
+
+    static func tutorChatParseDay(_ text: String) -> Date? {
+        let format = DateFormatter()
+        format.locale = Locale(identifier: "en_US_POSIX")
+        format.dateFormat = "yyyy-MM-dd"
+        return format.date(from: text.trimmingCharacters(in: .whitespaces))
+    }
+
+    static func tutorChatDay(_ date: Date) -> String {
+        date.formatted(.dateTime.month(.abbreviated).day().year())
+    }
+
+    /// Saves (or clears) today's plan for the active learner.
+    func setTutorChatSessionPlan(_ plan: TutorSessionPlan?) {
+        tutorChatSessionPlan = plan
+        guard let learner else { return }
+        try? tutorChatMemory(for: learner.id).save(plan: plan)
+    }
+
+    /// The learner ticked a step of today's plan.
+    func toggleTutorChatPlanStep(_ index: Int) {
+        guard var plan = tutorChatSessionPlan, plan.steps.indices.contains(index) else { return }
+        plan.steps[index].done.toggle()
+        setTutorChatSessionPlan(plan)
     }
 
     /// Printed book numbers can repeat in played order. Choose the first complete occurrence.

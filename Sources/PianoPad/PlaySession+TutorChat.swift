@@ -171,6 +171,7 @@ extension PlaySession {
 
     /// Reopens the conversation saved with the open piece, if there's no conversation yet.
     func restoreTutorChat() {
+        tutorChatSessionPlan = canChatWithTutor ? learner.flatMap { tutorChatMemory(for: $0.id).plan() } : nil
         guard canChatWithTutor, let learner, tutorChat.turns.isEmpty, !tutorChatBusy,
               let turns = tutorChatMemory(for: learner.id).chat(for: currentPieceID?.rawValue) else { return }
         tutorChat = TutorChat(turns: turns)
