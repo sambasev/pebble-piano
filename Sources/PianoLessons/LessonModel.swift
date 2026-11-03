@@ -93,6 +93,16 @@ public struct LessonPage: Codable, Equatable, Sendable {
         return blocks[index].hint ?? hint
     }
 
+    /// The music that stands for the page when previewing it from the map: its song, else its
+    /// last listening, timed or wait exercise (the fullest version of what it teaches). Nil for
+    /// pages with nothing to play (ear training, explanations).
+    public var previewBlock: Block? {
+        for kind in [Block.Kind.songChallenge, .listen, .timed, .wait] {
+            if let block = blocks.last(where: { $0.kind == kind }) { return block }
+        }
+        return nil
+    }
+
     /// The page that plays the learner's own goal song (shown as the unit's finale).
     public var isGoalSongPage: Bool {
         blocks.contains { if case .songChallenge(let b) = $0 { return b.useGoalSong } else { return false } }

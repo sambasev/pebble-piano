@@ -57,6 +57,13 @@ final class LessonModelTests: XCTestCase {
         try JSONDecoder().decode(LessonUnit.self, from: Data(Self.unitJSON.utf8))
     }
 
+    func testPreviewBlockPrefersSongThenListening() throws {
+        let unit = try decode()
+        XCTAssertEqual(unit.pages[0].previewBlock?.kind, .listen, "the listening exercise over wait and timed")
+        XCTAssertNil(unit.pages[1].previewBlock, "a concept page has nothing to play")
+        XCTAssertEqual(unit.pages[2].previewBlock?.midi, "mary.mid")
+    }
+
     func testDecodesEveryBlockKind() throws {
         let unit = try decode()
         XCTAssertEqual(unit.pages.map(\.id), ["p1", "p2", "p3"])

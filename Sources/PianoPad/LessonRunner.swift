@@ -423,6 +423,25 @@ final class LessonRunner: ObservableObject, PlayerObserver {
         return FileManager.default.fileExists(atPath: unit.url(for: path).path) ? path : b.midi
     }
 
+    /// What a page on the map plays when previewed: its song or fullest exercise, at the
+    /// tempo the lesson plays it. Nil when it has nothing to hear.
+    func preview(of page: LessonPage) -> (url: URL, tempo: Double?)? {
+        guard let unit, let block = page.previewBlock else { return nil }
+        switch block {
+        case .songChallenge(let b): return (unit.url(for: songPath(b)), nil)
+        case .listen(let b): return (unit.url(for: b.midi), b.tempo)
+        case .timed(let b): return (unit.url(for: b.midi), b.tempo)
+        default: return block.midi.map { (unit.url(for: $0), nil) }
+        }
+    }
+
+    /// The same for a page in My pieces, whichever course is showing: the whole piece.
+    func preview(ofPiecePage page: LessonPage) -> (url: URL, tempo: Double?)? {
+        guard let midi = page.previewBlock?.midi else { return nil }
+        let key = page.id.hasPrefix("piece-") ? String(page.id.dropFirst("piece-".count)) : page.id
+        return (PieceLessonStore.folder(key).appendingPathComponent(midi), nil)
+    }
+
     /// Stars earned across the unit's pages, and the most there are.
     var unitStars: (earned: Int, possible: Int) {
         guard let unit else { return (0, 0) }

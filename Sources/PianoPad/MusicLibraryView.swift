@@ -55,6 +55,7 @@ struct MusicLibraryView: View {
                                 Image(systemName: "checkmark.circle.fill").foregroundColor(PP.success)
                                     .accessibilityLabel("Available offline")
                             }
+                            preview(piece, size: 26)
                         }
                         .padding(.vertical, 6)
                         .tag(piece.id)
@@ -88,13 +89,23 @@ struct MusicLibraryView: View {
         .onDisappear { model.cancel() }
     }
 
+    /// Hear it before choosing: the MIDI downloads first if it isn't here yet.
+    private func preview(_ piece: CatalogPiece, size: CGFloat) -> some View {
+        PreviewButton(id: "catalog:" + piece.id, title: piece.title, size: size) {
+            await model.previewFile(piece).map { ($0, nil) }
+        }
+    }
+
     private func detail(_ piece: CatalogPiece) -> some View {
         VStack(alignment: .leading, spacing: PP.Space.s3) {
             Image(systemName: "music.note.list").font(.system(size: 34)).foregroundColor(PP.accent)
                 .accessibilityHidden(true)
             Text(piece.title).font(.ppTitle)
             Text(piece.composer).font(.ppHeadline).foregroundColor(PP.inkMuted)
-            Text("\(piece.difficulty.rawValue) · Solo piano").font(.ppCallout)
+            HStack(spacing: PP.Space.s2) {
+                preview(piece, size: PP.Size.compact)
+                Text("\(piece.difficulty.rawValue) · Solo piano").font(.ppCallout)
+            }
             if model.downloaded.contains(piece.id) {
                 Label("Available offline", systemImage: "checkmark.circle.fill").foregroundColor(PP.success)
             }
@@ -108,8 +119,6 @@ struct MusicLibraryView: View {
             } label: { Label("Practise freely", systemImage: "pianokeys").frame(maxWidth: .infinity) }
                 .buttonStyle(.bordered)
                 .disabled(model.downloadingID != nil)
-            Text("Hear the piece with Listen once it opens in Practice.")
-                .font(.ppCaption).foregroundColor(PP.inkMuted)
             Divider()
             Text("Edition and credits").font(.ppHeadline)
             Text(piece.attribution).font(.ppCallout)

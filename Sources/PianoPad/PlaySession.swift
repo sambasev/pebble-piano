@@ -554,6 +554,12 @@ final class PlaySession: ObservableObject {
     private var guide = WaitGuide(chords: [])
     private var settleWork: DispatchWorkItem?
     private lazy var synth = PianoSynth(outputDeviceUID: outputDeviceUID)
+    /// Hearing a piece from its card before opening it.
+    private(set) lazy var preview = PiecePreview(synth: { [weak self] in self?.synth }) { [weak self] active in
+        guard let self else { return }
+        if active { self.stopAudition() }
+        self.audio?.setMuted(active || self.isAuditioning || self.isEarTrainingActive)
+    }
     private var midi: MIDIInput?
     /// Kept while open so the Bluetooth MIDI window isn't released.
     private var bluetoothPairingWindow: CABTLEMIDIWindowController?
@@ -1458,6 +1464,7 @@ final class PlaySession: ObservableObject {
         guard let synth else { return }
         guard phase != .recording, !isPlayingAlong else { return }
         stopAudition()
+        preview.stop()
         isAuditioning = true
         auditionIsNote = clock == nil
         audio?.setMuted(true) // the speakers would be heard as playing
@@ -1582,6 +1589,7 @@ final class PlaySession: ObservableObject {
     @discardableResult
     func loadReference(_ url: URL, keepPassage: Bool = false, tempo: Double? = nil, remember: Bool = true,
                        measures: ClosedRange<Int>? = nil, writtenScore: Score? = nil, printedFingering: [PrintedFinger] = [], title: String? = nil) -> Bool {
+        preview.stop()
         let parsed: MIDISequence
         do { parsed = try MIDIFile.read(url: url) }
         catch { message = "Couldn’t read \(url.lastPathComponent): \(error)"; return false }
@@ -1964,6 +1972,7 @@ extension PlaySession {
             }
             return
         }
+        preview.stop()
         stopAudition()
         stopPlayAlong(discard: false)
         guard let player = makeBackingPlayer(clock: clock) else { return }
@@ -2457,6 +2466,7 @@ extension PlaySession {
         MainActor.assumeIsolated { earTraining.session.stop() }
         endTutoring()
         // Leaving a tab stops the music; coming back to practice picks up edits to the linked track.
+        preview.stop()
         stopAudition()
         stopPlayAlong(discard: false)
         // Leaving Learn ends the lesson and puts the practice piece back.

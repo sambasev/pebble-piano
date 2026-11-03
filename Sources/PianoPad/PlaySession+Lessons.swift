@@ -83,6 +83,7 @@ extension PlaySession: PlayerControl {
 
     func beginLesson(piece: PieceID, observer: PlayerObserver) {
         savePracticeSetup()
+        preview.stop()
         stopAudition()
         stopPlayAlong(discard: true)
         lessonPiece = piece
