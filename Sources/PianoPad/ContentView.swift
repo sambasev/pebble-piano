@@ -136,11 +136,11 @@ struct ContentView: View {
                 InputSettingsView().environmentObject(session).ppDefaultButtons()
             }
             .tourAnchor(.inputStatus)
-            if session.canChatWithTutor && session.tab != .practice {
+            if session.canAskTutor && session.tab != .practice {
                 Button { showTutorChat.toggle() } label: { Image(systemName: "bubble.left.and.bubble.right") }
                     .buttonStyle(PPIconButtonStyle())
                     .accessibilityLabel("Tutor")
-                    .help("Chat with your tutor and review practice results")
+                    .help(session.tutorChatIsChild ? "Ask your teacher for help" : "Chat with your tutor and review practice results")
                     .popover(isPresented: $showTutorChat) {
                         TutorChatView().environmentObject(session)
                             .frame(width: 360, height: 480).padding(PP.Space.s4).ppDefaultButtons()
@@ -196,7 +196,7 @@ struct ContentView: View {
             toolbar
                 .ppGlass(cornerRadius: PP.Radius.lg, padding: PP.Space.s3)
             if let engine = session.tutor, !session.tutorPlanning,
-               !(compact && askingTutor && session.canChatWithTutor) {
+               !(compact && askingTutor && session.canAskTutor) {
                 TutorStepBanner(engine: engine)
             }
             statusLine
@@ -320,7 +320,7 @@ struct ContentView: View {
     /// The grade, or how a take works, on a glass panel beside the music.
     private var reportPanel: some View {
         Group {
-            if askingTutor && session.canChatWithTutor {
+            if askingTutor && session.canAskTutor {
                 // The transcript owns scrolling; the composer stays at the bottom of the panel.
                 TutorPanel().environmentObject(session)
             } else {
@@ -334,7 +334,7 @@ struct ContentView: View {
             }
         }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            .ppGlass(padding: askingTutor && session.canChatWithTutor && compact ? PP.Space.s3 : PP.Space.s6)
+            .ppGlass(padding: askingTutor && session.canAskTutor && compact ? PP.Space.s3 : PP.Space.s6)
             .frame(width: 340, alignment: .topLeading)
             .tourAnchor(.report)
     }

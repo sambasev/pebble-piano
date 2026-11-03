@@ -15,15 +15,15 @@ struct TutorPanel: View {
             HStack {
                 Text("Piece tutor").font(.ppHeadline)
                 Spacer()
-                if asking && session.canChatWithTutor && !session.tutorChat.turns.isEmpty {
+                if asking && session.canAskTutor && !session.tutorChat.turns.isEmpty {
                     Button { session.resetTutorChat() } label: { Image(systemName: "square.and.pencil") }
                         .buttonStyle(PPIconButtonStyle())
                         .accessibilityLabel("New chat")
                         .help("New chat")
                 }
-                Button("AI settings") { settings = true }
+                if !session.tutorChatIsChild { Button("AI settings") { settings = true } }
             }
-            if session.canChatWithTutor {
+            if session.canAskTutor {
                 PPSegmented(selection: $asking, [
                     (false, "Lesson"),
                     (true, "Ask")
@@ -31,7 +31,7 @@ struct TutorPanel: View {
                 .accessibilityLabel("")
                 .help("Ask your tutor about this piece, the book page, or anything about music")
             }
-            if asking && session.canChatWithTutor {
+            if asking && session.canAskTutor {
                 TutorChatView()
             } else {
                 lesson

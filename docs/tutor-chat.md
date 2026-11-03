@@ -53,6 +53,15 @@ learner presses it, and “Not now” drops it. `markPlayedRight` copies the lat
 the open piece, its report and a label to `PlayedRight/` in Application Support for checking
 the grader; the grade is unchanged. Each of these ends a plan.
 
+**Children.** A child learner never types. The chat shows big buttons instead of a text box:
+“What's this note?”, “Play it for me”, “Make it slower”, “I'm stuck”, and a smaller “For
+grown-ups: how is it going?”. Each sends a fixed question with the child prompt
+(`TutorChatInstructions.child`: three short sentences at most, no percentages or grading
+words). Only `playNotes`, `highlight`, `setTempo` and `stop` can run for a child, at most two
+per answer; anything else the model asks for is dropped. The grown-ups' button is answered in
+adult language from progress and trends, with no actions. Follow-up chips, the coaching
+toggle, the book toggle and AI settings are hidden for children.
+
 Practice requests prepare one repetition at a time. Timed exercises wait for **Start practice**
 before their count-in; note-by-note exercises wait for the learner's first note. Empty timed
 runs return to ready without a grade or saved take. Tempo requests use `setTempo`, keeping
@@ -121,6 +130,6 @@ piece are refused without changing the player.
 
 Validation: `swift test --filter 'TutorChat|PiecePractice|LearnerStoreTests|LessonProgress|ExerciseGenerator'`
 (includes `TutorChatMemoryTests`, `TutorChatLibraryTests`, `TutorChatDemoTests`,
-`TutorChatProgressTests`, `MistakeTrendsTests`, `TutorChatHelpTests` and `TutorAppGuideTests`).
+`TutorChatProgressTests`, `MistakeTrendsTests`, `TutorChatHelpTests`, `TutorAppGuideTests` and `TutorChatChildTests`).
 The opt-in live tutor test requires `PIANOAI_LIVE=1` and `MODEL_API_KEY`; it sends a synthetic
 eight-bar score and checks score reading and the requested passage action against Meta.

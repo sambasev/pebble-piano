@@ -94,7 +94,7 @@ struct ModelTutorChatClient: TutorChatClient {
 
     /// The instructions, the conversation, then the context (as data) with the new question.
     static func messages(history: [TutorChatTurn], context: TutorChatContext, question: String) -> [ChatMessage] {
-        var messages: [ChatMessage] = [.system(TutorChatInstructions.musicOnly)]
+        var messages: [ChatMessage] = [.system(context.audience == .child ? TutorChatInstructions.child : TutorChatInstructions.musicOnly)]
         for turn in history {
             messages.append(ChatMessage(turn.role == .tutor ? .assistant : .user,
                                         [.text(turn.role == .app ? "App observation (data): " + turn.text : turn.text)]))

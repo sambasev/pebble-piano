@@ -58,7 +58,9 @@ extension PlaySession {
     @discardableResult
     func applyTutorChatAction(_ action: TutorChatAction) -> String {
         tutorChatActionRan = false
-        guard canChatWithTutor else { return "Tutor actions are available only for the active adult learner." }
+        guard canChatWithTutor || (tutorChatIsChild && TutorChildPrompts.actions.contains(action.kind)) else {
+            return "Tutor actions are available only for the active adult learner."
+        }
         // Never replace an ungraded performance or cut off a demonstration with an old decision.
         if phase == .recording && ![.gradeTake, .stop, .setGoal, .setTempo, .searchLibrary, .highlight].contains(action.kind) {
             return "A take is still recording. Finish it with Grade, or ask me to grade it, before changing the exercise."

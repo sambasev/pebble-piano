@@ -672,9 +672,9 @@ final class PlaySession: ObservableObject {
     let learnerStore: LearnerStore
     /// The learner whose settings, recent pieces and (later) takes are in use; nil until one is added.
     @Published var learner: Learner? {
-        // Ask your tutor is one adult's conversation: it's cleared for anyone else, and never kept for a child.
+        // Each learner has their own conversation (a child's is fixed questions only): switching keeps it saved for their return.
         didSet {
-            guard oldValue?.id != learner?.id || learner?.kind != .adult else { return }
+            guard oldValue?.id != learner?.id || oldValue?.kind != learner?.kind else { return }
             resetTutorChat(keepSaved: true) // still saved for when they're back
             restoreTutorChat()
         }

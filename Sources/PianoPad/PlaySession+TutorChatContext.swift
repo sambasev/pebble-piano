@@ -23,7 +23,7 @@ extension PlaySession {
 
     /// The app's own state and musical data, not a capture of the user's desktop.
     func addTutorChatEvidence(to context: inout TutorChatContext, question: String) {
-        guard canChatWithTutor else { return }
+        guard canAskTutor else { return }
         context.goal = tutorChatGoal.isEmpty ? "Not set; ask what the learner wants to achieve when relevant." : tutorChatGoal
         if !tutorChatGoal.isEmpty, learnerSettings.tutorGoal != nil, let date = learnerSettings.tutorGoalDate {
             let days = Calendar.current.dateComponents([.day], from: Calendar.current.startOfDay(for: Date()), to: date).day ?? 0

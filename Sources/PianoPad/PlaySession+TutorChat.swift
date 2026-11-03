@@ -20,9 +20,23 @@ struct TutorChatObservation {
 }
 
 /// Ask your tutor: questions about music, with the lesson and its book page as context.
-/// Adults only: a child never sees it, and nothing is sent for one.
+/// Adults type freely; a child only taps `TutorChildPrompts` (C6).
 extension PlaySession {
+    /// Free questions: adults only.
     var canChatWithTutor: Bool { learner?.kind == .adult }
+    /// Any tutor chat at all: an adult, or a child with the fixed questions.
+    var canAskTutor: Bool { learner?.kind == .adult || learner?.kind == .child }
+    var tutorChatIsChild: Bool { learner?.kind == .child }
+
+    /// A child's (or their grown-up's) tap on a fixed question. Nothing else is ever sent for a child.
+    func askTutorAsChild(_ chip: String) {
+        guard tutorChatIsChild, let audience = TutorChildPrompts.audience(for: chip) else { return }
+        stopTutorChat()
+        let question = TutorChildPrompts.question(for: chip)
+        var context = tutorChatContext(for: question)
+        context.audience = audience
+        requestTutorChat(question, context: context, observation: nil, scoreID: scoreID, shown: chip)
+    }
 
     func sendTutorChat(_ text: String) {
         guard canChatWithTutor, let question = TutorChat.clean(text) else { return }
@@ -30,8 +44,9 @@ extension PlaySession {
         requestTutorChat(question, context: tutorChatContext(for: question), observation: nil, scoreID: scoreID)
     }
 
-    func requestTutorChat(_ question: String, context: TutorChatContext, observation: String?, scoreID: UUID) {
-        guard canChatWithTutor else { return }
+    func requestTutorChat(_ question: String, context: TutorChatContext, observation: String?, scoreID: UUID,
+                          shown: String? = nil) {
+        guard canAskTutor, canChatWithTutor || context.audience != .adult else { return }
         tutorChatNote = nil
         let client: any TutorChatClient
         do {
@@ -41,7 +56,7 @@ extension PlaySession {
             return
         }
         let history = tutorChat.history
-        let id = observation.map { tutorChat.observe($0) } ?? tutorChat.ask(question)
+        let id = observation.map { tutorChat.observe($0) } ?? tutorChat.ask(shown ?? question)
         tutorChatRequestTurn = id
         let generation = UUID()
         tutorChatGeneration = generation
@@ -49,13 +64,17 @@ extension PlaySession {
         tutorChatTask = Task { @MainActor [weak self] in
             do {
                 let reply = try await client.reply(history: history, context: context, question: question)
-                guard let self, !Task.isCancelled, self.tutorChatGeneration == generation, self.canChatWithTutor else { return }
+                guard let self, !Task.isCancelled, self.tutorChatGeneration == generation, self.canAskTutor else { return }
                 self.tutorChat.answer(reply, to: id)
                 self.tutorChatBusy = false
                 self.tutorChatRequestTurn = nil
                 self.tutorChatTask = nil
                 if reply.onTopic, !reply.reply.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                    self.runTutorChatPlan(Array(reply.actions.prefix(TutorChatReply.actionLimit)), scoreID: scoreID)
+                    // A grown-up's question gets an answer only; a child's, only the child actions.
+                    let actions = context.audience == .grownUp ? []
+                        : context.audience == .child ? reply.actions.filter { TutorChildPrompts.actions.contains($0.kind) }.prefix(2).map { $0 }
+                        : Array(reply.actions.prefix(TutorChatReply.actionLimit))
+                    self.runTutorChatPlan(actions, scoreID: scoreID)
                 }
                 self.saveTutorChat()
                 self.flushTutorChatObservation()
@@ -168,7 +187,7 @@ extension PlaySession {
     /// Keeps the conversation in the learner's folder, to reopen with this piece. A conversation
     /// saved for another piece is noted before it's replaced.
     func saveTutorChat() {
-        guard canChatWithTutor, let learner, !tutorChat.turns.isEmpty else { return }
+        guard canAskTutor, let learner, !tutorChat.turns.isEmpty else { return }
         let memory = tutorChatMemory(for: learner.id)
         let piece = currentPieceID?.rawValue
         if tutorChatOwner == nil, let old = memory.chat(), old.piece != piece, TutorChatMemory.isWorthNoting(old.turns) {
@@ -181,7 +200,7 @@ extension PlaySession {
     /// Reopens the conversation saved with the open piece, if there's no conversation yet.
     func restoreTutorChat() {
         tutorChatSessionPlan = canChatWithTutor ? learner.flatMap { tutorChatMemory(for: $0.id).plan() } : nil
-        guard canChatWithTutor, let learner, tutorChat.turns.isEmpty, !tutorChatBusy,
+        guard canAskTutor, let learner, tutorChat.turns.isEmpty, !tutorChatBusy,
               let turns = tutorChatMemory(for: learner.id).chat(for: currentPieceID?.rawValue) else { return }
         tutorChat = TutorChat(turns: turns)
         tutorChatOwner = learner.id

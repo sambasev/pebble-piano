@@ -12,7 +12,7 @@ struct TutorChatView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: PP.Space.s3) {
-            if !compact && !session.tutorChatGoal.isEmpty {
+            if !compact && !session.tutorChatIsChild && !session.tutorChatGoal.isEmpty {
                 Text("Goal: " + session.tutorChatGoal)
                     .font(.caption).foregroundColor(PP.inkMuted).lineLimit(2)
             }
@@ -21,7 +21,11 @@ struct TutorChatView: View {
             ScrollViewReader { proxy in
                 ScrollView {
                     VStack(alignment: .leading, spacing: PP.Space.s3) {
-                        if session.tutorChat.turns.isEmpty {
+                        if session.tutorChat.turns.isEmpty && session.tutorChatIsChild {
+                            Text("Tap a button and I'll help you play!")
+                                .font(.title3).foregroundColor(PP.inkMuted)
+                                .fixedSize(horizontal: false, vertical: true)
+                        } else if session.tutorChat.turns.isEmpty {
                             Text("I can read the open score and your recent practice results. Tell me your goal, or ask me to teach a passage—for example, ‘Help me learn bar 4 slowly.’")
                                 .font(.callout).foregroundColor(PP.inkMuted)
                                 .fixedSize(horizontal: false, vertical: true)
@@ -47,7 +51,7 @@ struct TutorChatView: View {
                     .font(.caption).foregroundColor(PP.inkMuted).lineLimit(2)
                     .accessibilityLabel("Next in the tutor's plan: " + session.tutorChatQueuedActions.map(\.summary).joined(separator: ", then "))
             }
-            if !session.tutorChatBusy && !session.tutorChat.suggestions.isEmpty {
+            if !session.tutorChatIsChild && !session.tutorChatBusy && !session.tutorChat.suggestions.isEmpty {
                 VStack(alignment: .leading, spacing: PP.Space.s1) {
                     ForEach(session.tutorChat.suggestions, id: \.self) { suggestion in
                         Button { session.sendTutorChat(suggestion) } label: {
@@ -91,6 +95,9 @@ struct TutorChatView: View {
                 Button("Grade take") { session.finishTutorChatTake() }
                     .buttonStyle(PPGlassButtonStyle())
             }
+            if session.tutorChatIsChild {
+                childButtons
+            } else {
             HStack(alignment: .bottom, spacing: PP.Space.s2) {
                 TutorChatComposer(text: $draft, focused: $focused, height: $composerHeight,
                                   send: send)
@@ -118,11 +125,28 @@ struct TutorChatView: View {
             .overlay(RoundedRectangle(cornerRadius: PP.Radius.sm)
                 .strokeBorder(focused ? PP.focusRing : PP.inkStaff.opacity(0.45), lineWidth: focused ? 2 : 1)
                 .allowsHitTesting(false))
-            if let book = session.tutorChatBookLabel {
+            }
+            if !session.tutorChatIsChild, let book = session.tutorChatBookLabel {
                 Toggle(isOn: $session.tutorChatUsesBook) { Text("Use \(book)").font(.caption) }
                     .help("Send the book page's text and a picture of it with each question")
             }
         }
+    }
+
+    /// A child taps one of a few fixed questions; there is no text box (C6).
+    private var childButtons: some View {
+        VStack(alignment: .leading, spacing: PP.Space.s2) {
+            ForEach(TutorChildPrompts.chips.filter { $0 != TutorChildPrompts.grownUps }, id: \.self) { chip in
+                Button(chip) { session.askTutorAsChild(chip) }
+                    .buttonStyle(PPGlassButtonStyle(height: PP.Size.targetMin))
+                    .disabled(session.tutorChatBusy)
+            }
+            Button(TutorChildPrompts.grownUps) { session.askTutorAsChild(TutorChildPrompts.grownUps) }
+                .buttonStyle(PPGlassButtonStyle(height: 26))
+                .disabled(session.tutorChatBusy)
+                .help("For a parent: time practised, what's going well and where they're stuck")
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private func send() {
