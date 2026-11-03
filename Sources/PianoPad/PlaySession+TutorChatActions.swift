@@ -59,10 +59,10 @@ extension PlaySession {
         tutorChatActionRan = false
         guard canChatWithTutor else { return "Tutor actions are available only for the active adult learner." }
         // Never replace an ungraded performance or cut off a demonstration with an old decision.
-        if phase == .recording && ![.gradeTake, .stop, .setGoal, .setTempo].contains(action.kind) {
+        if phase == .recording && ![.gradeTake, .stop, .setGoal, .setTempo, .searchLibrary].contains(action.kind) {
             return "A take is still recording. Finish it with Grade, or ask me to grade it, before changing the exercise."
         }
-        if isAuditioning && ![.stop, .setGoal].contains(action.kind) {
+        if isAuditioning && ![.stop, .setGoal, .searchLibrary].contains(action.kind) {
             return "The demonstration is still playing. Let it finish, or stop it before changing exercises."
         }
         switch action.kind {
@@ -167,6 +167,12 @@ extension PlaySession {
             let mode = action.kind == .listenPassage ? "demonstration" : action.mode == .timed ? "in time" : "note by note"
             return ran("\(tutorChatAwaitingStart ? "Prepared" : "Started") bars \(start)–\(end), \(hand?.rawValue ?? "both hands"), \(Int(speed))%, \(mode). "
                 + (tutorChatAwaitingStart ? "Press Start practice when you're ready." : "Play when you're ready; I'll review the graded take."))
+
+        // Library and navigation (PlaySession+TutorLibrary).
+        case .searchLibrary: return checked(MainActor.assumeIsolated { tutorChatSearchLibrary(action) })
+        case .openPiece: return checked(MainActor.assumeIsolated { tutorChatOpenPiece(action) })
+        case .previewPiece: return checked(MainActor.assumeIsolated { tutorChatPreviewPiece(action) })
+        case .openBookPage: return checked(MainActor.assumeIsolated { tutorChatOpenBookPage(action) })
         }
     }
 
@@ -174,6 +180,10 @@ extension PlaySession {
     private func ran(_ outcome: String) -> String {
         tutorChatActionRan = true
         return outcome
+    }
+
+    private func checked(_ result: (outcome: String, ran: Bool)) -> String {
+        result.ran ? ran(result.outcome) : result.outcome
     }
 
     private func saveChatGoal(from action: TutorChatAction) {

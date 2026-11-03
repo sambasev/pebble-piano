@@ -14,20 +14,33 @@ struct ModelTutorChatClient: TutorChatClient {
         Self(client: try ModelClient.configured(.meta), model: AISettings.shared.tutorModel)
     }
 
+    /// Every action field, nullable when unused; all are required so the model always writes them.
+    static var actionFields: [String: JSONValue] { playerActionFields.merging(libraryActionFields) { a, _ in a } }
+
+    static let playerActionFields: [String: JSONValue] = [
+        "kind": ["type": "string", "enum": .array(TutorChatAction.Kind.allCases.map { .string($0.rawValue) })],
+        "fromBar": ["type": ["integer", "null"]], "toBar": ["type": ["integer", "null"]],
+        "hand": ["type": ["string", "null"], "enum": ["R", "L", "LR", nil]],
+        "tempoPercent": ["type": ["number", "null"]],
+        "mode": ["type": ["string", "null"], "enum": ["wait", "timed", nil]],
+        "lessonID": ["type": ["string", "null"]], "goal": ["type": ["string", "null"]],
+    ]
+
+    /// searchLibrary, openPiece, previewPiece and openBookPage.
+    static let libraryActionFields: [String: JSONValue] = [
+        "query": ["type": ["string", "null"]], "composer": ["type": ["string", "null"]],
+        "difficulty": ["type": ["string", "null"], "enum": ["Elementary", "Intermediate", "Advanced", nil]],
+        "pieceRef": ["type": ["string", "null"]], "page": ["type": ["integer", "null"]],
+    ]
+
     static let schema: JSONValue = [
         "type": "object",
         "properties": [
             "on_topic": ["type": "boolean"],
             "reply": ["type": "string"],
-            "actions": ["type": "array", "items": ["type": "object", "properties": [
-                "kind": ["type": "string", "enum": .array(TutorChatAction.Kind.allCases.map { .string($0.rawValue) })],
-                "fromBar": ["type": ["integer", "null"]], "toBar": ["type": ["integer", "null"]],
-                "hand": ["type": ["string", "null"], "enum": ["R", "L", "LR", nil]],
-                "tempoPercent": ["type": ["number", "null"]],
-                "mode": ["type": ["string", "null"], "enum": ["wait", "timed", nil]],
-                "lessonID": ["type": ["string", "null"]], "goal": ["type": ["string", "null"]],
-            ], "required": ["kind", "fromBar", "toBar", "hand", "tempoPercent", "mode", "lessonID", "goal"],
-             "additionalProperties": false]],
+            "actions": ["type": "array", "items": ["type": "object", "properties": .object(actionFields),
+                                                    "required": .array(actionFields.keys.sorted().map { .string($0) }),
+                                                    "additionalProperties": false]],
             "suggestions": ["type": "array", "items": ["type": "string"]],
         ],
         "required": ["on_topic", "reply", "actions", "suggestions"],

@@ -144,6 +144,8 @@ extension PlaySession {
         tutorChatActionResults = []
         tutorChatRecentGrades = []
         tutorChatFocus = ""
+        tutorChatFoundPieces = [:]
+        tutorChatLatestSearch = []
     }
 
     // MARK: Memory
@@ -199,6 +201,7 @@ extension PlaySession {
         if !tutorSoFar.isEmpty { lesson += " " + tutorSoFar }
         var context = TutorChatContext(lesson: lesson.trimmingCharacters(in: .whitespaces))
         addTutorChatEvidence(to: &context, question: question)
+        if canChatWithTutor { context.library = MainActor.assumeIsolated { tutorChatLibraryText() } }
         if let learner { context.previousSessions = TutorChatMemory.prompt(tutorChatMemory(for: learner.id).notes()) }
         guard tutorChatUsesBook, let book = tutorChatBook() else { return context }
         let texts = Self.pageTexts(of: book.document)

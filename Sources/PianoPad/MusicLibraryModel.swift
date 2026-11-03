@@ -81,11 +81,13 @@ final class MusicLibraryModel: ObservableObject {
         previewingID = piece.id
     }
 
-    func open(_ piece: CatalogPiece, onOpen: @escaping (URL) -> Bool) {
-        prepare(piece, failureMessage: "Couldn't open this piece. Please try again.", onReady: onOpen)
+    /// `onFailure` hears of a download that failed (not one cancelled).
+    func open(_ piece: CatalogPiece, onOpen: @escaping (URL) -> Bool, onFailure: (() -> Void)? = nil) {
+        prepare(piece, failureMessage: "Couldn't open this piece. Please try again.", onReady: onOpen, onFailure: onFailure)
     }
 
-    private func prepare(_ piece: CatalogPiece, failureMessage: String, onReady: @escaping (URL) -> Bool) {
+    private func prepare(_ piece: CatalogPiece, failureMessage: String, onReady: @escaping (URL) -> Bool,
+                         onFailure: (() -> Void)? = nil) {
         cancel()
         error = nil
         let token = UUID()
@@ -110,7 +112,10 @@ final class MusicLibraryModel: ObservableObject {
                 guard let self, self.requestID == token else { return }
                 self.requestID = nil; self.downloadingID = nil; self.task = nil
                 self.stopPreview()
-                if !(error is CancellationError) { self.error = "\(error.localizedDescription) Select a piece and try again." }
+                if !(error is CancellationError) {
+                    self.error = "\(error.localizedDescription) Select a piece and try again."
+                    onFailure?()
+                }
             }
         }
     }
