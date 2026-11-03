@@ -480,6 +480,8 @@ final class PlaySession: ObservableObject {
     var tutorFullReference: MIDISequence?
     var tutorSavedSetup: PracticeSnapshot?
     var tutorBeforeAttempt: PiecePracticeEngine?
+    /// "Stop here" ended the whole-piece run after this many bars (played order); only they count.
+    private var tutorStoppedAfter: Int?
     var tutorAttempt: PracticeExercise?
     var tutorFeedbackClient: (any TutorFeedbackClient)?
     /// Where the tutor's model comes from, when `tutorFeedbackClient` isn't set. Throws without a key.
@@ -505,6 +507,8 @@ final class PlaySession: ObservableObject {
     private var sourceReference: MIDISequence?
     /// Grade only from here (quarters): the take started partway through the piece.
     private var gradeFromQuarter: Double = 0
+    /// A take stopped part way ("Stop here") is graded against the music up to here only.
+    private var gradeToQuarter: Double?
     private var notes: [NoteEvent] = []
     private var openNote: [Int: Int] = [:]        // pitch → index into notes
     private var takeStart: Double?
@@ -1344,6 +1348,7 @@ final class PlaySession: ObservableObject {
         judge?.reset()
         rewindsPerBar = [:]
         gradeFromQuarter = 0
+        gradeToQuarter = nil
         wrong = []
         phase = .waiting
         updateExpected()
@@ -1360,7 +1365,13 @@ final class PlaySession: ObservableObject {
         if gradeFromQuarter > 0 {
             gradedReference.notes = reference.notes.filter { $0.onsetBeats >= gradeFromQuarter - 1e-6 }
         }
-        let graded = Grader(rubric: rubric).grade(reference: gradedReference, take: MIDISequence(notes: lastTake))
+        var take = lastTake
+        if let end = gradeToQuarter {
+            gradedReference.notes = gradedReference.notes.filter { $0.onsetBeats < end - 1e-6 }
+            // A late last note still counts; the start of the next bar doesn't.
+            take = take.filter { $0.onsetBeats < end + 0.25 }
+        }
+        let graded = Grader(rubric: rubric).grade(reference: gradedReference, take: MIDISequence(notes: take))
         report = graded
         // On a book page, printed measures (repeats map back); on a transcribed score the
         // grader's measure numbers are the score's own.
@@ -2819,6 +2830,45 @@ extension PlaySession {
         tutor = engine; tutorAI = ""
         tutorText = TutorCoaching.invitation(for: engine.exercise, printedMeasures: tutorPrinted(engine.exercise))
     }
+    /// The whole piece is being played (Show me what you can do, an assessment): it can be
+    /// stopped part way and planned from the bars played.
+    var tutorCanStopHere: Bool {
+        guard phase == .recording, let kind = tutorAttempt?.kind else { return false }
+        return kind == .placement || kind == .assessment
+    }
+    /// Stop here: grade the bars played so far and plan from them; the rest is taught from scratch.
+    func tutorStopHere() {
+        guard tutorCanStopHere else { return }
+        let played = playAlongBar ?? 0
+        guard played >= 1 else {
+            // Still in the first bar: nothing to plan from, so it's a skip.
+            tutorSkipAssessment(pace: tutor?.pace ?? .noteByNote)
+            return
+        }
+        tutorStoppedAfter = played
+        gradeToQuarter = clock?.barStart(played)
+        finishTake()
+    }
+    /// Skip the whole-piece run: the tutor teaches the piece from the start, note by note or
+    /// passage by passage.
+    func tutorSkipAssessment(pace: Pace) {
+        guard var engine = tutor else { return }
+        tutorLeaveAttempt()
+        engine.skipAssessment(pace: pace)
+        tutor = engine; tutorAI = ""
+        tutorText = TutorCoaching.invitation(for: engine.exercise, printedMeasures: tutorPrinted(engine.exercise))
+    }
+    /// How the phrases not yet graded are taught.
+    func tutorSetPace(_ pace: Pace) {
+        guard var engine = tutor, engine.pace != pace else { return }
+        let before = engine.exercise
+        engine.setPace(pace)
+        if engine.exercise != before {
+            tutorLeaveAttempt()
+            tutorText = TutorCoaching.invitation(for: engine.exercise, printedMeasures: tutorPrinted(engine.exercise))
+        }
+        tutor = engine
+    }
     /// Skip step: on to the next one.
     func tutorSkip() {
         guard var engine = tutor else { return }
@@ -2830,6 +2880,7 @@ extension PlaySession {
     /// Stops the step being played (a note-by-note step records until its last note), so
     /// another step can start straight away.
     func tutorLeaveAttempt() {
+        tutorStoppedAfter = nil
         tutorGeneration = UUID(); tutorTask?.cancel(); tutorBusy = false; tutorHeardNothing = false
         resetAll()
         tutorAttempt = nil
@@ -2841,6 +2892,15 @@ extension PlaySession {
         return Stars.compute(report: report, rubric: rubric, helpUsed: help)
     }
     func tutorGraded() {
+        let stoppedAfter = tutorStoppedAfter
+        tutorStoppedAfter = nil
+        if let bars = stoppedAfter, var trimmed = report {
+            // Stopped early: the bars not reached aren't missed notes.
+            trimmed.results.removeAll { $0.position.measure > bars }
+            trimmed.flags.removeAll { $0.position.measure > bars }
+            trimmed.passed = false
+            report = trimmed
+        }
         guard var engine = tutor, let report, let attempt = tutorAttempt else { return }
         var mapped = report
         for i in mapped.flags.indices {
@@ -2861,7 +2921,8 @@ extension PlaySession {
         }
         let stars = tutorPerformStars
         let wasFollowing = engine.isFollowingPlan
-        engine.record(evidence, replays: replaysThisTake, completedNotes: passageComplete, stars: stars)
+        engine.record(evidence, replays: replaysThisTake, completedNotes: passageComplete, stars: stars,
+                      playedThrough: stoppedAfter.map { attempt.originalMeasure($0) })
         tutor = engine
         tutorText = TutorCoaching.message(report: mapped, next: engine.exercise, mastered: engine.mastered,
                                          printedMeasures: tutorPrinted(engine.exercise),
@@ -2869,6 +2930,9 @@ extension PlaySession {
                                          followingPlan: wasFollowing, passedWithSlips: engine.lastRunPassedWithSlips)
         if attempt.kind == .placement, let plan = engine.plan {
             tutorText = TutorCoaching.placementSummary(engine.grades, plan: plan) + TutorCoaching.invitation(for: engine.exercise, printedMeasures: tutorPrinted(engine.exercise))
+        }
+        if stoppedAfter != nil {
+            tutorText = "You stopped part way, so I've planned from what you played; the rest is taught \(engine.pace == .noteByNote ? "note by note" : "passage by passage"). " + tutorText
         }
         tutorRecent = Array((tutorRecent + [tutorText]).suffix(3))
         var plan = ""

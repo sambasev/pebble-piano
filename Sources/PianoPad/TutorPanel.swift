@@ -82,6 +82,33 @@ struct TutorPanel: View {
             .buttonStyle(.borderedProminent)
             .disabled(session.phase == .recording)
         }
+        if session.tutorCanStopHere {
+            Button {
+                session.tutorStopHere()
+            } label: {
+                Label("Stop here and plan from what I played", systemImage: "stop.fill").frame(maxWidth: .infinity)
+            }
+            .buttonStyle(.bordered)
+            .help("Only the bars played so far are graded; the tutor teaches the rest from the start")
+        } else if session.tutorAttempt == nil && (e.kind == .placement || e.kind == .assessment) {
+            HStack {
+                Text("Skip it and learn").font(.callout)
+                Button("Note by note") { session.tutorSkipAssessment(pace: .noteByNote) }
+                    .help("Each phrase in wait mode first, then slowly in time")
+                Button("Passage by passage") { session.tutorSkipAssessment(pace: .passageByPassage) }
+                    .help("Each phrase slowly in time, then at full speed; note by note only where it goes wrong")
+            }
+        }
+        if engine.plan != nil {
+            Picker("New passages", selection: Binding(get: { engine.pace }, set: { session.tutorSetPace($0) })) {
+                Text("Note by note").tag(Pace.noteByNote)
+                Text("Passage by passage").tag(Pace.passageByPassage)
+            }
+            .pickerStyle(.segmented)
+            .font(.caption)
+            .disabled(session.phase == .recording)
+            .help("How the tutor teaches phrases you haven't shown it yet")
+        }
         Toggle("Start the next step by itself", isOn: $autoContinue)
             .font(.caption)
             .help("After each step, the next one starts after a short countdown. Hover over the button to pause it.")
@@ -150,7 +177,7 @@ struct TutorPanel: View {
         case .newNote: return "Press Find the note, then play the highlighted key."
         case .notes: return "Press Start step: the music waits for each note\(e.hand == nil ? "" : "—play only the \(e.hand == .left ? "left" : "right") hand")."
         case .perform: return "Press Perform, then play the whole piece after the count-in."
-        case .placement: return "Play the whole piece once, as well as you can. Parts you play cleanly are ticked off. Not ready? Skip step."
+        case .placement: return "Play the whole piece once, as well as you can. Parts you play cleanly are ticked off. Stop whenever you like, or skip it."
         default: return "Ready when you are: press \(startLabel(e)), then play after the count-in\(e.hand == nil ? "" : " (\(e.hand == .left ? "left" : "right") hand only)")."
         }
     }
