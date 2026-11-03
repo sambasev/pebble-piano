@@ -60,20 +60,16 @@ struct GrownUpsView: View {
                 Divider()
                 VStack(alignment: .leading, spacing: PP.Space.s2) {
                     Text("Teacher").ppEyebrow()
-                    Picker("Teacher", selection: Binding(get: { runner.persona.id }, set: { runner.setPersona($0) })) {
-                        ForEach(Persona.builtIn, id: \.id) { p in
-                            Text("\(p.name): \(p.summary)").tag(p.id)
-                        }
-                    }
-                    .pickerStyle(.radioGroup)
-                    .labelsHidden()
+                    PPRadioList(selection: Binding(get: { runner.persona.id }, set: { runner.setPersona($0) }),
+                                options: Persona.builtIn.map { ($0.id, "\($0.name): \($0.summary)") })
+                    .accessibilityLabel("Teacher")
                     Text("Alex suits most children. Kriti, the strict teacher, isn't shown to children; choose her here if you'd like.")
                         .font(.ppCaption).foregroundColor(PP.inkMuted)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 VStack(alignment: .leading, spacing: PP.Space.s2) {
                     Toggle("Dancing Pebbles", isOn: Binding(get: { runner.showsDancers }, set: { runner.setDancers($0) }))
-                        .toggleStyle(.switch)
+                        .toggleStyle(PPSwitchToggleStyle())
                         .font(.ppHeadline)
                     Text("Three little creatures dance to the beat under the keyboard: a small bob each beat, a big jump each bar. They hop when a note is right and wobble at a slip. Turn them off if they distract.")
                         .font(.ppCaption).foregroundColor(PP.inkMuted)

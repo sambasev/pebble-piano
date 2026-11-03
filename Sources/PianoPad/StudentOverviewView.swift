@@ -132,12 +132,9 @@ struct StudentOverviewView: View {
                 Text("Lessons played and mistakes made over time").font(.ppCaption).foregroundColor(PP.inkMuted)
             }
             Spacer()
-            Picker("Range", selection: $range) {
-                ForEach(StudentOverview.Range.allCases) { Text($0.title).tag($0) }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .frame(width: 300)
+            PPSegmented(selection: $range, StudentOverview.Range.allCases.map { ($0, $0.title) })
+                .accessibilityLabel("Range")
+                .fixedSize()
             Button("Done", action: onDone)
                 .buttonStyle(PPPrimaryButtonStyle(height: PP.Size.compact))
                 .keyboardShortcut(.defaultAction)

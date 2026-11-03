@@ -139,7 +139,7 @@ struct MusicLibraryView: View {
 
     private func row(_ piece: CatalogPiece) -> some View {
         let active = model.previewingID == piece.id
-        return LibraryRow(selected: model.selected?.id == piece.id, select: { model.selectedID = piece.id }) {
+        return PPSelectableRow(selected: model.selected?.id == piece.id, select: { model.selectedID = piece.id }) {
             LibraryRowLayout(piece: HStack(spacing: 6) {
                     Text(piece.title).font(.ppCallout).foregroundColor(PP.ink).lineLimit(1).help(piece.title)
                     if model.downloaded.contains(piece.id) {
@@ -237,29 +237,6 @@ private struct ArrowKeySelection: ViewModifier {
         } else {
             content
         }
-    }
-}
-
-/// One piece: iris tint when selected, a glass wash on hover.
-private struct LibraryRow<Content: View>: View {
-    let selected: Bool
-    let select: () -> Void
-    @ViewBuilder var content: Content
-    @State private var hovering = false
-
-    var body: some View {
-        let shape = RoundedRectangle(cornerRadius: PP.Radius.sm, style: .continuous)
-        content
-            .padding(.horizontal, PP.Space.s2)
-            .padding(.vertical, 6)
-            .background(shape.fill(selected ? PP.accent.opacity(0.22) : hovering ? PP.surfaceGlass : .clear))
-            .overlay(shape.strokeBorder(selected ? PP.accent.opacity(0.6) : .clear, lineWidth: 1))
-            .contentShape(shape)
-            .onTapGesture(perform: select)
-            .onHover { hovering = $0 }
-            .accessibilityElement(children: .contain)
-            .accessibilityAddTraits(selected ? [.isSelected, .isButton] : .isButton)
-            .accessibilityAction(named: "Select", select)
     }
 }
 

@@ -42,7 +42,7 @@ struct TutorChatView: View {
             HStack(alignment: .bottom) {
                 TextField("Ask your tutor", text: $draft, axis: .vertical)
                     .lineLimit(1...4)
-                    .textFieldStyle(.roundedBorder)
+                    .ppField()
                     .onSubmit(send)
                 Button(action: send) { Image(systemName: "arrow.up.circle.fill").font(.title2) }
                     .buttonStyle(.plain)
@@ -54,7 +54,6 @@ struct TutorChatView: View {
             HStack {
                 if let book = session.tutorChatBookLabel {
                     Toggle(isOn: $session.tutorChatUsesBook) { Text("Use \(book)").font(.caption) }
-                        .toggleStyle(.checkbox)
                         .help("Send the book page's text and a picture of it with each question")
                 }
                 Spacer()

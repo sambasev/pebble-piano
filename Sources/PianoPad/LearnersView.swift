@@ -199,7 +199,7 @@ struct LearnerForm: View {
                 Text(isEditing ? "Edit learner" : "Add learner").font(.ppHeadline)
             }
             TextField("Name", text: $name)
-                .textFieldStyle(.roundedBorder)
+                .ppField()
                 .font(.ppBody)
                 .onSubmit(save)
 
@@ -218,19 +218,19 @@ struct LearnerForm: View {
                 }
             }
 
-            Picker("Learner", selection: $kind) {
-                Text("Adult").tag(Learner.Kind.adult)
-                Text("Child").tag(Learner.Kind.child)
-            }
-            .pickerStyle(.segmented)
+            PPSegmented(selection: $kind, [
+                (Learner.Kind.adult, "Adult"),
+                (Learner.Kind.child, "Child")
+            ])
+            .accessibilityLabel("Learner")
 
             if !isEditing {
-                Picker("Level", selection: $level) {
-                    Text("Not sure").tag(Learner.Level?.none)
-                    Text("Just starting").tag(Learner.Level?.some(.beginner))
-                    Text("Knows the basics").tag(Learner.Level?.some(.basics))
-                }
-                .pickerStyle(.segmented)
+                PPSegmented(selection: $level, [
+                    (Learner.Level?.none, "Not sure"),
+                    (Learner.Level?.some(.beginner), "Just starting"),
+                    (Learner.Level?.some(.basics), "Knows the basics")
+                ])
+                .accessibilityLabel("Level")
             }
 
             HStack {

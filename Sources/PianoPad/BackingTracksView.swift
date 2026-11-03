@@ -67,21 +67,28 @@ struct BackingTracksView: View {
                     .accessibilityLabel("Import an audio file")
             }
             .padding(.horizontal, PP.Space.s1)
-            // Selection can be set during a view update; load the track on the next turn.
-            List(selection: Binding(get: { model.selectedID }, set: { id in DispatchQueue.main.async { model.select(id) } })) {
-                if let draft = model.draft, model.saved == nil {
-                    row(draft, unsaved: true).tag(Optional(draft.id))
-                }
-                ForEach(store.tracks) { track in
-                    row(track, unsaved: false).tag(Optional(track.id))
+            ScrollView {
+                LazyVStack(spacing: 2) {
+                    if let draft = model.draft, model.saved == nil {
+                        trackRow(draft, unsaved: true)
+                    }
+                    ForEach(store.tracks) { track in
+                        trackRow(track, unsaved: false)
+                    }
                 }
             }
-            .listStyle(.sidebar)
-            .scrollContentBackground(.hidden)
             Text("Only markers and tempo are saved. The audio files are never changed.")
                 .font(.ppCaption).foregroundColor(PP.inkMuted)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.horizontal, PP.Space.s1)
+        }
+    }
+
+    private func trackRow(_ track: BackingTrack, unsaved: Bool) -> some View {
+        // Selection can be set during a view update; load the track on the next turn.
+        PPSelectableRow(selected: model.selectedID == track.id,
+                        select: { DispatchQueue.main.async { model.select(track.id) } }) {
+            row(track, unsaved: unsaved)
         }
     }
 
@@ -122,7 +129,7 @@ struct BackingTracksView: View {
     private var header: some View {
         HStack(spacing: 10) {
             TextField("Name", text: binding(\.name, default: ""))
-                .textFieldStyle(.roundedBorder)
+                .ppField()
                 .font(.ppHeadline)
                 .frame(maxWidth: 360)
             if let path = model.draft?.audioPath {
@@ -152,8 +159,8 @@ struct BackingTracksView: View {
             Button("Fit") { model.zoomToFit() }
             Button("Bar 1") { model.zoomToBar1() }.help("Zoom in around bar 1")
             Button { model.zoom(to: model.viewSpan * 1.6) } label: { Image(systemName: "minus.magnifyingglass") }
-            Slider(value: Binding(get: { -log2(model.viewSpan) }, set: { model.zoom(to: pow(2, -$0)) }),
-                   in: -log2(max(2, model.duration))...2)
+            PPSlider(value: Binding(get: { -log2(model.viewSpan) }, set: { model.zoom(to: pow(2, -$0)) }),
+                     range: -log2(max(2, model.duration))...2)
                 .frame(width: 160)
             Button { model.zoom(to: model.viewSpan / 1.6) } label: { Image(systemName: "plus.magnifyingglass") }
         }
@@ -230,8 +237,8 @@ struct BackingTracksView: View {
                     Text("Tempo")
                     HStack(spacing: 4) {
                         TextField("bpm", value: binding(\.bpm, default: 100), format: .number.precision(.fractionLength(0...2)))
-                            .textFieldStyle(.roundedBorder).frame(width: 70)
-                        Stepper("", value: binding(\.bpm, default: 100), in: 20...400, step: 1).labelsHidden()
+                            .ppField().frame(width: 70)
+                        PPStepper(value: binding(\.bpm, default: 100), in: 20...400, step: 1)
                         Text("quarter notes / min").font(.ppCaption).foregroundColor(PP.inkMuted)
                         Button("Tap") { model.tapTempo() }.help("Tap along with the music a few times")
                     }
@@ -239,35 +246,41 @@ struct BackingTracksView: View {
                 GridRow {
                     Text("Time signature")
                     HStack(spacing: 4) {
-                        Stepper(value: tsNumerator, in: 1...15) {
+                        HStack(spacing: PP.Space.s2) {
                             Text("\(model.draft?.timeSignature.numerator ?? 4)").monospacedDigit().frame(width: 20)
+                            PPStepper(value: tsNumerator, in: 1...15)
                         }
                         Text("/")
-                        Picker("", selection: tsDenominator) {
+                        PPMenuPicker(title: "Beat unit", selection: tsDenominator, current: "\(tsDenominator.wrappedValue)") {
                             ForEach([2, 4, 8, 16], id: \.self) { Text("\($0)").tag($0) }
                         }
-                        .labelsHidden().frame(width: 60)
+                        .frame(width: 64)
                     }
                 }
                 GridRow {
                     Text("Key")
-                    Picker("", selection: Binding(get: { model.draft?.key ?? "" }, set: { v in update { $0.key = v.isEmpty ? nil : v } })) {
+                    PPMenuPicker(title: "Key", selection: Binding(get: { model.draft?.key ?? "" }, set: { v in update { $0.key = v.isEmpty ? nil : v } }),
+                                 current: model.draft?.key ?? "Not set") {
                         Text("Not set").tag("")
                         ForEach(BackingTrack.keyNames, id: \.self) { Text($0).tag($0) }
                     }
-                    .labelsHidden().frame(width: 140)
+                    .frame(width: 140)
                 }
                 GridRow {
                     Text("Count-in")
-                    Stepper(value: binding(\.countInBars, default: 1), in: 0...4) {
+                    HStack(spacing: PP.Space.s2) {
                         Text("\(model.draft?.countInBars ?? 1) bar(s)")
+                        PPStepper(value: binding(\.countInBars, default: 1), in: 0...4)
                     }
                 }
                 GridRow {
                     Text("Fine-tune")
                     HStack(spacing: 4) {
                         Text("Bar")
-                        Stepper(value: $model.calibrateBar, in: 2...999) { Text("\(model.calibrateBar)").monospacedDigit() }
+                        HStack(spacing: PP.Space.s2) {
+                            Text("\(model.calibrateBar)").monospacedDigit()
+                            PPStepper(value: $model.calibrateBar, in: 2...999)
+                        }
                         Button("starts at the cursor") { model.calibrateTempoFromCursor() }
                             .help("Sets the tempo exactly from bar 1 to this bar")
                     }

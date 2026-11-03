@@ -324,14 +324,12 @@ struct BookPagePicker: View {
                 Text("How to read these staves").font(.ppCallout.weight(.semibold))
                 if model.checkingClefs { ProgressView().controlSize(.mini) }
             }
-            Picker("", selection: Binding(get: { model.layout }, set: { model.choose(layout: $0) })) {
-                Text("Together: top staff right hand, bottom staff left hand").tag(BookImportModel.Layout.together)
-                Text("Separately: each staff is its own line, one after the other").tag(BookImportModel.Layout.separate)
-            }
-            .pickerStyle(.radioGroup)
-            .labelsHidden()
+            PPRadioList(selection: Binding(get: { model.layout }, set: { model.choose(layout: $0) }), options: [
+                (BookImportModel.Layout.together, "Together: top staff right hand, bottom staff left hand"),
+                (.separate, "Separately: each staff is its own line, one after the other")
+            ])
             .font(.ppCaption)
-            .fixedSize(horizontal: false, vertical: true)
+            .accessibilityLabel("Staff layout")
             clefPicker(model.layout == .together ? "Top staff" : "First staff",
                        Binding(get: { model.upperClef }, set: { model.choose(upperClef: $0) }))
             clefPicker(model.layout == .together ? "Bottom staff" : "Second staff",
@@ -350,12 +348,9 @@ struct BookPagePicker: View {
     private func clefPicker(_ label: String, _ clef: Binding<SystemReading.Clef>) -> some View {
         HStack {
             Text(label).font(.ppCaption).frame(width: 84, alignment: .leading)
-            Picker(label, selection: clef) {
-                Text("Treble").tag(SystemReading.Clef.treble)
-                Text("Bass").tag(SystemReading.Clef.bass)
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
+            PPSegmented(selection: clef, [(SystemReading.Clef.treble, "Treble"), (.bass, "Bass")])
+                .frame(maxWidth: 200)
+                .accessibilityLabel(label)
         }
     }
 
@@ -397,7 +392,7 @@ struct BookPagePicker: View {
                 }
             }
             TextField("Name (filled in from the page)", text: $model.title)
-                .textFieldStyle(.roundedBorder)
+                .ppField()
                 .disabled(reading)
             if reading {
                 readingStatus
@@ -617,7 +612,7 @@ struct ReviewView: View {
             HStack(spacing: PP.Space.s3) {
                 Text("Check").font(.ppHeadline)
                 TextField("Name", text: $model.title)
-                    .textFieldStyle(.roundedBorder).font(.ppHeadline).frame(maxWidth: 280)
+                    .ppField().font(.ppHeadline).frame(maxWidth: 280)
                     .help("The piece's name: change it any time; it's saved with the piece")
                 Text(model.toReview == 0 ? "All bars checked" : "\(model.toReview) bar\(model.toReview == 1 ? "" : "s") to check")
                     .font(.ppCallout).foregroundColor(model.toReview == 0 ? PP.success : PP.warning)
@@ -953,17 +948,17 @@ struct BarCard: View {
             }
                 .disabled(n.rest)
                 .help("Sharp, flat, natural or none (click to change)")
-            Picker("Length", selection: Binding(get: { n.duration }, set: { model.setDuration(bar.id, note, $0) })) {
-                ForEach([SystemReading.Duration.whole, .half, .quarter, .eighth, .sixteenth], id: \.self) { d in
-                    Text(Self.symbol(.init(position: 0, duration: d))).tag(d)
-                }
-            }
-            .pickerStyle(.segmented).labelsHidden().frame(width: 190)
+            PPSegmented(selection: Binding(get: { n.duration }, set: { model.setDuration(bar.id, note, $0) }),
+                        [SystemReading.Duration.whole, .half, .quarter, .eighth, .sixteenth].map { d in
+                            (d, Self.symbol(.init(position: 0, duration: d)))
+                        })
+            .fixedSize()
+            .accessibilityLabel("Length")
             .help("How long it lasts")
             Toggle("Dotted", isOn: Binding(get: { n.dotted }, set: { _ in model.toggleDot(bar.id, note) }))
-                .toggleStyle(.button)
+                .toggleStyle(PPChipToggleStyle(height: 28))
             Toggle("Rest", isOn: Binding(get: { n.rest }, set: { _ in model.toggleRest(bar.id, note) }))
-                .toggleStyle(.button)
+                .toggleStyle(PPChipToggleStyle(height: 28))
                 .help("A rest of this length instead of a note (or back)")
             Button { model.insertNote(bar.id, staff: note.staff, after: note.index) } label: { Image(systemName: "plus") }
                 .help("Add a note after this one")

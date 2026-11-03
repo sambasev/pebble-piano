@@ -23,18 +23,15 @@ struct AISettingsView: View {
         VStack(alignment: .leading, spacing: PP.Space.s4) {
             Text("AI settings").font(.ppHeadline)
 
-            Picker("Provider", selection: $provider) {
-                ForEach(ModelProvider.allCases) { Text($0.displayName).tag($0) }
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
+            PPSegmented(selection: $provider, ModelProvider.allCases.map { ($0, $0.displayName) })
+                .accessibilityLabel("Provider")
 
             keySection
 
             if provider == .meta {
                 LabeledContent("Practice tutor model") {
                     TextField(MetaModels.spark, text: $tutorModel)
-                        .textFieldStyle(.roundedBorder)
+                        .ppField()
                         .onSubmit(saveSettings)
                 }
                 Text("The Practice tutor uses this Meta key. Piano audio and grading stay on your Mac.")
@@ -44,14 +41,14 @@ struct AISettingsView: View {
             if provider == .modal {
                 LabeledContent("Base URL") {
                     TextField("https://…modal.run/v1", text: $modalURL)
-                        .textFieldStyle(.roundedBorder)
+                        .ppField()
                         .onSubmit(saveSettings)
                 }
             }
             if provider != .meta {
                 LabeledContent("Model to check") {
                     TextField("model ID (optional)", text: $openModel)
-                        .textFieldStyle(.roundedBorder)
+                        .ppField()
                         .onSubmit(saveSettings)
                 }
             }
@@ -102,7 +99,7 @@ struct AISettingsView: View {
             HStack {
                 SecureField(provider.requiresKey ? "Paste your \(provider.displayName) key" : "Key (optional)",
                             text: $keyDraft)
-                    .textFieldStyle(.roundedBorder)
+                    .ppField()
                     .onSubmit(saveKey)
                 Button("Save", action: saveKey).disabled(keyDraft.trimmingCharacters(in: .whitespaces).isEmpty)
                 Button("Remove") { setKey(nil) }.disabled(source != .keychain)

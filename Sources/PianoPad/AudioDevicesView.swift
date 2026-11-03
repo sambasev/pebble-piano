@@ -13,25 +13,25 @@ struct AudioDevicesView: View {
         Grid(alignment: .leading, horizontalSpacing: PP.Space.s3, verticalSpacing: PP.Space.s2) {
             GridRow {
                 Label("Input", systemImage: "mic").font(.ppCallout)
-                Picker("Input", selection: $session.inputDeviceUID) {
+                PPMenuPicker(title: "Input", selection: $session.inputDeviceUID,
+                             current: session.audioInputs.first { $0.uid == session.inputDeviceUID }?.name ?? builtInTitle) {
                     Text(builtInTitle).tag(String?.none)
                     ForEach(session.audioInputs.filter { !$0.isBuiltIn }) { device in
                         Text(device.name).tag(String?.some(device.uid))
                     }
                 }
-                .labelsHidden()
                 .frame(minWidth: 240)
             }
             if showsOutput {
                 GridRow {
                     Label("Output", systemImage: "speaker.wave.2").font(.ppCallout)
-                    Picker("Output", selection: $session.outputDeviceUID) {
+                    PPMenuPicker(title: "Output", selection: $session.outputDeviceUID,
+                                 current: session.audioOutputs.first { $0.uid == session.outputDeviceUID }?.name ?? defaultOutputTitle) {
                         Text(defaultOutputTitle).tag(String?.none)
                         ForEach(session.audioOutputs) { device in
                             Text(device.name).tag(String?.some(device.uid))
                         }
                     }
-                    .labelsHidden()
                     .frame(minWidth: 240)
                 }
             }

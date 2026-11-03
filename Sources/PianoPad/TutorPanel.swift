@@ -14,12 +14,11 @@ struct TutorPanel: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack { Text("Piece tutor").font(.ppHeadline); Spacer(); Button("AI settings") { settings = true } }
             if session.canChatWithTutor {
-                Picker("", selection: $asking) {
-                    Text("Lesson").tag(false)
-                    Text("Ask").tag(true)
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
+                PPSegmented(selection: $asking, [
+                    (false, "Lesson"),
+                    (true, "Ask")
+                ])
+                .accessibilityLabel("")
                 .help("Ask your tutor about this piece, the book page, or anything about music")
             }
             if asking && session.canChatWithTutor {
@@ -120,11 +119,11 @@ struct TutorPanel: View {
             }
         }
         if engine.plan != nil {
-            Picker("New passages", selection: Binding(get: { engine.pace }, set: { session.tutorSetPace($0) })) {
-                Text("Note by note").tag(Pace.noteByNote)
-                Text("Passage by passage").tag(Pace.passageByPassage)
-            }
-            .pickerStyle(.segmented)
+            PPSegmented(selection: Binding(get: { engine.pace }, set: { session.tutorSetPace($0) }), [
+                (Pace.noteByNote, "Note by note"),
+                (Pace.passageByPassage, "Passage by passage")
+            ])
+            .accessibilityLabel("New passages")
             .font(.caption)
             .disabled(session.phase == .recording)
             .help("How the tutor teaches phrases you haven't shown it yet")

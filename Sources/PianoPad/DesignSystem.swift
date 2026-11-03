@@ -360,9 +360,11 @@ struct PPPaperModifier: ViewModifier {
 // MARK: - Buttons
 
 extension View {
-    /// Buttons that don't pick a style get the glass pill. Set on the window, and again on each
-    /// sheet and popover, which don't inherit it.
-    func ppDefaultButtons() -> some View { buttonStyle(PPGlassButtonStyle()) }
+    /// Buttons and toggles that don't pick a style get the glass pill and the glass checkbox.
+    /// Set on the window, and again on each sheet and popover, which don't inherit it.
+    func ppDefaultButtons() -> some View {
+        buttonStyle(PPGlassButtonStyle()).toggleStyle(PPCheckboxToggleStyle())
+    }
 }
 
 /// The one bold action per screen: an iris pill. 60 pt in the lesson flow, `compact` in toolbars.
@@ -457,6 +459,306 @@ struct PPChipToggleStyle: ToggleStyle {
         .opacity(isEnabled ? 1 : 0.4)
         .accessibilityAddTraits(configuration.isOn ? .isSelected : [])
     }
+}
+
+// MARK: - Controls
+
+/// A few choices side by side: a glass track with the chosen one in iris.
+struct PPSegmented<Value: Hashable>: View {
+    @Binding var selection: Value
+    let options: [(value: Value, label: String)]
+    var height: CGFloat = 28
+    @Environment(\.isEnabled) private var isEnabled
+    @Namespace private var namespace
+
+    init(selection: Binding<Value>, _ options: [(Value, String)], height: CGFloat = 28) {
+        _selection = selection
+        self.options = options.map { (value: $0.0, label: $0.1) }
+        self.height = height
+    }
+
+    var body: some View {
+        HStack(spacing: 2) {
+            ForEach(Array(options.enumerated()), id: \.offset) { _, option in
+                let chosen = option.value == selection
+                Button { selection = option.value } label: {
+                    Text(option.label)
+                        .font(.system(size: 13, weight: chosen ? .semibold : .medium))
+                        .lineLimit(1)
+                        // Never truncated: a segment is at least as wide as its name.
+                        .fixedSize()
+                        .foregroundColor(chosen ? PP.onAccent : PP.ink)
+                        .padding(.horizontal, PP.Space.s3)
+                        .frame(maxWidth: .infinity, minHeight: height - 4)
+                        .background {
+                            if chosen {
+                                Capsule().fill(PP.accent).matchedGeometryEffect(id: "chosen", in: namespace)
+                            }
+                        }
+                        .contentShape(Capsule())
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(chosen ? .isSelected : [])
+            }
+        }
+        .padding(2)
+        .background(Capsule().fill(PP.surfaceGlass))
+        .overlay(Capsule().strokeBorder(PP.inkStaff.opacity(0.45), lineWidth: 1))
+        .opacity(isEnabled ? 1 : 0.4)
+        .animation(.spring(response: 0.25, dampingFraction: 0.8), value: selection)
+        // A label set on the switch names the group, not each segment.
+        .accessibilityElement(children: .contain)
+    }
+}
+
+/// A pop-up choice as a glass pill: shows the current choice, opens a menu of the rest.
+struct PPMenuPicker<Value: Hashable, Content: View>: View {
+    let title: String
+    @Binding var selection: Value
+    /// What the pill says: the current choice's name.
+    let current: String
+    var height: CGFloat = PP.Size.compact
+    @ViewBuilder var content: Content
+
+    var body: some View {
+        Menu {
+            Picker(title, selection: $selection) { content }
+                .pickerStyle(.inline)
+                .labelsHidden()
+        } label: {
+            HStack(spacing: PP.Space.s2) {
+                Text(current).lineLimit(1)
+                Spacer(minLength: 0)
+                Image(systemName: "chevron.up.chevron.down")
+                    .font(.system(size: 9, weight: .bold))
+                    .foregroundColor(PP.inkMuted)
+            }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("\(title): \(current)")
+        }
+        .menuStyle(.button)
+        .buttonStyle(PPGlassButtonStyle(height: height))
+        .menuIndicator(.hidden)
+    }
+}
+
+/// One of a few longer choices, stacked: an iris dot marks the chosen one.
+struct PPRadioList<Value: Hashable>: View {
+    @Binding var selection: Value
+    let options: [(Value, String)]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: PP.Space.s2) {
+            ForEach(Array(options.enumerated()), id: \.offset) { _, option in
+                let chosen = option.0 == selection
+                Button { selection = option.0 } label: {
+                    HStack(alignment: .firstTextBaseline, spacing: PP.Space.s2) {
+                        Circle()
+                            .strokeBorder(chosen ? PP.accent : PP.inkStaff, lineWidth: chosen ? 5 : 1.5)
+                            .background(Circle().fill(chosen ? PP.onAccent : PP.surfaceGlass))
+                            .frame(width: 16, height: 16)
+                            .alignmentGuide(.firstTextBaseline) { $0.height * 0.78 }
+                        Text(option.1)
+                            .foregroundColor(PP.ink)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(chosen ? .isSelected : [])
+            }
+        }
+        .accessibilityElement(children: .contain)
+    }
+}
+
+/// Minus and plus in a glass capsule.
+struct PPStepper<V: Strideable>: View {
+    @Binding var value: V
+    let range: ClosedRange<V>
+    var step: V.Stride
+    @Environment(\.isEnabled) private var isEnabled
+
+    init(value: Binding<V>, in range: ClosedRange<V>, step: V.Stride) {
+        _value = value
+        self.range = range
+        self.step = step
+    }
+
+    var body: some View {
+        HStack(spacing: 0) {
+            button("minus", "Decrease", value > range.lowerBound) { value = max(range.lowerBound, value.advanced(by: -step)) }
+            Rectangle().fill(PP.inkStaff.opacity(0.45)).frame(width: 1, height: 14)
+            button("plus", "Increase", value < range.upperBound) { value = min(range.upperBound, value.advanced(by: step)) }
+        }
+        .frame(height: 26)
+        .background(Capsule().fill(PP.surfaceGlass))
+        .overlay(Capsule().strokeBorder(PP.inkStaff.opacity(0.45), lineWidth: 1))
+        .opacity(isEnabled ? 1 : 0.4)
+        .fixedSize()
+    }
+
+    private func button(_ symbol: String, _ label: String, _ enabled: Bool, _ action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            Image(systemName: symbol)
+                .font(.system(size: 10, weight: .bold))
+                .foregroundColor(PP.ink)
+                .frame(width: 26, height: 26)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .disabled(!enabled)
+        .opacity(enabled ? 1 : 0.35)
+        .accessibilityLabel(label)
+    }
+}
+
+extension PPStepper where V: BinaryInteger, V.Stride: BinaryInteger {
+    init(value: Binding<V>, in range: ClosedRange<V>) { self.init(value: value, in: range, step: 1) }
+}
+
+/// A checkbox: a glass square, iris with a tick when on.
+struct PPCheckboxToggleStyle: ToggleStyle {
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        let shape = RoundedRectangle(cornerRadius: 5, style: .continuous)
+        return Button { configuration.isOn.toggle() } label: {
+            HStack(spacing: PP.Space.s2) {
+                ZStack {
+                    shape.fill(configuration.isOn ? PP.accent : PP.surfaceGlass)
+                    shape.strokeBorder(configuration.isOn ? Color.clear : PP.inkStaff, lineWidth: 1.5)
+                    if configuration.isOn {
+                        Image(systemName: "checkmark").font(.system(size: 9, weight: .heavy)).foregroundColor(PP.onAccent)
+                    }
+                }
+                .frame(width: 16, height: 16)
+                configuration.label.foregroundColor(PP.ink)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .opacity(isEnabled ? 1 : 0.4)
+        .accessibilityAddTraits(configuration.isOn ? .isSelected : [])
+    }
+}
+
+/// An on/off switch: a glass track, iris when on.
+struct PPSwitchToggleStyle: ToggleStyle {
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        Button { configuration.isOn.toggle() } label: {
+            HStack(spacing: PP.Space.s2) {
+                configuration.label.foregroundColor(PP.ink)
+                Spacer(minLength: 0)
+                Capsule()
+                    .fill(configuration.isOn ? PP.accent : PP.surfaceGlass)
+                    .overlay(Capsule().strokeBorder(configuration.isOn ? Color.clear : PP.inkStaff.opacity(0.6), lineWidth: 1))
+                    .overlay(alignment: configuration.isOn ? .trailing : .leading) {
+                        Circle().fill(configuration.isOn ? PP.onAccent : PP.ink.opacity(0.85)).padding(3)
+                    }
+                    .frame(width: 36, height: 20)
+                    .animation(.spring(response: 0.25, dampingFraction: 0.8), value: configuration.isOn)
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .opacity(isEnabled ? 1 : 0.4)
+        .accessibilityAddTraits(configuration.isOn ? .isSelected : [])
+    }
+}
+
+/// A slider: an iris fill along a glass track, with a round thumb.
+struct PPSlider: View {
+    @Binding var value: Double
+    let range: ClosedRange<Double>
+    var step: Double = 0
+    @Environment(\.isEnabled) private var isEnabled
+
+    var body: some View {
+        GeometryReader { geo in
+            let width = geo.size.width, thumb: CGFloat = 16
+            let fraction = (min(max(value, range.lowerBound), range.upperBound) - range.lowerBound)
+                / max(.ulpOfOne, range.upperBound - range.lowerBound)
+            let x = thumb / 2 + (width - thumb) * fraction
+            ZStack(alignment: .leading) {
+                Capsule().fill(PP.surfaceGlass)
+                    .overlay(Capsule().strokeBorder(PP.inkStaff.opacity(0.45), lineWidth: 1))
+                    .frame(height: 6)
+                Capsule().fill(PP.accent).frame(width: x, height: 6)
+                Circle().fill(PP.keyWhite)
+                    .overlay(Circle().strokeBorder(PP.accent, lineWidth: 2))
+                    .shadow(color: PP.glassShadow, radius: 2, y: 1)
+                    .frame(width: thumb, height: thumb)
+                    .offset(x: x - thumb / 2)
+            }
+            .frame(height: geo.size.height)
+            .contentShape(Rectangle())
+            .gesture(DragGesture(minimumDistance: 0).onChanged { g in
+                let f = Double(min(max(0, (g.location.x - thumb / 2) / max(1, width - thumb)), 1))
+                set(range.lowerBound + f * (range.upperBound - range.lowerBound))
+            })
+        }
+        .frame(height: 20)
+        .opacity(isEnabled ? 1 : 0.4)
+        .accessibilityElement()
+        .accessibilityValue("\(Int(value.rounded()))")
+        .accessibilityAdjustableAction { direction in
+            let by = step > 0 ? step : (range.upperBound - range.lowerBound) / 20
+            set(value + (direction == .increment ? by : -by))
+        }
+    }
+
+    private func set(_ v: Double) {
+        var v = min(max(v, range.lowerBound), range.upperBound)
+        if step > 0 { v = range.lowerBound + ((v - range.lowerBound) / step).rounded() * step }
+        if v != value { value = v }
+    }
+}
+
+/// A row in a glass list: iris tint when selected, a glass wash on hover. Click selects it.
+struct PPSelectableRow<Content: View>: View {
+    let selected: Bool
+    let select: () -> Void
+    @ViewBuilder var content: Content
+    @State private var hovering = false
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: PP.Radius.sm, style: .continuous)
+        content
+            .padding(.horizontal, PP.Space.s2)
+            .padding(.vertical, 6)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(shape.fill(selected ? PP.accent.opacity(0.22) : hovering ? PP.surfaceGlass : .clear))
+            .overlay(shape.strokeBorder(selected ? PP.accent.opacity(0.6) : .clear, lineWidth: 1))
+            .contentShape(shape)
+            .onTapGesture(perform: select)
+            .onHover { hovering = $0 }
+            .accessibilityElement(children: .contain)
+            .accessibilityAddTraits(selected ? [.isSelected, .isButton] : .isButton)
+            .accessibilityAction(named: "Select", select)
+    }
+}
+
+/// A text field on glass: a rounded glass box, iris rim while typing.
+struct PPFieldModifier: ViewModifier {
+    @FocusState private var focused: Bool
+
+    func body(content: Content) -> some View {
+        let shape = RoundedRectangle(cornerRadius: PP.Radius.sm, style: .continuous)
+        return content
+            .textFieldStyle(.plain)
+            .focused($focused)
+            .padding(.horizontal, PP.Space.s2 + 2)
+            .padding(.vertical, 6)
+            .background(shape.fill(PP.surfaceGlass))
+            .overlay(shape.strokeBorder(focused ? PP.focusRing : PP.inkStaff.opacity(0.45), lineWidth: focused ? 2 : 1))
+    }
+}
+
+extension View {
+    func ppField() -> some View { modifier(PPFieldModifier()) }
 }
 
 // MARK: - Feedback

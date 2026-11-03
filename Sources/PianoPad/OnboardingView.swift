@@ -132,19 +132,18 @@ struct OnboardingView: View {
     private var learnerStep: some View {
         VStack(alignment: .leading, spacing: PP.Space.s4) {
             Text("Who's learning?").font(.ppTitle)
-            Picker("Learner", selection: $answers.kind) {
-                Text("Me (adult)").tag(Learner.Kind.adult)
-                Text("A child").tag(Learner.Kind.child)
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
+            PPSegmented(selection: $answers.kind, [
+                (Learner.Kind.adult, "Me (adult)"),
+                (Learner.Kind.child, "A child")
+            ])
+            .accessibilityLabel("Learner")
             if isChild {
                 Text("You're setting this up for your child. Stay close for the first few minutes; after that they can carry on by themselves, and you can check how they're doing under For grown-ups.")
                     .font(.ppCallout).foregroundColor(PP.inkMuted)
                     .fixedSize(horizontal: false, vertical: true)
             }
             TextField(isChild ? "Child's name" : "Your name", text: $answers.name)
-                .textFieldStyle(.roundedBorder)
+                .ppField()
                 .font(.ppBody)
                 .onSubmit(next)
             VStack(alignment: .leading, spacing: PP.Space.s2) {
@@ -162,13 +161,12 @@ struct OnboardingView: View {
             }
             VStack(alignment: .leading, spacing: PP.Space.s2) {
                 Text(isChild ? "Has \(learnerWord) played before?" : "Have you played before?").ppEyebrow()
-                Picker("Played before", selection: $answers.level) {
-                    Text("Never").tag(Learner.Level?.some(.beginner))
-                    Text("A little").tag(Learner.Level?.some(.basics))
-                    Text("Not sure").tag(Learner.Level?.none)
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
+                PPSegmented(selection: $answers.level, [
+                    (Learner.Level?.some(.beginner), "Never"),
+                    (Learner.Level?.some(.basics), "A little"),
+                    (Learner.Level?.none, "Not sure")
+                ])
+                .accessibilityLabel("Played before")
                 if answers.level == .basics {
                     Text("Unit 1 starts from the beginning; it'll go quickly. A placement check comes later.")
                         .font(.ppCaption).foregroundColor(PP.inkMuted)

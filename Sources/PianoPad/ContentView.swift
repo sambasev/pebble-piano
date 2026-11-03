@@ -91,16 +91,15 @@ struct ContentView: View {
                 Text("PerfectPiano").font(.ppHeadline).lineLimit(1).fixedSize()
             }
             Spacer()
-            Picker("Section", selection: $session.tab) {
-                Text("Learn").tag(PlaySession.AppTab.learn)
-                Text("Practice").tag(PlaySession.AppTab.practice)
-                Text(headerWidth < 1100 ? "Library" : "Music Library").tag(PlaySession.AppTab.musicLibrary)
-                Text("Books").tag(PlaySession.AppTab.books)
-                Text(headerWidth < 1100 ? "Tracks" : "Backing tracks").tag(PlaySession.AppTab.backingTracks)
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .frame(width: headerWidth < 1100 ? 440 : 520)
+            PPSegmented(selection: $session.tab, [
+                (PlaySession.AppTab.learn, "Learn"),
+                (PlaySession.AppTab.practice, "Practice"),
+                (PlaySession.AppTab.musicLibrary, headerWidth < 1100 ? "Library" : "Music Library"),
+                (PlaySession.AppTab.books, "Books"),
+                (PlaySession.AppTab.backingTracks, headerWidth < 1100 ? "Tracks" : "Backing tracks")
+            ])
+            .accessibilityLabel("Section")
+            .fixedSize()
             Spacer()
             Button {
                 showInput.toggle()
@@ -189,16 +188,14 @@ struct ContentView: View {
                             Toggle(isOn: $session.showFingering) {
                                 Label("Fingering", systemImage: "hand.point.up.fill")
                             }
-                            .toggleStyle(.button)
-                            .controlSize(.small)
+                            .toggleStyle(PPChipToggleStyle(height: 28))
                             .help("Show or hide finger numbers on the sheet music notes")
-                            Picker("View", selection: $session.showWholePage) {
-                                Text("Passage").tag(false)
-                                Text("Page").tag(true)
-                            }
-                            .pickerStyle(.segmented)
-                            .labelsHidden()
-                            .frame(width: 150)
+                            PPSegmented(selection: $session.showWholePage, [
+                                (false, "Passage"),
+                                (true, "Page")
+                            ])
+                            .accessibilityLabel("View")
+                            .fixedSize()
                         }
                         ScoreView(
                             image: image,
@@ -238,8 +235,7 @@ struct ContentView: View {
                             Toggle(isOn: $session.showFingering) {
                                 Label("Fingering", systemImage: "hand.point.up.fill")
                             }
-                            .toggleStyle(.button)
-                            .controlSize(.small)
+                            .toggleStyle(PPChipToggleStyle(height: 28))
                             .help("Show or hide finger numbers on the sheet music notes")
                         }
                         NotationView(score: score, scoreID: session.scoreID, overlay: notationOverlay,
@@ -318,11 +314,11 @@ struct ContentView: View {
         HStack(spacing: 12) {
             if session.book != nil || !session.pieces.isEmpty {
                 // Book passages and MIDI files in one list.
-                Picker("Passage", selection: Binding(
+                PPMenuPicker(title: "Passage", selection: Binding(
                     get: { session.currentPieceTag },
                     // Loading a piece publishes a lot; not while the picker is updating.
                     set: { tag in DispatchQueue.main.async { session.selectPiece(tag) } }
-                )) {
+                ), current: currentPieceTitle) {
                     if session.currentPieceTag.isEmpty {
                         Text("Choose a piece").tag("")
                     }
@@ -355,13 +351,12 @@ struct ContentView: View {
                 .tourAnchor(.pieces)
             }
 
-            Picker("Mode", selection: $session.mode) {
-                Text("Wait").tag(PlaySession.PracticeMode.wait)
-                Text("Play along").tag(PlaySession.PracticeMode.playAlong)
-            }
-            .pickerStyle(.segmented)
-            .labelsHidden()
-            .frame(width: 170)
+            PPSegmented(selection: $session.mode, [
+                (PlaySession.PracticeMode.wait, "Wait"),
+                (PlaySession.PracticeMode.playAlong, "Play along")
+            ])
+            .accessibilityLabel("Mode")
+            .fixedSize()
             .help("Wait: the music waits for each note. Play along: the music keeps going, and a bar with too many misses is played again.")
             .tourAnchor(.mode)
 
@@ -397,13 +392,13 @@ struct ContentView: View {
             if session.mode == .playAlong {
                 tempoControl
             } else {
-                Picker("Speed", selection: $session.auditionSpeed) {
+                PPMenuPicker(title: "Speed", selection: $session.auditionSpeed,
+                             current: "\(Int((session.auditionSpeed * 100).rounded()))%") {
                     Text("50%").tag(0.5)
                     Text("75%").tag(0.75)
                     Text("100%").tag(1.0)
                 }
-                .labelsHidden()
-                .frame(width: 76)
+                .frame(width: 100)
                 .help("Listening speed")
             }
 
@@ -474,9 +469,7 @@ struct ContentView: View {
                 Text("Gate \(Int(db.rounded())) dB")
                     .font(.ppCaption.monospacedDigit())
                     .foregroundColor(PP.inkMuted)
-                Stepper("", value: $session.gateOffsetDB, in: -12...12, step: 3)
-                    .labelsHidden()
-                    .controlSize(.small)
+                PPStepper(value: $session.gateOffsetDB, in: -12...12, step: 3)
             } else {
                 Button("Measure silence") { session.measureSilence() }
                     .controlSize(.small)
@@ -491,8 +484,7 @@ struct ContentView: View {
     private var tempoControl: some View {
         HStack(spacing: PP.Space.s1) {
             tempoPicker
-            Stepper("", value: $session.tempoPercent, in: PlaySession.tempoRange, step: 5)
-                .labelsHidden()
+            PPStepper(value: $session.tempoPercent, in: PlaySession.tempoRange, step: 5)
             if session.originalBPM != nil {
                 Text("\(Self.bpm((session.practiceBPM * 10).rounded() / 10)) bpm")
                     .font(.ppCaption)
@@ -505,7 +497,8 @@ struct ContentView: View {
     }
 
     private var tempoPicker: some View {
-        Picker("Practice tempo", selection: $session.tempoPercent) {
+        PPMenuPicker(title: "Practice tempo", selection: $session.tempoPercent,
+                     current: "\(Int(session.tempoPercent))%") {
             ForEach(PlaySession.tempoPresets, id: \.self) { p in
                 Text(p == 100 ? "100% (original)" : "\(Int(p))%").tag(p)
             }
@@ -513,8 +506,27 @@ struct ContentView: View {
                 Text("\(Int(session.tempoPercent))%").tag(session.tempoPercent)
             }
         }
-        .labelsHidden()
-        .frame(width: 92)
+        .frame(width: 104)
+    }
+
+    /// The Passage picker's label: the open book passage or MIDI file.
+    private var currentPieceTitle: String {
+        let tag = session.currentPieceTag
+        if tag.hasPrefix("passage:"), let p = session.book?.annotations.passages.first(where: { "passage:" + $0.id == tag }) {
+            return p.title
+        }
+        if tag.hasPrefix("file:"), let piece = session.pieces.first(where: { "file:" + $0.url.path == tag }) {
+            return piece.name
+        }
+        return "Choose a piece"
+    }
+
+    private var rubricTitle: String {
+        switch session.rubricChoice {
+        case .beginner: return "Beginner"
+        case .intermediate: return "Intermediate"
+        case .file: return session.rubricFileName ?? "Rubric file"
+        }
     }
 
     private var tempoInk: Color {
@@ -536,7 +548,7 @@ struct ContentView: View {
             TextField("bpm", value: Binding(get: { (session.practiceBPM * 10).rounded() / 10 },
                                             set: { session.practiceBPM = $0 }),
                       format: .number.precision(.fractionLength(0...1)))
-                .textFieldStyle(.roundedBorder)
+                .ppField()
                 .monospacedDigit()
                 .multilineTextAlignment(.trailing)
                 .frame(width: 56)
@@ -574,19 +586,17 @@ struct ContentView: View {
                     }
                     GridRow {
                         Text("On a miss")
-                        Picker("On a miss", selection: $session.missMode) {
+                        PPMenuPicker(title: "On a miss", selection: $session.missMode, current: session.missMode.title) {
                             ForEach(PlaySession.MissMode.allCases) { Text($0.title).tag($0) }
                         }
-                        .labelsHidden()
                         .frame(width: 240)
                         .help("Replay the bar from the bar before, or stop and wait until you play the note. Takes effect at the next miss.")
                     }
                     GridRow {
                         Text("Judge")
-                        Picker("Judge", selection: $session.strictness) {
+                        PPMenuPicker(title: "Judge", selection: $session.strictness, current: session.strictness.title) {
                             ForEach(PlaySession.Strictness.allCases) { Text($0.title).tag($0) }
                         }
-                        .labelsHidden()
                         .frame(width: 240)
                         .help("How forgiving play-along is. Changes apply straight away, even mid-bar.")
                     }
@@ -600,12 +610,9 @@ struct ContentView: View {
             Grid(alignment: .leading, horizontalSpacing: PP.Space.s4, verticalSpacing: PP.Space.s3) {
                 GridRow {
                     Text("Sheet music")
-                    Picker("Sheet music", selection: $paperStyle) {
-                        ForEach(PaperStyle.allCases) { Text($0.title).tag($0) }
-                    }
-                    .pickerStyle(.segmented)
-                    .labelsHidden()
-                    .frame(width: 300)
+                    PPSegmented(selection: $paperStyle, PaperStyle.allCases.map { ($0, $0.title) })
+                    .accessibilityLabel("Sheet music")
+                    .fixedSize()
                     .help("Dark shows the music as light ink on a dim page, easier on the eyes at night. Match appearance follows the Mac's light or dark mode.")
                 }
             }
@@ -614,14 +621,13 @@ struct ContentView: View {
             Grid(alignment: .leading, horizontalSpacing: PP.Space.s4, verticalSpacing: PP.Space.s3) {
                 GridRow {
                     Text("Rubric")
-                    Picker("Rubric", selection: $session.rubricChoice) {
+                    PPMenuPicker(title: "Rubric", selection: $session.rubricChoice, current: rubricTitle) {
                         Text("Beginner").tag(PlaySession.RubricChoice.beginner)
                         Text("Intermediate").tag(PlaySession.RubricChoice.intermediate)
                         if let name = session.rubricFileName {
                             Text(name).tag(PlaySession.RubricChoice.file)
                         }
                     }
-                    .labelsHidden()
                     .frame(width: 240)
                 }
                 GridRow {
@@ -910,8 +916,9 @@ struct JudgeSettingsView: View {
                 row("Extra lateness (keys)", value: p.keysExtraLateMs, range: 0...300, step: 10, unit: "ms") { $0.keysExtraLateMs = $1 }
                 GridRow {
                     Text("Misses allowed per bar")
-                    Stepper(value: intBinding(\.maxMissesPerBar, cap: 8), in: 0...9) {
+                    HStack(spacing: PP.Space.s2) {
                         Text(p.maxMissesPerBar > 8 ? "any" : "\(p.maxMissesPerBar)").monospacedDigit().frame(width: 36, alignment: .leading)
+                        PPStepper(value: intBinding(\.maxMissesPerBar, cap: 8), in: 0...9)
                     }
                     Text("")
                 }
@@ -920,8 +927,9 @@ struct JudgeSettingsView: View {
                 }
                 GridRow {
                     Text("Replay after missing in a row")
-                    Stepper(value: intBinding(\.maxConsecutiveMisses, cap: 8), in: 1...9) {
+                    HStack(spacing: PP.Space.s2) {
                         Text(p.maxConsecutiveMisses > 8 ? "never" : "\(p.maxConsecutiveMisses)").monospacedDigit().frame(width: 36, alignment: .leading)
+                        PPStepper(value: intBinding(\.maxConsecutiveMisses, cap: 8), in: 1...9)
                     }
                     Text("")
                 }
@@ -944,10 +952,11 @@ struct JudgeSettingsView: View {
                      set: @escaping (inout Rubric.PlayAlong, Double) -> Void) -> some View {
         GridRow {
             Text(title)
-            Slider(value: Binding(get: { min(range.upperBound, max(range.lowerBound, value)) },
-                                  set: { v in edit { set(&$0, v) } }),
-                   in: range, step: step)
+            PPSlider(value: Binding(get: { min(range.upperBound, max(range.lowerBound, value)) },
+                                    set: { v in edit { set(&$0, v) } }),
+                     range: range, step: step)
                 .frame(width: 160)
+                .accessibilityLabel(title)
             Text("\(Int(value.rounded())) \(unit)").monospacedDigit().frame(width: 60, alignment: .leading)
         }
     }
