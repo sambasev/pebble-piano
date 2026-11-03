@@ -10,6 +10,7 @@ let package = Package(
         .library(name: "PianoPadState", targets: ["PianoPadState"]),
         .library(name: "PianoLessons", targets: ["PianoLessons"]),
         .library(name: "PianoAI", targets: ["PianoAI"]),
+        .library(name: "PianoCatalog", targets: ["PianoCatalog"]),
         .executable(name: "grade", targets: ["grade"]),
         .executable(name: "PianoPad", targets: ["PianoPad"]),
         .library(name: "EarTrainingUI", targets: ["EarTrainingUI"]),
@@ -23,7 +24,9 @@ let package = Package(
         .package(url: "https://github.com/apple/swift-atomics", from: "1.2.0"),
     ],
     targets: [
-        .testTarget(name: "PianoPadTests", dependencies: ["PianoPad"]),
+        .testTarget(name: "PianoPadTests", dependencies: ["PianoPad", "PianoCatalog"]),
+        .target(name: "PianoCatalog", dependencies: ["PianoGraderCore"], resources: [.process("Resources")]),
+        .testTarget(name: "PianoCatalogTests", dependencies: ["PianoCatalog", "PianoGraderCore"]),
         // Pure grading logic: no UI, no CoreMIDI, no audio. Shared by everything.
         .target(
             name: "PianoGraderCore",
@@ -69,7 +72,7 @@ let package = Package(
         // Mac app for quick testing: on-screen keyboard, musical typing, MIDI input, grading.
         .executableTarget(
             name: "PianoPad",
-            dependencies: ["PianoGraderCore", "PianoGraderIO", "PianoPadState", "PianoLessons", "PianoAI", "EarTrainingUI", "EarTrainingIntegration"]
+            dependencies: ["PianoGraderCore", "PianoGraderIO", "PianoPadState", "PianoLessons", "PianoAI", "EarTrainingUI", "EarTrainingIntegration", "PianoCatalog"]
         ),
         .testTarget(
             name: "PianoGraderCoreTests",

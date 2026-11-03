@@ -352,11 +352,19 @@ final class PlaySession: ObservableObject {
     @Published var tab: AppTab = .practice {
         didSet {
             // The tab bar sets this during a view update: react on the next turn of the run loop.
-            if tab != oldValue { DispatchQueue.main.async { [weak self] in self?.tabChanged() } }
+            tabTransitionGeneration = UUID()
+            guard tab != oldValue, !changingTabNow else { return }
+            let generation = tabTransitionGeneration
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.tabTransitionGeneration == generation else { return }
+                self.tabChanged()
+            }
         }
     }
 
-    enum AppTab: String, Hashable { case learn, practice, books, backingTracks }
+    enum AppTab: String, Hashable { case learn, practice, musicLibrary, books, backingTracks }
+    var changingTabNow = false
+    private var tabTransitionGeneration = UUID()
 
     // PlaySession callbacks are main-thread-only. Keep the actor bridge at this boundary.
     private var earTrainingStorage: EarPracticeCoordinator?
@@ -1560,43 +1568,44 @@ final class PlaySession: ObservableObject {
     /// `writtenScore` is shown instead of a transcription of the MIDI: pieces read from a book
     /// keep their own staves and clefs (Beyer writes both hands in treble clef). Its
     /// `printedFingering` (the book's finger numbers) is kept in the fingering shown.
+    @discardableResult
     func loadReference(_ url: URL, keepPassage: Bool = false, tempo: Double? = nil, remember: Bool = true,
-                       measures: ClosedRange<Int>? = nil, writtenScore: Score? = nil, printedFingering: [PrintedFinger] = []) {
+                       measures: ClosedRange<Int>? = nil, writtenScore: Score? = nil, printedFingering: [PrintedFinger] = [], title: String? = nil) -> Bool {
+        let parsed: MIDISequence
+        do { parsed = try MIDIFile.read(url: url) }
+        catch { message = "Couldn’t read \(url.lastPathComponent): \(error)"; return false }
         endTutoring()
         stopPlayAlong(discard: false)
         if !keepPassage {
             passage = nil
             staffPlacements = [:]
         }
-        do {
-            var sequence = try MIDIFile.read(url: url)
-            sequence.notes.removeAll { $0.channel == 9 } // drums can't be played on the keys
-            if let tempo, tempo > 0 { sequence = sequence.retimed(bpm: tempo) }
-            if let measures { sequence = sequence.measures(measures) }
-            stopAudition()
-            sourceReference = sequence
-            reference = sequence
-            referenceURL = url
-            chords = ChordGrouping.group(sequence.notes, window: rubric.chordWindowMs / 1000)
-            score = keepPassage ? nil
-                : writtenScore ?? Transcriber().transcribe(sequence, title: sequence.title ?? url.deletingPathExtension().lastPathComponent)
-            scoreID = UUID()
-            if let p = passage {
-                fingeringNotes = PianoFingeringModel.analyze(passage: p, sequence: sequence)
-            } else if let s = score {
-                fingeringNotes = PianoFingeringModel.analyze(score: s, printed: writtenScore == nil ? [] : printedFingering)
-            } else {
-                fingeringNotes = PianoFingeringModel.analyze(sequence: sequence)
-            }
-            message = sequence.notes.isEmpty ? "\(url.lastPathComponent) has no notes to play." : nil
-            loadMarkedBars()
-            if !keepPassage && remember { rememberPiece(url, title: sequence.title) }
-            setupPlayAlong()
-            resetTake()
-            rememberPracticePiece()
-        } catch {
-            message = "Couldn't read \(url.lastPathComponent): \(error)"
+        var sequence = parsed
+        sequence.notes.removeAll { $0.channel == 9 } // drums can't be played on the keys
+        if let tempo, tempo > 0 { sequence = sequence.retimed(bpm: tempo) }
+        if let measures { sequence = sequence.measures(measures) }
+        stopAudition()
+        sourceReference = sequence
+        reference = sequence
+        referenceURL = url
+        chords = ChordGrouping.group(sequence.notes, window: rubric.chordWindowMs / 1000)
+        score = keepPassage ? nil
+            : writtenScore ?? Transcriber().transcribe(sequence, title: title ?? sequence.title ?? url.deletingPathExtension().lastPathComponent)
+        scoreID = UUID()
+        if let p = passage {
+            fingeringNotes = PianoFingeringModel.analyze(passage: p, sequence: sequence)
+        } else if let s = score {
+            fingeringNotes = PianoFingeringModel.analyze(score: s, printed: writtenScore == nil ? [] : printedFingering)
+        } else {
+            fingeringNotes = PianoFingeringModel.analyze(sequence: sequence)
         }
+        message = sequence.notes.isEmpty ? "\(url.lastPathComponent) has no notes to play." : nil
+        loadMarkedBars()
+        if !keepPassage && remember { rememberPiece(url, title: title ?? sequence.title) }
+        setupPlayAlong()
+        resetTake()
+        rememberPracticePiece()
+        return true
     }
 
     /// No passage, no MIDI: nothing to play against. Lesson explain blocks use this so their
@@ -2446,7 +2455,7 @@ extension PlaySession {
         case .practice:
             backingEditor.stopPreview()
             setupPlayAlong()
-        case .books:
+        case .books, .musicLibrary:
             backingEditor.stopPreview()
         case .backingTracks:
             if backingEditor.draft == nil, let linked = backingStore.track(linkedTrackID) {

@@ -6,7 +6,7 @@ import SwiftUI
 /// starts by itself the first time a learner reaches its screen, and the ? button in the
 /// header (or Help → Show Me Around) plays the one for the screen showing.
 enum TourID: String, CaseIterable {
-    case practice, learnMap, lessonPage, books, backingTracks, backingEditor
+    case practice, learnMap, lessonPage, musicLibrary, books, backingTracks, backingEditor
 }
 
 /// Something a tour step points at. Views mark themselves with `.tourAnchor(_:)`; a step whose
@@ -20,6 +20,8 @@ enum TourTarget: Hashable {
     case unitHeader, continueButton, pageGrid, goalSong
     // Learn: a lesson page
     case lessonsBack, lessonPrompt, feedback, lessonControls
+    // Music Library
+    case catalogFilters, catalogPieces, catalogDetails
     // Books
     case library, bookMain
     // Backing tracks
@@ -103,6 +105,16 @@ extension TourID {
                 TourStep(target: .lessonsBack, title: "Back to your lessons",
                          body: "Your place is saved, so you can stop any time.",
                          childBody: "Go back to all your pages."),
+                Self.helpStep,
+            ]
+        case .musicLibrary:
+            return [
+                TourStep(target: .catalogFilters, title: "Find something to play",
+                         body: "Search by title or composer, choose a level, or show only pieces you've downloaded."),
+                TourStep(target: .catalogPieces, title: "Choose a piece",
+                         body: "Browse reviewed piano music from the Mutopia Project. The easier pieces come first."),
+                TourStep(target: .catalogDetails, title: "Learn it here",
+                         body: "Start learning opens the piece tutor; Practise freely opens ordinary practice. Downloaded music works offline. The original score, source and credits are here too."),
                 Self.helpStep,
             ]
         case .books:

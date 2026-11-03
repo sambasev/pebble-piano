@@ -137,6 +137,8 @@ final class ActivityTracker {
             p["mode"] = session.mode.rawValue
             p["piece"] = session.passage != nil ? "book" : (session.reference != nil ? "midi" : "none")
             if session.mode == .playAlong { p["backingTrack"] = session.hasBackingTrack ? "yes" : "no" }
+        case .musicLibrary:
+            p["screen"] = "musicLibrary"
         case .books:
             p["screen"] = "books.\(session.bookImport.phase)"
         case .backingTracks:
