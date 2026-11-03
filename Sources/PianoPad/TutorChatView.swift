@@ -5,18 +5,23 @@ import PianoLessons
 /// Ask your tutor: a music-only chat in the tutor panel. Shown for adults only (`TutorPanel`).
 struct TutorChatView: View {
     @EnvironmentObject var session: PlaySession
+    @Environment(\.ppCompact) private var compact
     @State private var draft = ""
     @State private var focused = false
     @State private var composerHeight: CGFloat = 34
 
     var body: some View {
         VStack(alignment: .leading, spacing: PP.Space.s3) {
+            if !compact && !session.tutorChatGoal.isEmpty {
+                Text("Goal: " + session.tutorChatGoal)
+                    .font(.caption).foregroundColor(PP.inkMuted).lineLimit(2)
+            }
             // The conversation scrolls on its own, newest at the bottom; the question box stays put.
             ScrollViewReader { proxy in
                 ScrollView {
                     VStack(alignment: .leading, spacing: PP.Space.s3) {
                         if session.tutorChat.turns.isEmpty {
-                            Text("Ask about this piece, the book page, technique, theory or anything else about music.")
+                            Text("I can read the open score and your recent practice results. Tell me your goal, or ask me to teach a passage—for example, ‘Help me learn bar 4 slowly.’")
                                 .font(.callout).foregroundColor(PP.inkMuted)
                                 .fixedSize(horizontal: false, vertical: true)
                         }
@@ -51,6 +56,15 @@ struct TutorChatView: View {
                 TutorChatComposer(text: $draft, focused: $focused, height: $composerHeight,
                                   send: send)
                     .frame(height: composerHeight)
+                Button {
+                    if session.tutorChatCoaching { session.pauseTutorChatCoaching() }
+                    else { session.tutorChatCoaching = true }
+                } label: { Image(systemName: session.tutorChatCoaching ? "pause.fill" : "sparkles") }
+                .buttonStyle(PPIconButtonStyle(kind: .mode, isOn: session.tutorChatCoaching))
+                .accessibilityLabel("Coach after each take")
+                .accessibilityValue(session.tutorChatCoaching ? "On" : "Off")
+                .help(session.tutorChatCoaching ? "Pause automatic coaching" : "Let the tutor review each graded take and choose the next step")
+                .padding(.bottom, 1)
                 Button(action: send) {
                     Image(systemName: "arrow.up").font(.system(size: 14, weight: .bold))
                 }
@@ -79,18 +93,24 @@ struct TutorChatView: View {
     }
 
     @ViewBuilder private func bubble(_ turn: TutorChatTurn) -> some View {
-        let mine = turn.role == .learner
-        HStack {
-            if mine { Spacer(minLength: 24) }
-            Text(turn.text)
-                .font(.callout)
+        if turn.role == .app {
+            Text(turn.text).font(.caption).foregroundColor(PP.inkMuted)
                 .fixedSize(horizontal: false, vertical: true)
-                .textSelection(.enabled)
-                .foregroundColor(turn.refused && !mine ? PP.inkMuted : PP.ink)
-                .padding(.horizontal, PP.Space.s3).padding(.vertical, PP.Space.s2)
-                .background(RoundedRectangle(cornerRadius: PP.Radius.sm)
-                    .fill(mine ? PP.accent.opacity(0.16) : PP.surfaceRaised))
-            if !mine { Spacer(minLength: 24) }
+                .frame(maxWidth: .infinity, alignment: .leading)
+        } else {
+            let mine = turn.role == .learner
+            HStack {
+                if mine { Spacer(minLength: 24) }
+                Text(turn.text)
+                    .font(.callout)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .textSelection(.enabled)
+                    .foregroundColor(turn.refused && !mine ? PP.inkMuted : PP.ink)
+                    .padding(.horizontal, PP.Space.s3).padding(.vertical, PP.Space.s2)
+                    .background(RoundedRectangle(cornerRadius: PP.Radius.sm)
+                        .fill(mine ? PP.accent.opacity(0.16) : PP.surfaceRaised))
+                if !mine { Spacer(minLength: 24) }
+            }
         }
     }
 }

@@ -51,7 +51,7 @@ struct TutorPanel: View {
                 } else {
                     current(engine)
                 }
-                Button("End tutoring") { session.endTutoring() }
+                Button("End tutoring") { session.pauseTutorChatCoaching(); session.endTutoring() }
             } else if let readiness = session.tutorReadiness {
                 ReadinessCard(readiness: readiness)
             } else if session.reference?.notes.isEmpty == false {
@@ -175,7 +175,7 @@ struct TutorPanel: View {
     /// Between steps (before the first try, or once a try is graded), not while the piece is
     /// playing or the tutor is still writing its comment, and not once the piece is passed.
     private func autoStarts(_ engine: PiecePracticeEngine) -> Bool {
-        autoContinue && !engine.mastered && !session.isAuditioning && !session.tutorBusy && !session.tutorPlanning
+        autoContinue && !session.tutorChatCoaching && !engine.mastered && !session.isAuditioning && !session.tutorBusy && !session.tutorPlanning
             && !session.tutorHeardNothing
             && session.phase != .recording && (session.tutorAttempt == nil || session.phase == .graded)
     }

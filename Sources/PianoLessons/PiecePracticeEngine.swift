@@ -392,6 +392,17 @@ public struct PiecePracticeEngine: Sendable {
     }
     public mutating func learnNotes() { reassess(); exercise.kind = .notes }
 
+    /// An explicitly selected drill. Its outcome still goes through the deterministic grader.
+    @discardableResult
+    public mutating func selectExercise(_ selected: PracticeExercise) -> Bool {
+        guard selected.measures.lowerBound >= 1, selected.measures.upperBound <= measureCount,
+              selected.tempoPercent.isFinite, (25...100).contains(selected.tempoPercent),
+              [.notes, .slow, .fullSpeed, .listen].contains(selected.kind) else { return false }
+        queue = []; stepIndex = nil; cleanStreak = 0; runs = 0; failStreak = 0; mastered = false
+        exercise = selected
+        return true
+    }
+
     /// The learner's own choice: work on these bars. Each run of neighbouring bars (up to four)
     /// note by note, slowly in time, at full speed, then with the bars around it; then the
     /// whole piece again.

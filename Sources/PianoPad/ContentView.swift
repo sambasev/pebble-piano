@@ -11,6 +11,7 @@ struct ContentView: View {
     @State private var showJudgeSettings = false
     @State private var showSettings = false
     @State private var showAISettings = false
+    @State private var showTutorChat = false
     @State private var showInput = false
     @State private var progressLearner: Learner?
     @State private var headerWidth: CGFloat = 0
@@ -122,6 +123,16 @@ struct ContentView: View {
                 InputSettingsView().environmentObject(session).ppDefaultButtons()
             }
             .tourAnchor(.inputStatus)
+            if session.canChatWithTutor && session.tab != .practice {
+                Button { showTutorChat.toggle() } label: { Image(systemName: "bubble.left.and.bubble.right") }
+                    .buttonStyle(PPIconButtonStyle())
+                    .accessibilityLabel("Tutor")
+                    .help("Chat with your tutor and review practice results")
+                    .popover(isPresented: $showTutorChat) {
+                        TutorChatView().environmentObject(session)
+                            .frame(width: 360, height: 480).padding(PP.Space.s4).ppDefaultButtons()
+                    }
+            }
             if let learner = session.learner {
                 // Narrow windows: just the icon, so the app's name and the input don't get cut.
                 Group {
@@ -171,7 +182,8 @@ struct ContentView: View {
         VStack(alignment: .leading, spacing: compact ? PP.Space.s2 : PP.Space.s3) {
             toolbar
                 .ppGlass(cornerRadius: PP.Radius.lg, padding: PP.Space.s3)
-            if let engine = session.tutor, !session.tutorPlanning {
+            if let engine = session.tutor, !session.tutorPlanning,
+               !(compact && askingTutor && session.canChatWithTutor) {
                 TutorStepBanner(engine: engine)
             }
             statusLine

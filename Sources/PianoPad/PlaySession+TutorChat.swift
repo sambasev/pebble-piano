@@ -4,6 +4,13 @@ import Foundation
 import PDFKit
 import PianoLessons
 
+struct TutorChatObservation {
+    var label: String
+    var question: String
+    var context: TutorChatContext
+    var scoreID: UUID
+}
+
 /// Ask your tutor: questions about music, with the lesson and its book page as context.
 /// Adults only: a child never sees it, and nothing is sent for one.
 extension PlaySession {
@@ -12,6 +19,11 @@ extension PlaySession {
     func sendTutorChat(_ text: String) {
         guard canChatWithTutor, let question = TutorChat.clean(text) else { return }
         stopTutorChat()
+        requestTutorChat(question, context: tutorChatContext(for: question), observation: nil, scoreID: scoreID)
+    }
+
+    func requestTutorChat(_ question: String, context: TutorChatContext, observation: String?, scoreID: UUID) {
+        guard canChatWithTutor else { return }
         tutorChatNote = nil
         let client: any TutorChatClient
         do {
@@ -21,8 +33,8 @@ extension PlaySession {
             return
         }
         let history = tutorChat.history
-        let id = tutorChat.ask(question)
-        let context = tutorChatContext(for: question)
+        let id = observation.map { tutorChat.observe($0) } ?? tutorChat.ask(question)
+        tutorChatRequestTurn = id
         let generation = UUID()
         tutorChatGeneration = generation
         tutorChatBusy = true
@@ -32,11 +44,25 @@ extension PlaySession {
                 guard let self, !Task.isCancelled, self.tutorChatGeneration == generation, self.canChatWithTutor else { return }
                 self.tutorChat.answer(reply, to: id)
                 self.tutorChatBusy = false
+                self.tutorChatRequestTurn = nil
+                self.tutorChatTask = nil
+                if reply.onTopic, !reply.reply.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
+                   let action = reply.action {
+                    let outcome = self.scoreID == scoreID || action.kind == .stop || action.kind == .setGoal
+                        ? self.applyTutorChatAction(action)
+                        : "The music changed while I was answering, so I left the player alone. Ask again about the current music."
+                    self.tutorChatActionResults = Array((self.tutorChatActionResults + [outcome]).suffix(6))
+                    self.tutorChat.observe(outcome)
+                }
+                self.flushTutorChatObservation()
             } catch {
                 guard let self, self.tutorChatGeneration == generation else { return }
                 self.tutorChat.withdraw(id)
                 self.tutorChatBusy = false
+                self.tutorChatRequestTurn = nil
+                self.tutorChatTask = nil
                 if !Task.isCancelled { self.tutorChatNote = "Couldn't reach your tutor just now. Try again in a moment." }
+                self.flushTutorChatObservation()
             }
         }
     }
@@ -46,7 +72,10 @@ extension PlaySession {
         tutorChatTask?.cancel()
         tutorChatGeneration = UUID()
         tutorChatBusy = false
-        if let last = tutorChat.turns.last, last.role == .learner { tutorChat.withdraw(last.id) }
+        if let id = tutorChatRequestTurn { tutorChat.withdraw(id) }
+        tutorChatRequestTurn = nil
+        tutorChatTask = nil
+        tutorChatPendingObservation = nil
     }
 
     /// A new conversation (and none at all for a child: see `learner`).
@@ -54,6 +83,10 @@ extension PlaySession {
         stopTutorChat()
         tutorChat.clear()
         tutorChatNote = nil
+        tutorChatCoaching = false
+        tutorChatActionResults = []
+        tutorChatRecentGrades = []
+        tutorChatFocus = ""
     }
 
     // MARK: Context
@@ -70,6 +103,7 @@ extension PlaySession {
         let tutorSoFar = tutorContext.isEmpty ? tutorText : tutorContext
         if !tutorSoFar.isEmpty { lesson += " " + tutorSoFar }
         var context = TutorChatContext(lesson: lesson.trimmingCharacters(in: .whitespaces))
+        addTutorChatEvidence(to: &context, question: question)
         guard tutorChatUsesBook, let book = tutorChatBook() else { return context }
         let texts = Self.pageTexts(of: book.document)
         let near = Set((book.page - 1)...(book.page + 1)).filter { texts.indices.contains($0) }

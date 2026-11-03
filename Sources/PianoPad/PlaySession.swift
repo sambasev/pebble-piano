@@ -518,6 +518,14 @@ final class PlaySession: ObservableObject {
     @Published var tutorChatNote: String?
     /// Send the book page (its text and a picture) with each question.
     @Published var tutorChatUsesBook = true
+    @Published var tutorChatCoaching = false
+    var tutorChatActionResults: [String] = []
+    var tutorChatRecentGrades: [String] = []
+    var tutorChatFocus = ""
+    var tutorChatPendingObservation: TutorChatObservation?
+    var tutorChatRequestTurn: UUID?
+    var tutorChatPreservesConversation = false
+    var tutorChatIsStopping = false
     var tutorChatTask: Task<Void, Never>?
     var tutorChatGeneration = UUID()
     /// Tests inject a fake; nil uses Muse Spark when a key is configured.
@@ -1327,6 +1335,7 @@ final class PlaySession: ObservableObject {
         recordGradedTake()
         reportGradeToLesson()
         tutorGraded()
+        tutorChatDidGrade()
         updatePlayhead()
     }
 
@@ -1438,7 +1447,7 @@ final class PlaySession: ObservableObject {
             if played.isEmpty { played = reference.notes }
         }
         let leadIn = 0.25
-        let speed = max(0.1, auditionSpeed)
+        let speed = max(0.1, tutorChatCoaching && tutor?.exercise.kind == .listen ? tempoPercent / 100 : auditionSpeed)
         let start = played.map(\.onset).min() ?? 0
         let notes = played.map { note in
             PianoSynth.SequenceNote(pitch: note.pitch, velocity: note.velocity,
@@ -1451,6 +1460,7 @@ final class PlaySession: ObservableObject {
                                   firstQuarter: played.map(\.onsetBeats).min() ?? 0)
         audition(notes, clock: clock, steps: played.map(\.onsetBeats)) { [weak self] in
             self?.lessonObserver?.playerListenFinished()
+            self?.tutorChatDidListen()
         }
     }
 
@@ -1627,7 +1637,9 @@ final class PlaySession: ObservableObject {
         do { parsed = try MIDIFile.read(url: url) }
         catch { message = "Couldn’t read \(url.lastPathComponent): \(error)"; return false }
         endTutoring()
-        resetTutorChat() // a new piece, a new conversation about it
+        if !tutorChatPreservesConversation && !(isInLesson && tutorChatCoaching) {
+            resetTutorChat() // a manually opened piece starts a new conversation
+        }
         stopPlayAlong(discard: false)
         if !keepPassage {
             passage = nil
@@ -2562,6 +2574,7 @@ extension PlaySession {
         recordGradedTake()
         reportGradeToLesson()
         tutorGraded()
+        tutorChatDidGrade()
         playheadQuarter = nil
     }
 }
@@ -2651,6 +2664,7 @@ extension PlaySession {
         let known = knownNotes()
         let fingering = fingeringNotes
         let profile = learnerSkills().summary + (learner?.kind == .child ? "\nA young child." : "")
+            + (tutorChatGoal.isEmpty ? "" : "\nMusical goal: " + tutorChatGoal)
         tutorPlanning = true
         tutorPlanNote = model == nil ? nil : "Planning your lesson with Muse Spark…"
         tutorPlanTask = Task { @MainActor [weak self] in
@@ -2704,6 +2718,9 @@ extension PlaySession {
                 + TutorCoaching.invitation(for: engine.exercise, printedMeasures: tutorPrinted(engine.exercise))
         }
         tutorContext = ""
+        if tutorChatCoaching {
+            tutorChatObserve("Lesson planned", question: "The app has finished planning the lesson. Explain the first step and start it with continueLesson.")
+        }
         guard let key = tutorPieceKey, let full = tutorFullReference else { return }
         if save { try? PieceLessonStore.save(plan, key: key, learner: tutorLearnerKey) }
         do {
@@ -2850,7 +2867,7 @@ extension PlaySession {
         tutorGeneration = UUID(); tutorTask?.cancel(); tutorBusy = false; tutorAI = ""; tutorNote = nil
         tutorHeardNothing = false
         resetAll(); tutorBeforeAttempt = tutor; tutorAttempt = e
-        let music = e.kind == .listen ? full : tutorMusic(e, full: full)
+        let music = tutorMusic(e, full: full)
         sourceReference = music; reference = music
         chords = ChordGrouping.group(music.notes, window: rubric.chordWindowMs / 1000)
         setModeNow(e.isTimed ? .playAlong : .wait)
@@ -3012,7 +3029,9 @@ extension PlaySession {
             tutorNote = "I didn't hear any notes, so the next step waits for you."
             return
         }
-        askTutor("Tell me how that attempt went, like my piano teacher, and guide me into the selected exercise.")
+        if !tutorChatCoaching && !tutorChatIsStopping {
+            askTutor("Tell me how that attempt went, like my piano teacher, and guide me into the selected exercise.")
+        }
     }
     /// `userAsked`: the learner pressed a question button, so they should hear if there's no answer.
     func askTutor(_ question: String, userAsked: Bool = false) {
