@@ -284,6 +284,8 @@ private struct LibrarySearchField: View {
         .frame(height: PP.Size.compact)
         .background(Capsule().fill(PP.surfaceGlass))
         .overlay(Capsule().strokeBorder(focused ? PP.focusRing : PP.inkStaff.opacity(0.45), lineWidth: focused ? 2 : 1))
+        .contentShape(Capsule())
+        .onTapGesture { focused = true }
         .frame(minWidth: 200, maxWidth: .infinity)
     }
 }

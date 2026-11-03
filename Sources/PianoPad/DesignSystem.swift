@@ -754,6 +754,10 @@ struct PPFieldModifier: ViewModifier {
             .padding(.vertical, 6)
             .background(shape.fill(PP.surfaceGlass))
             .overlay(shape.strokeBorder(focused ? PP.focusRing : PP.inkStaff.opacity(0.45), lineWidth: focused ? 2 : 1))
+            // The box is taller than the line of text in it: a click anywhere in it starts typing,
+            // or the keys would go to the piano instead.
+            .contentShape(shape)
+            .onTapGesture { focused = true }
     }
 }
 
