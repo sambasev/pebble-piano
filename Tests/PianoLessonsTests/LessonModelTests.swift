@@ -192,6 +192,27 @@ final class UnitLoaderTests: XCTestCase {
         ].map(\.description)))
     }
 
+    func testLeftHandFingering() throws {
+        let json = #"""
+        [ { "type": "wait", "midi": "a.mid", "fingering": [5, 4, 3], "hand": "L" },
+          { "type": "timed", "midi": "b.mid", "tempo": 60, "fingering": [1, 2], "leftFingering": [5, 4], "hand": "LR" },
+          { "type": "wait", "midi": "c.mid", "fingering": [1, 2, 3] } ]
+        """#
+        let blocks = try JSONDecoder().decode([Block].self, from: Data(json.utf8))
+        XCTAssertNil(blocks[0].rightFingering, "a left-hand block's fingering is the left hand's")
+        XCTAssertEqual(blocks[0].leftFingering, [5, 4, 3])
+        XCTAssertEqual(blocks[1].rightFingering, [1, 2])
+        XCTAssertEqual(blocks[1].leftFingering, [5, 4])
+        XCTAssertEqual(blocks[2].rightFingering, [1, 2, 3], "no hand means the right")
+        XCTAssertNil(blocks[2].leftFingering)
+
+        let unit = LessonUnit(id: "u", title: "t", pages: [
+            LessonPage(id: "a", title: "A", blocks: [.wait(.init(midi: "x.mid", fingering: [1], leftFingering: [0]))]),
+        ])
+        XCTAssertEqual(LoadedUnit(unit: unit, folder: folder).validate(fileExists: { _ in true }),
+                       [.badFingering(page: "a", block: 0, finger: 0)])
+    }
+
     func testUnreadableFile() {
         XCTAssertThrowsError(try LoadedUnit.load(folder: folder)) { error in
             guard case .unreadable? = (error as? UnitLoadFailure)?.errors.first else {

@@ -31,7 +31,8 @@ struct NotationView: View {
             let width = max(320, Double(geo.size.width - 2 * Self.margin))
             let prepared = cache.prepared(score: score, id: scoreID, width: width, mistakes: overlay.mistakeMeasures,
                                           cleanTints: overlay.cleanTints,
-                                          fingering: overlay.fingering, focus: overlay.focusMeasures)
+                                          fingering: overlay.fingering, leftFingering: overlay.leftFingering,
+                                          focus: overlay.focusMeasures)
             let currentSystem = overlay.cursorQuarter.flatMap { prepared.layout.position(atQuarter: $0)?.system }
 
             ScrollViewReader { proxy in
@@ -112,7 +113,8 @@ final class NotationCache: ObservableObject {
         let painted: PaintedDrawing
     }
 
-    private var key: (id: UUID, width: Int, mistakes: Set<Int>?, cleanTints: Bool, fingering: [Int], focus: Set<Int>)?
+    private var key: (id: UUID, width: Int, mistakes: Set<Int>?, cleanTints: Bool, fingering: [Int], leftFingering: [Int],
+                      focus: Set<Int>)?
     private var value: Prepared?
     private var playedKey: (notes: [PlayedNote], width: Int, id: UUID)?
     private var playedValue: PaintedDrawing?
@@ -131,10 +133,10 @@ final class NotationCache: ObservableObject {
     }
 
     func prepared(score: Score, id: UUID, width: Double, mistakes: Set<Int>?, cleanTints: Bool = true, fingering: [Int] = [],
-                  focus: Set<Int> = []) -> Prepared {
+                  leftFingering: [Int] = [], focus: Set<Int> = []) -> Prepared {
         let roundedWidth = Int(width.rounded())
         if let key, let value, key.id == id, key.width == roundedWidth, key.mistakes == mistakes, key.cleanTints == cleanTints,
-           key.fingering == fingering,
+           key.fingering == fingering, key.leftFingering == leftFingering,
            key.focus == focus {
             return value
         }
@@ -142,8 +144,8 @@ final class NotationCache: ObservableObject {
         let renderer = ScoreRenderer(layout: layout)
         let prepared = Prepared(layout: layout, renderer: renderer,
                                 painted: PaintedDrawing(renderer.renderScore(mistakeMeasures: mistakes, cleanTints: cleanTints, fingering: fingering,
-                                                                             focusMeasures: focus)))
-        key = (id, roundedWidth, mistakes, cleanTints, fingering, focus)
+                                                                             leftFingering: leftFingering, focusMeasures: focus)))
+        key = (id, roundedWidth, mistakes, cleanTints, fingering, leftFingering, focus)
         value = prepared
         return prepared
     }

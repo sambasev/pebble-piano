@@ -183,9 +183,10 @@ public enum RemediationPlanner {
 /// "You played D instead of E in bar 2, twice. E is finger 3."
 public enum MistakeExplainer {
     /// Up to `limit` lines, most frequent first (then by bar). `finger` gives the finger for a
-    /// pitch when the hand position is known.
+    /// pitch when the hand position is known; `isLeftHand` says which pitches the left hand plays.
     public static func explain(_ report: GradeReport, limit: Int = 3,
-                               finger: (Int) -> Int? = { _ in nil }) -> [String] {
+                               finger: (Int) -> Int? = { _ in nil },
+                               isLeftHand: (Int) -> Bool = { _ in false }) -> [String] {
         struct Key: Hashable { var kind: NoteResult.Kind; var measure: Int; var expected: Int?; var played: Int? }
         var counts: [Key: Int] = [:]
         var order: [Key] = []
@@ -206,7 +207,9 @@ public enum MistakeExplainer {
             let n = counts[key]!
             let times = n == 1 ? "" : (n == 2 ? ", twice" : ", \(n) times")
             let expected = key.expected.map { NoteName(pitch: $0).letter } ?? "a note"
-            let hint = key.expected.flatMap(finger).map { " \(expected) is finger \($0)." } ?? ""
+            let hint = key.expected.flatMap { pitch in
+                finger(pitch).map { " \(expected) is \(isLeftHand(pitch) ? "left-hand " : "")finger \($0)." }
+            } ?? ""
             switch key.kind {
             case .wrongPitch:
                 let played = key.played.map { NoteName(pitch: $0).letter } ?? "another note"
@@ -238,5 +241,15 @@ public enum MistakeExplainer {
     /// Fingers for the right hand in Middle C position (C 1 … G 5).
     public static func middleCFinger(_ pitch: Int) -> Int? {
         [60: 1, 62: 2, 64: 3, 65: 4, 67: 5][pitch]
+    }
+
+    /// Fingers for the left hand in C position, an octave below (C3 5 … G3 1).
+    public static func leftCFinger(_ pitch: Int) -> Int? {
+        [48: 5, 50: 4, 52: 3, 53: 2, 55: 1][pitch]
+    }
+
+    /// Both hands in C position: the right hand from Middle C, the left an octave below.
+    public static func cPositionFinger(_ pitch: Int) -> Int? {
+        middleCFinger(pitch) ?? leftCFinger(pitch)
     }
 }

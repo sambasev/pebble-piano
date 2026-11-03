@@ -102,7 +102,7 @@ public struct LoadedUnit: Sendable {
                 if let path = block.midi, !fileExists(url(for: path)) {
                     errors.append(.missingMIDI(page: page.id, block: i, path: path))
                 }
-                for finger in block.fingering ?? [] where !(1...5).contains(finger) {
+                for finger in (block.rightFingering ?? []) + (block.leftFingering ?? []) where !(1...5).contains(finger) {
                     errors.append(.badFingering(page: page.id, block: i, finger: finger))
                 }
                 if let tempo = Self.tempo(of: block), tempo <= 0 {

@@ -29,14 +29,16 @@ public struct ScoreOverlay: Sendable {
     /// Tint the bars without mistakes green too. Off while the tempo wash runs, so the two
     /// tints don't stack; bars with mistakes stay red.
     public var cleanTints: Bool
-    /// Finger numbers (1–5) over the top staff's notes in score order (see `renderFingering`).
+    /// Right-hand finger numbers (1–5) over the top staff's notes in score order (see `renderFingering`).
     public var fingering: [Int]
+    /// Left-hand finger numbers under the bottom staff's notes (see `renderLeftFingering`).
+    public var leftFingering: [Int]
     /// Measure numbers the learner marked to focus on: tinted and labelled.
     public var focusMeasures: Set<Int>
 
     public init(cursorQuarter: Double? = nil, auditioning: Bool = false, expected: Set<Int> = [],
                 played: [PlayedNote] = [], wrong: Set<Int> = [], mistakeMeasures: Set<Int>? = nil,
-                cleanTints: Bool = true, fingering: [Int] = [], focusMeasures: Set<Int> = []) {
+                cleanTints: Bool = true, fingering: [Int] = [], leftFingering: [Int] = [], focusMeasures: Set<Int> = []) {
         self.focusMeasures = focusMeasures
         self.cursorQuarter = cursorQuarter
         self.auditioning = auditioning
@@ -46,6 +48,7 @@ public struct ScoreOverlay: Sendable {
         self.mistakeMeasures = mistakeMeasures
         self.cleanTints = cleanTints
         self.fingering = fingering
+        self.leftFingering = leftFingering
     }
 }
 
@@ -61,7 +64,7 @@ public struct ScoreRenderer {
     /// Everything in one drawing (used for SVG): score, grading tints, playhead and marks.
     public func render(_ overlay: ScoreOverlay = ScoreOverlay()) -> Drawing {
         var drawing = renderScore(mistakeMeasures: overlay.mistakeMeasures, cleanTints: overlay.cleanTints, fingering: overlay.fingering,
-                                  focusMeasures: overlay.focusMeasures)
+                                  leftFingering: overlay.leftFingering, focusMeasures: overlay.focusMeasures)
         let live = renderLive(overlay)
         // The playhead band goes behind the music; the marks on top.
         let bandCount = live.prefix { if case .rect = $0 { return true } else { return false } }.count
@@ -73,9 +76,9 @@ public struct ScoreRenderer {
     }
 
     /// The engraved score, with red and (with `cleanTints`) green measure tints after grading, and
-    /// finger numbers when given. Changes rarely, so the app draws it once and keeps it.
+    /// finger numbers for either hand when given. Changes rarely, so the app draws it once and keeps it.
     public func renderScore(mistakeMeasures: Set<Int>? = nil, cleanTints: Bool = true, fingering: [Int] = [],
-                            focusMeasures: Set<Int> = []) -> Drawing {
+                            leftFingering: [Int] = [], focusMeasures: Set<Int> = []) -> Drawing {
         var items: [DrawItem] = []
         // Bars the learner marked to focus on: a violet tint, and "focus" over the bar.
         for system in layout.systems {
@@ -108,6 +111,7 @@ public struct ScoreRenderer {
         }
         items += ties()
         items += renderFingering(fingering)
+        items += renderLeftFingering(leftFingering)
         for system in layout.systems {
             for m in system.measures where focusMeasures.contains(score.measures[m.index].number) {
                 items.append(.text("★ focus", at: DrawPoint(m.x + m.width - 0.4 * s, staffSpan(system).top - 1.9 * s), size: 1.2 * s,
@@ -221,29 +225,52 @@ public struct ScoreRenderer {
         return items
     }
 
-    /// Finger numbers over the top staff: one per note or chord, in score order (rests and
-    /// tied continuations get none). Extra numbers are ignored; with fewer, later notes go
-    /// unmarked. Each sits above the staff, or above the note when it's higher than that.
+    /// Right-hand finger numbers over the top staff: one per note or chord, in score order
+    /// (rests and tied continuations get none). Extra numbers are ignored; with fewer, later
+    /// notes go unmarked. Each sits above the staff, or above the note when it's higher than that.
     public func renderFingering(_ fingers: [Int]) -> [DrawItem] {
-        guard !fingers.isEmpty, let clef = score.staves.first else { return [] }
+        fingering(fingers, staff: 0, below: false)
+    }
+
+    /// Left-hand finger numbers, as `renderFingering` but under the bottom staff (the only
+    /// staff, for a one-staff score), or under the note when it's lower than that.
+    public func renderLeftFingering(_ fingers: [Int]) -> [DrawItem] {
+        fingering(fingers, staff: max(0, score.staves.count - 1), below: true)
+    }
+
+    private func fingering(_ fingers: [Int], staff: Int, below: Bool) -> [DrawItem] {
+        guard !fingers.isEmpty, staff < score.staves.count else { return [] }
+        let clef = score.staves[staff]
         var items: [DrawItem] = []
         var next = 0
         for system in layout.systems {
             for ml in system.measures {
-                for event in score.measures[ml.index].events(onStaff: 0).sorted(by: { $0.start < $1.start }) {
+                for event in score.measures[ml.index].events(onStaff: staff).sorted(by: { $0.start < $1.start }) {
                     guard next < fingers.count else { return items }
                     guard !event.isRest, !event.notes.allSatisfy(\.tieStop), let x = ml.columns[event.start] else { continue }
                     // 0: no finger number printed for this note (books print them only now and then).
                     guard fingers[next] > 0 else { next += 1; continue }
-                    let highest = event.notes.map { clef.staffStep(of: $0.spelled) }.max() ?? 0
-                    let aboveStaff = layout.y(ofStep: 8, staff: 0, system: system.index) - 1.4 * s
-                    // Clear the stem when it points up; a high note's stem points down, so the
-                    // number only has to clear the head (4.6 spaces above it put the numbers for
-                    // the top notes out of the picture).
-                    let clearance = event.stemUp(clef: clef) && event.type.hasStem ? 4.6 : 1.6
-                    let aboveNote = layout.y(ofStep: highest, staff: 0, system: system.index) - clearance * s
-                    // Never above the system's top margin, where it would be cut off.
-                    let y = max(system.top + 0.9 * s, min(aboveStaff, aboveNote))
+                    let steps = event.notes.map { clef.staffStep(of: $0.spelled) }
+                    let stemUp = event.stemUp(clef: clef)
+                    let y: Double
+                    if below {
+                        // The mirror of the marks above, a text height lower (the baseline is the
+                        // number's bottom): clear a down stem, or else just the head.
+                        let belowStaff = layout.y(ofStep: 0, staff: staff, system: system.index) + 2.4 * s
+                        let clearance = !stemUp && event.type.hasStem ? 5.6 : 2.6
+                        let belowNote = layout.y(ofStep: steps.min() ?? 0, staff: staff, system: system.index) + clearance * s
+                        // Never below the system's bottom margin, where it would be cut off.
+                        y = min(system.top + system.height - 0.3 * s, max(belowStaff, belowNote))
+                    } else {
+                        let aboveStaff = layout.y(ofStep: 8, staff: staff, system: system.index) - 1.4 * s
+                        // Clear the stem when it points up; a high note's stem points down, so the
+                        // number only has to clear the head (4.6 spaces above it put the numbers for
+                        // the top notes out of the picture).
+                        let clearance = stemUp && event.type.hasStem ? 4.6 : 1.6
+                        let aboveNote = layout.y(ofStep: steps.max() ?? 0, staff: staff, system: system.index) - clearance * s
+                        // Never above the system's top margin, where it would be cut off.
+                        y = max(system.top + 0.9 * s, min(aboveStaff, aboveNote))
+                    }
                     items.append(.text(String(fingers[next]), at: DrawPoint(x, y),
                                        size: 1.4 * s, color: .ink, anchor: .center, bold: true))
                     next += 1

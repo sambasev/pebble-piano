@@ -114,7 +114,7 @@ private struct PagePlayerView: View {
         } else if block.midi != nil, let score = session.score {
             VStack(alignment: .leading, spacing: PP.Space.s2) {
                 if session.showsTempoDisplay { TempoStrip() }
-                NotationView(score: score, scoreID: session.scoreID, overlay: overlay(fingering: runner.fingering(for: block) ?? []),
+                NotationView(score: score, scoreID: session.scoreID, overlay: overlay(fingering: runner.fingering(for: block)),
                              tempoProgress: session.showsTempoDisplay
                                  ? { [session] uptime in session.tempoProgress(atUptime: uptime) } : nil,
                              tempoAnimating: session.tempoDisplayMoves)
@@ -156,8 +156,8 @@ private struct PagePlayerView: View {
             Text(prompt(block))
                 .font(promptFont(block))
                 .fixedSize(horizontal: false, vertical: true)
-            if let fingering = block.fingering, Set(fingering).count == 1, let finger = fingering.first {
-                Text("Finger \(finger)\(finger == 1 ? " (thumb)" : "")")
+            if let finger = singleFinger(block) {
+                Text("\(block.hand == .left ? "Left hand, finger" : "Finger") \(finger)\(finger == 1 ? " (thumb)" : "")")
                     .font(.ppCallout).foregroundColor(PP.inkMuted)
             }
         }
@@ -441,7 +441,15 @@ private struct PagePlayerView: View {
         }
     }
 
-    private func overlay(fingering: [Int]) -> ScoreOverlay {
+    /// The one finger a single-hand block uses throughout, if it uses only one.
+    private func singleFinger(_ block: Block) -> Int? {
+        guard block.rightFingering == nil || block.leftFingering == nil,
+              let fingering = block.rightFingering ?? block.leftFingering,
+              Set(fingering).count == 1 else { return nil }
+        return fingering.first
+    }
+
+    private func overlay(fingering: (right: [Int], left: [Int])) -> ScoreOverlay {
         ScoreOverlay(
             cursorQuarter: session.playheadQuarter,
             auditioning: session.isAuditioning,
@@ -449,7 +457,8 @@ private struct PagePlayerView: View {
             played: session.showGuide ? session.playedNotes : [],
             wrong: session.markedWrong,
             mistakeMeasures: session.phase == .graded && session.report != nil ? session.mistakeMeasures : nil,
-            fingering: fingering
+            fingering: fingering.right,
+            leftFingering: fingering.left
         )
     }
 }

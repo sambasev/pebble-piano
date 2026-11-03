@@ -439,20 +439,34 @@ final class LessonRunner: ObservableObject, PlayerObserver {
         b.useGoalSong ? (goalSong?.title ?? b.title) : b.title
     }
 
-    /// Finger numbers to draw over a block's notes: its own, or for a song in Middle C position
-    /// one per note worked out from the pitch (C 1, D 2, E 3, F 4, G 5).
-    func fingering(for block: Block) -> [Int]? {
-        if let own = block.fingering { return own }
-        guard case .songChallenge = block, let notes = player.reference?.notes, !notes.isEmpty else { return nil }
-        let fingers: [Int: Int] = [60: 1, 62: 2, 64: 3, 65: 4, 67: 5]
-        var result: [Int] = []
-        var lastOnset = -Double.infinity
-        for note in notes.sorted(by: { $0.onset < $1.onset }) {
-            guard let finger = fingers[note.pitch] else { return nil } // outside C position
-            if note.onset - lastOnset > 0.03 { result.append(finger) } // one per chord
-            lastOnset = note.onset
+    /// Finger numbers to draw over a block's notes, for each hand: its own, or for a song in
+    /// C position one per note worked out from the pitch (right hand C 1 … G 5 from Middle C,
+    /// left hand C 5 … G 1 an octave below). A hand with a note outside its position gets none.
+    func fingering(for block: Block) -> (right: [Int], left: [Int]) {
+        if block.rightFingering != nil || block.leftFingering != nil {
+            return (block.rightFingering ?? [], block.leftFingering ?? [])
         }
-        return result
+        guard case .songChallenge = block, let score = player.score else { return ([], []) }
+        // Same note order as the renderer: per staff, rests and tied continuations skipped.
+        func fingers(staff: Int, left: Bool) -> [Int] {
+            var result: [Int] = []
+            for measure in score.measures {
+                for event in measure.events(onStaff: staff).sorted(by: { $0.start < $1.start })
+                where !event.isRest && !event.notes.allSatisfy(\.tieStop) {
+                    // One per chord: the note nearest the number (lowest under, highest over).
+                    guard let pitch = left ? event.notes.first?.midi : event.notes.last?.midi,
+                          let finger = left ? MistakeExplainer.leftCFinger(pitch) : MistakeExplainer.middleCFinger(pitch)
+                    else { return [] } // outside C position
+                    result.append(finger)
+                }
+            }
+            return result
+        }
+        let bottom = score.staves.count - 1
+        let rightStaff: Int? = score.staves.count > 1 || score.staves.first == .treble ? 0 : nil
+        let leftStaff: Int? = score.staves.count > 1 || score.staves.first == .bass ? bottom : nil
+        return (rightStaff.map { fingers(staff: $0, left: false) } ?? [],
+                leftStaff.map { fingers(staff: $0, left: true) } ?? [])
     }
 
     /// A song challenge's file: the learner's goal song when the block asks for it (and it's there).
@@ -767,7 +781,8 @@ final class LessonRunner: ObservableObject, PlayerObserver {
             song.finish(.perform)
             feedback = nil
             let result = SongResult(stars: Stars.compute(s), summary: s, requiredStars: engine?.rules.requiredStars ?? 1)
-            explanations = MistakeExplainer.explain(report, finger: MistakeExplainer.middleCFinger)
+            explanations = MistakeExplainer.explain(report, finger: MistakeExplainer.cPositionFinger,
+                                                    isLeftHand: { $0 < 60 })
             drillOffer = nil
             if result.passed {
                 failedPerforms = []

@@ -717,4 +717,41 @@ final class FingeringTests: XCTestCase {
         XCTAssertEqual(fingerTexts(renderer.renderScore().items).count, 0)
         XCTAssertEqual(fingerTexts(renderer.renderScore(fingering: [1, 2, 3]).items).map(\.0), ["1", "2", "3"])
     }
+
+    /// Both hands: right-hand numbers over the treble staff, left-hand numbers under the bass.
+    func testLeftHandNumbersGoUnderTheBassStaff() throws {
+        let right = [64, 65, 67].enumerated().map {
+            NoteEvent(pitch: $0.element, onset: Double($0.offset) * 0.5, offset: Double($0.offset) * 0.5 + 0.45, velocity: 80)
+        }
+        let left = [48, 50, 52].enumerated().map {
+            NoteEvent(pitch: $0.element, onset: Double($0.offset) * 0.5, offset: Double($0.offset) * 0.5 + 0.45, velocity: 80)
+        }
+        let score = Transcriber().transcribe(try MIDIFile.parse(MIDIFile.write(notes: right + left)))
+        XCTAssertEqual(score.staves, [.treble, .bass])
+        let layout = ScoreLayout(score: score, width: 800)
+        let renderer = ScoreRenderer(layout: layout)
+        let marks = fingerTexts(renderer.renderLeftFingering([5, 4, 3]))
+        XCTAssertEqual(marks.map(\.0), ["5", "4", "3"])
+        let xs = marks.map(\.1.x)
+        XCTAssertEqual(xs, xs.sorted(), "left to right")
+        let bassBottom = layout.y(ofStep: 0, staff: 1, system: 0)
+        XCTAssertTrue(marks.allSatisfy { $0.1.y > bassBottom + 1.4 * layout.metrics.spacing }, "under the bass staff")
+        let both = fingerTexts(renderer.renderScore(fingering: [3, 4, 5], leftFingering: [5, 4, 3]).items)
+        XCTAssertEqual(both.map(\.0), ["3", "4", "5", "5", "4", "3"])
+        let trebleTop = layout.y(ofStep: 8, staff: 0, system: 0)
+        XCTAssertTrue(both.prefix(3).allSatisfy { $0.1.y < trebleTop }, "right hand still over the treble staff")
+    }
+
+    /// A left-hand-only passage on one bass staff: numbers under it.
+    func testLeftHandAloneOnOneStaff() throws {
+        let seq = try MIDIFile.parse(MIDIFile.write(notes: [48, 50, 52].enumerated().map {
+            NoteEvent(pitch: $0.element, onset: Double($0.offset) * 0.5, offset: Double($0.offset) * 0.5 + 0.45, velocity: 80)
+        }))
+        let score = Transcriber().transcribe(seq)
+        XCTAssertEqual(score.staves, [.bass])
+        let layout = ScoreLayout(score: score, width: 800)
+        let marks = fingerTexts(ScoreRenderer(layout: layout).renderLeftFingering([5, 4, 3]))
+        XCTAssertEqual(marks.map(\.0), ["5", "4", "3"])
+        XCTAssertTrue(marks.allSatisfy { $0.1.y > layout.y(ofStep: 0, staff: 0, system: 0) }, "under the staff")
+    }
 }

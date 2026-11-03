@@ -113,6 +113,15 @@ final class RemediationTests: XCTestCase {
         ])
     }
 
+    func testExplainsLeftHandFingers() throws {
+        let r = try report(results: [("wrongPitch", 1, 50, 52), ("missed", 2, 64, nil)])
+        let lines = MistakeExplainer.explain(r, finger: MistakeExplainer.cPositionFinger, isLeftHand: { $0 < 60 })
+        XCTAssertEqual(lines, [
+            "You played E instead of D in bar 1. D is left-hand finger 4.",
+            "You missed E in bar 2. E is finger 3.",
+        ])
+    }
+
     func testExplainsTimingOnlyWhereTheNotesWereRight() throws {
         let r = try report(flags: [("early", 4), ("early", 4), ("late", 2)], results: [("wrongPitch", 2, 64, 62)])
         XCTAssertEqual(MistakeExplainer.explain(r), [

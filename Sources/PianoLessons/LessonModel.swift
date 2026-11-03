@@ -219,15 +219,20 @@ public enum Block: Equatable, Sendable {
         public var midi: String
         /// Shown above the block, e.g. "Play the note C".
         public var prompt: String?
-        /// One finger number (1–5) per note, in score order.
+        /// One finger number (1–5) per note, in score order: the right hand's, or the left's
+        /// when `hand` is "L" (see `Block.leftFingering`).
         public var fingering: [Int]?
+        /// The left hand's numbers when both hands have them, `fingering` being the right's.
+        public var leftFingering: [Int]?
         public var hand: Hand?
         public var hint: String?
 
-        public init(midi: String, prompt: String? = nil, fingering: [Int]? = nil, hand: Hand? = nil, hint: String? = nil) {
+        public init(midi: String, prompt: String? = nil, fingering: [Int]? = nil, leftFingering: [Int]? = nil,
+                    hand: Hand? = nil, hint: String? = nil) {
             self.midi = midi
             self.prompt = prompt
             self.fingering = fingering
+            self.leftFingering = leftFingering
             self.hand = hand
             self.hint = hint
         }
@@ -254,22 +259,25 @@ public enum Block: Equatable, Sendable {
         /// A rubric name ("beginner", "intermediate") or a path relative to the unit folder.
         public var rubric: String
         public var fingering: [Int]?
+        public var leftFingering: [Int]?
         public var hand: Hand?
         public var hint: String?
 
         public init(midi: String, prompt: String? = nil, tempo: Double, countInBeats: Int = 4,
-                    rubric: String = "beginner", fingering: [Int]? = nil, hand: Hand? = nil, hint: String? = nil) {
+                    rubric: String = "beginner", fingering: [Int]? = nil, leftFingering: [Int]? = nil,
+                    hand: Hand? = nil, hint: String? = nil) {
             self.midi = midi
             self.prompt = prompt
             self.tempo = tempo
             self.countInBeats = countInBeats
             self.rubric = rubric
             self.fingering = fingering
+            self.leftFingering = leftFingering
             self.hand = hand
             self.hint = hint
         }
 
-        private enum CodingKeys: String, CodingKey { case midi, prompt, tempo, countInBeats, rubric, fingering, hand, hint }
+        private enum CodingKeys: String, CodingKey { case midi, prompt, tempo, countInBeats, rubric, fingering, leftFingering, hand, hint }
 
         public init(from decoder: Decoder) throws {
             let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -279,6 +287,7 @@ public enum Block: Equatable, Sendable {
             countInBeats = try c.decodeIfPresent(Int.self, forKey: .countInBeats) ?? 4
             rubric = try c.decodeIfPresent(String.self, forKey: .rubric) ?? "beginner"
             fingering = try c.decodeIfPresent([Int].self, forKey: .fingering)
+            leftFingering = try c.decodeIfPresent([Int].self, forKey: .leftFingering)
             hand = try c.decodeIfPresent(Hand.self, forKey: .hand)
             hint = try c.decodeIfPresent(String.self, forKey: .hint)
         }
@@ -292,24 +301,26 @@ public enum Block: Equatable, Sendable {
         /// Tempo factors for the Practise stage, slowest first.
         public var practiceTempos: [Double]
         public var fingering: [Int]?
+        public var leftFingering: [Int]?
         /// Play the learner's own goal song (`songs/<GoalSong id>.mid` in the unit folder)
         /// instead of `midi`, which stays the fallback.
         public var useGoalSong: Bool
 
         public init(midi: String, title: String, backing: String? = nil, practiceTempos: [Double] = [0.7],
-                    fingering: [Int]? = nil, useGoalSong: Bool = false) {
+                    fingering: [Int]? = nil, leftFingering: [Int]? = nil, useGoalSong: Bool = false) {
             self.midi = midi
             self.title = title
             self.backing = backing
             self.practiceTempos = practiceTempos
             self.fingering = fingering
+            self.leftFingering = leftFingering
             self.useGoalSong = useGoalSong
         }
 
         /// The goal song's file in a unit folder.
         public static func goalSongPath(_ id: String) -> String { "songs/\(id).mid" }
 
-        private enum CodingKeys: String, CodingKey { case midi, title, backing, practiceTempos, fingering, useGoalSong }
+        private enum CodingKeys: String, CodingKey { case midi, title, backing, practiceTempos, fingering, leftFingering, useGoalSong }
 
         public init(from decoder: Decoder) throws {
             let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -318,6 +329,7 @@ public enum Block: Equatable, Sendable {
             backing = try c.decodeIfPresent(String.self, forKey: .backing)
             practiceTempos = try c.decodeIfPresent([Double].self, forKey: .practiceTempos) ?? [0.7]
             fingering = try c.decodeIfPresent([Int].self, forKey: .fingering)
+            leftFingering = try c.decodeIfPresent([Int].self, forKey: .leftFingering)
             useGoalSong = try c.decodeIfPresent(Bool.self, forKey: .useGoalSong) ?? false
         }
     }
@@ -360,6 +372,7 @@ public enum Block: Equatable, Sendable {
         }
     }
 
+    /// The block's finger numbers as written, `fingering` and `leftFingering`, whichever hand they're for.
     public var fingering: [Int]? {
         switch self {
         case .wait(let b): return b.fingering
@@ -367,6 +380,33 @@ public enum Block: Equatable, Sendable {
         case .songChallenge(let b): return b.fingering
         default: return nil
         }
+    }
+
+    public var hand: Hand? {
+        switch self {
+        case .wait(let b): return b.hand
+        case .timed(let b): return b.hand
+        default: return nil
+        }
+    }
+
+    private var ownLeftFingering: [Int]? {
+        switch self {
+        case .wait(let b): return b.leftFingering
+        case .timed(let b): return b.leftFingering
+        case .songChallenge(let b): return b.leftFingering
+        default: return nil
+        }
+    }
+
+    /// Right-hand finger numbers: `fingering`, unless the block is for the left hand alone.
+    public var rightFingering: [Int]? {
+        hand == .left ? nil : fingering
+    }
+
+    /// Left-hand finger numbers: `leftFingering`, or `fingering` on a left-hand-only block.
+    public var leftFingering: [Int]? {
+        ownLeftFingering ?? (hand == .left ? fingering : nil)
     }
 
     /// Blocks whose result is a grade report (and so count attempts).
