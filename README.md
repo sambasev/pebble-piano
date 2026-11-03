@@ -121,7 +121,7 @@ and press ⌘R. A window opens with an on-screen keyboard:
 
 ## Music Library
 
-The **Music Library** tab contains 30 reviewed Mutopia solo piano/keyboard editions. Search by title or composer, filter by composer or editorial difficulty, and choose **Start learning** for adaptive tutoring or **Practise freely** for ordinary practice. Use **Listen** in Practice to hear the reference. Local tutoring works without AI credentials.
+The **Music Library** tab contains 30 reviewed Mutopia solo piano/keyboard editions. The table shows each piece’s composer, editorial difficulty and opening key signature (when supplied by the MIDI). **Preview** auditions a piece in place; press **Stop** to end it. Search by title or composer, filter by composer or editorial difficulty, and choose **Start learning** for adaptive tutoring or **Practise freely** for ordinary practice. You can also use **Listen** in Practice to hear the reference. Local tutoring works without AI credentials.
 
 MIDI downloads on demand and stays in Application Support for offline reopening; the **Downloaded** filter shows validated local files. A failed or cancelled download leaves the current practice piece intact. Edition credits, exact licenses and links to the original PDF and LilyPond sources appear beside each piece. The practice notation is generated from MIDI and omits the original engraving and markings. See [catalog review and validation](docs/mutopia-catalog.md).
 

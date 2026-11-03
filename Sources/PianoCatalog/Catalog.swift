@@ -1,4 +1,5 @@
 import Foundation
+import PianoGraderCore
 
 public struct CatalogPiece: Codable, Identifiable, Equatable, Sendable {
     public enum Difficulty: String, Codable, CaseIterable, Sendable {
@@ -8,6 +9,8 @@ public struct CatalogPiece: Codable, Identifiable, Equatable, Sendable {
     public let title: String
     public let composer: String
     public let difficulty: Difficulty
+    /// Opening key, read from the reviewed MIDI's key-signature event. nil means unknown.
+    public let keySignature: KeySignature?
     public let attribution: String
     public let license: String
     public let licenseURL: URL
@@ -17,6 +20,14 @@ public struct CatalogPiece: Codable, Identifiable, Equatable, Sendable {
     public let midiURL: URL
     public let sha256: String
     public let review: String
+
+    public var keySignatureDescription: String? {
+        guard let keySignature else { return nil }
+        let count = abs(keySignature.fifths)
+        if count == 0 { return "No sharps or flats" }
+        let accidental = keySignature.fifths < 0 ? "flat" : "sharp"
+        return "\(count) \(accidental)\(count == 1 ? "" : "s")"
+    }
 
     public func matches(query: String, composer: String? = nil, difficulty: Difficulty? = nil) -> Bool {
         let words = query.split(whereSeparator: \.isWhitespace)
@@ -46,6 +57,7 @@ public struct MusicCatalog: Codable, Sendable {
                   !piece.id.isEmpty && !piece.title.isEmpty && !piece.composer.isEmpty
                     && !piece.attribution.isEmpty && !piece.review.isEmpty
                     && ["Public Domain", "CC BY 2.5", "CC BY 3.0", "CC BY 4.0"].contains(piece.license)
+                    && (piece.keySignature.map { (-7...7).contains($0.fifths) } ?? true)
                     && piece.sha256.count == 64
                     && piece.sha256.allSatisfy { "0123456789abcdef".contains($0) }
                     && [piece.licenseURL, piece.sourceURL, piece.pdfURL, piece.lilypondURL, piece.midiURL]

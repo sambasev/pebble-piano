@@ -21,6 +21,7 @@ final class PiecePreview: ObservableObject {
     /// True as a preview starts, false once it stops (the session mutes the microphone).
     private let onActive: (Bool) -> Void
     private var timer: Timer?
+    private var onStop: (() -> Void)?
 
     init(synth: @escaping () -> PianoSynth?, onActive: @escaping (Bool) -> Void) {
         self.synth = synth
@@ -51,15 +52,17 @@ final class PiecePreview: ObservableObject {
     }
 
     @discardableResult
-    func play(_ id: String, url: URL, tempo: Double? = nil) -> Bool {
+    func play(_ id: String, url: URL, tempo: Double? = nil, onStop: (() -> Void)? = nil) -> Bool {
         stop()
         guard let synth = synth(), var sequence = try? MIDIFile.read(url: url) else { return false }
         sequence.notes.removeAll { $0.channel == 9 } // no drums on a piano
         if let tempo, tempo > 0 { sequence = sequence.retimed(bpm: tempo) }
         let notes = Self.sequenceNotes(sequence)
-        guard let length = notes.map(\.end).max(), synth.playSequence(notes) else { return false }
-
+        guard let length = notes.map(\.end).max() else { return false }
+        // Stop any Listen audition before starting this sequence on the same synth.
         onActive(true)
+        guard synth.playSequence(notes) else { onActive(false); return false }
+        self.onStop = onStop
         playingID = id
         progress = 0
         let timer = Timer(timeInterval: 1.0 / 20, repeats: true) { [weak self] _ in
@@ -81,7 +84,10 @@ final class PiecePreview: ObservableObject {
         synth()?.stopSequence()
         playingID = nil
         progress = 0
+        let completed = onStop
+        onStop = nil
         onActive(false)
+        completed?()
     }
 
     /// The piece from its first note, after a short breath so the first one isn't clipped.

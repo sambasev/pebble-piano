@@ -11,7 +11,7 @@ import subprocess
 
 def midi_notes(data):
  if data[:4]!=b'MThd':raise ValueError('not MIDI')
- _,n,ppq=struct.unpack('>HHH',data[8:14]);pos=8+int.from_bytes(data[4:8],'big');notes=[];times=[]
+ _,n,ppq=struct.unpack('>HHH',data[8:14]);pos=8+int.from_bytes(data[4:8],'big');notes=[];times=[];keys=[]
  for tr in range(n):
   size=int.from_bytes(data[pos+4:pos+8],'big');b=data[pos+8:pos+8+size];pos+=8+size;i=0;t=0;running=None;active={}
   def vlq():
@@ -27,6 +27,7 @@ def midi_notes(data):
    if s==255:
     typ=b[i];i+=1;ln=vlq();payload=b[i:i+ln];i+=ln;running=None
     if typ==88:times.append((t,tuple(payload[:2])))
+    if typ==89 and len(payload)==2:keys.append((t,dict(fifths=struct.unpack('b',payload[:1])[0],isMinor=bool(payload[1]))))
     if typ==47:break
    elif s in (240,247):ln=vlq();i+=ln;running=None
    else:
@@ -36,7 +37,7 @@ def midi_notes(data):
     elif kind==8 or(kind==9 and not v):
      start=active.pop((ch,p),None)
      if start is not None:notes.append(dict(track=tr,channel=ch,pitch=p,on=start/ppq,off=t/ppq))
- return notes,times
+ return notes,times,keys
 
 
 def validate(piece, directory):
@@ -44,7 +45,9 @@ def validate(piece, directory):
     subprocess.run(["curl", "--silent", "--show-error", "--fail", "--location", "--max-time", "45", piece["midiURL"], "--output", str(path)], check=True)
     data = path.read_bytes()
     assert hashlib.sha256(data).hexdigest() == piece["sha256"], "checksum differs"
-    notes, metres = midi_notes(data)
+    notes, metres, keys = midi_notes(data)
+    opening_key = min(keys, key=lambda item: item[0])[1] if keys else None
+    assert piece.get("keySignature") == opening_key, "opening key signature differs"
     assert notes and all(n["channel"] != 9 and 21 <= n["pitch"] <= 108 for n in notes), "not solo piano MIDI"
     assert len(set(value for tick, value in metres)) <= 1, "metre changes"
     assert all(abs(n[key] * 4 - round(n[key] * 4)) < 0.015 for n in notes for key in ["on", "off"]), "off the sixteenth grid"

@@ -13,9 +13,12 @@ final class MusicLibraryModel: ObservableObject {
     @Published var downloadedOnly = false
     @Published var selectedID: String?
     @Published private(set) var downloaded: Set<String> = []
+    @Published private(set) var previewingID: String?
     @Published private(set) var downloadingID: String?
     @Published private(set) var progress: Double?
     @Published private(set) var error: String?
+    private var previewGeneration = UUID()
+    private var stopPreviewPlayback: (() -> Void)?
     private var requestID: UUID?
     private var task: Task<Void, Never>?
 
@@ -50,9 +53,39 @@ final class MusicLibraryModel: ObservableObject {
         requestID = nil
         task?.cancel(); task = nil
         downloadingID = nil; progress = nil
+        stopPreview()
+    }
+
+    private func stopPreview() {
+        previewGeneration = UUID()
+        previewingID = nil
+        let stop = stopPreviewPlayback
+        stopPreviewPlayback = nil
+        stop?()
+    }
+
+    /// Audition in place using the same validated cache as practice. Tapping again stops it.
+    func preview(_ piece: CatalogPiece, play: @escaping (URL, @escaping () -> Void) -> Bool,
+                 stop: @escaping () -> Void) {
+        if previewingID == piece.id { cancel(); return }
+        prepare(piece, failureMessage: "Couldn't preview this piece. Check your audio output and try again.") { [weak self] url in
+            guard let self else { return false }
+            let generation = self.previewGeneration
+            self.stopPreviewPlayback = stop
+            return play(url) { [weak self] in
+                guard let self, self.previewGeneration == generation else { return }
+                self.previewingID = nil
+                self.stopPreviewPlayback = nil
+            }
+        }
+        previewingID = piece.id
     }
 
     func open(_ piece: CatalogPiece, onOpen: @escaping (URL) -> Bool) {
+        prepare(piece, failureMessage: "Couldn't open this piece. Please try again.", onReady: onOpen)
+    }
+
+    private func prepare(_ piece: CatalogPiece, failureMessage: String, onReady: @escaping (URL) -> Bool) {
         cancel()
         error = nil
         let token = UUID()
@@ -69,10 +102,14 @@ final class MusicLibraryModel: ObservableObject {
                 guard let self, self.requestID == token else { return }
                 self.downloaded.insert(piece.id)
                 self.requestID = nil; self.downloadingID = nil; self.task = nil
-                if !onOpen(url) { self.error = "Couldn't open this piece. Please try again." }
+                if !onReady(url) {
+                    self.stopPreview()
+                    self.error = failureMessage
+                }
             } catch {
                 guard let self, self.requestID == token else { return }
                 self.requestID = nil; self.downloadingID = nil; self.task = nil
+                self.stopPreview()
                 if !(error is CancellationError) { self.error = "\(error.localizedDescription) Select a piece and try again." }
             }
         }

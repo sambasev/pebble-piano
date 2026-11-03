@@ -13,6 +13,19 @@ final class CatalogTests: XCTestCase {
         XCTAssertTrue(catalog.pieces.contains { $0.license == "CC BY 2.5" })
     }
 
+    func testKeySignaturesAndLegacyUnknownMetadata() throws {
+        let catalog = try MusicCatalog.bundled()
+        XCTAssertEqual(catalog.pieces.filter { $0.keySignature != nil }.count, 29)
+        XCTAssertEqual(catalog.pieces.first { $0.id == "mutopia-228" }?.keySignatureDescription, "2 flats")
+        XCTAssertEqual(catalog.pieces.first { $0.id == "mutopia-865" }?.keySignatureDescription, "3 sharps")
+        XCTAssertEqual(catalog.pieces.first { $0.id == "mutopia-203" }?.keySignatureDescription, "No sharps or flats")
+        XCTAssertNil(catalog.pieces.first { $0.id == "mutopia-59" }?.keySignatureDescription)
+        var object = try XCTUnwrap(JSONSerialization.jsonObject(with: JSONEncoder().encode(catalog.pieces[0])) as? [String: Any])
+        object.removeValue(forKey: "keySignature")
+        let legacy = try JSONDecoder().decode(CatalogPiece.self, from: JSONSerialization.data(withJSONObject: object))
+        XCTAssertNil(legacy.keySignature)
+    }
+
     func testSearchAndCombinedFilters() throws {
         let pieces = try MusicCatalog.bundled().pieces
         let arabesque = try XCTUnwrap(pieces.first { $0.title.contains("Arabesque") })
@@ -179,6 +192,7 @@ final class CatalogCorpusTests: XCTestCase {
             let data = try Data(contentsOf: url)
             try CatalogCache.validate(data, for: piece)
             let sequence = try MIDIFile.parse(data)
+            XCTAssertEqual(piece.keySignature, sequence.keySignature, "Opening signature: \(piece.id)")
             let score = Transcriber().transcribe(sequence, title: piece.title)
             XCTAssertFalse(score.measures.isEmpty, piece.id)
             XCTAssertTrue(sequence.notes.allSatisfy { note in

@@ -418,7 +418,7 @@ final class PlaySession: ObservableObject {
             held.removeAll(); wrong.removeAll()
             synth?.allNotesOff()
         }
-        audio?.setMuted(active || isAuditioning)
+        audio?.setMuted(active || isAuditioning || preview.playingID != nil)
     }
 
     func refreshEarLearner() {
@@ -795,7 +795,7 @@ final class PlaySession: ObservableObject {
         )
         if audio == nil { input.profile = PlaySession.loadProfile() }
         input.preferredInputUID = inputDeviceUID
-        input.setMuted(isEarTrainingActive || isAuditioning)
+        input.setMuted(isEarTrainingActive || isAuditioning || preview.playingID != nil)
         isCalibrated = input.profile != nil
         audio = input
         roomNoise = Self.newestRoomNoise(profile: input.profile)
@@ -1417,6 +1417,13 @@ final class PlaySession: ObservableObject {
         }
     }
 
+    /// Library columns and piece cards share one player without replacing practice state.
+    @discardableResult
+    func previewCatalogPiece(_ url: URL, onFinish: @escaping () -> Void) -> Bool {
+        guard tab == .musicLibrary else { return false }
+        return preview.play("catalog:" + url.lastPathComponent, url: url, onStop: onFinish)
+    }
+
     /// Seconds per quarter note at the practice tempo (120 bpm when the piece gives none).
     private var practiceSecondsPerQuarter: Double { 60 / max(1, practiceBPM) }
 
@@ -1549,7 +1556,7 @@ final class PlaySession: ObservableObject {
         if let audio {
             // Let the speakers' sound die away before listening again.
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self] in
-                if self?.isAuditioning == false && self?.isEarTrainingActive == false { audio.setMuted(false) }
+                if self?.isAuditioning == false && self?.isEarTrainingActive == false && self?.preview.playingID == nil { audio.setMuted(false) }
             }
         }
         updatePlayhead()

@@ -78,7 +78,7 @@ struct ContentView: View {
 
     /// The app's name, the two sections, and what is listening.
     private var header: some View {
-        HStack(spacing: PP.Space.s4) {
+        HStack(spacing: headerWidth < 1100 ? PP.Space.s2 : PP.Space.s4) {
             HStack(spacing: PP.Space.s2) {
                 Image(systemName: "pianokeys")
                     .font(.system(size: 15, weight: .semibold))
@@ -86,19 +86,19 @@ struct ContentView: View {
                     .frame(width: 30, height: 30)
                     .background(RoundedRectangle(cornerRadius: PP.Radius.sm, style: .continuous).fill(PP.accent))
                     .accessibilityHidden(true)
-                Text("PerfectPiano").font(.ppHeadline)
+                Text("PerfectPiano").font(.ppHeadline).lineLimit(1).fixedSize()
             }
             Spacer()
             Picker("Section", selection: $session.tab) {
                 Text("Learn").tag(PlaySession.AppTab.learn)
                 Text("Practice").tag(PlaySession.AppTab.practice)
-                Text("Music Library").tag(PlaySession.AppTab.musicLibrary)
+                Text(headerWidth < 1100 ? "Library" : "Music Library").tag(PlaySession.AppTab.musicLibrary)
                 Text("Books").tag(PlaySession.AppTab.books)
-                Text("Backing tracks").tag(PlaySession.AppTab.backingTracks)
+                Text(headerWidth < 1100 ? "Tracks" : "Backing tracks").tag(PlaySession.AppTab.backingTracks)
             }
             .pickerStyle(.segmented)
             .labelsHidden()
-            .frame(width: 520)
+            .frame(width: headerWidth < 1100 ? 440 : 520)
             Spacer()
             Button {
                 showInput.toggle()
