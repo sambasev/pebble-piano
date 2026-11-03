@@ -15,19 +15,22 @@ struct MusicLibraryView: View {
                 Text("\(model.filtered.count) piano pieces · Mutopia Project")
                     .font(.ppCaption).foregroundColor(PP.inkMuted)
             }
-            HStack {
-                TextField("Search title or composer", text: $model.query)
-                    .textFieldStyle(.roundedBorder)
-                    .accessibilityLabel("Search music")
-                Picker("Composer", selection: $model.composer) {
-                    Text("All composers").tag(nil as String?)
-                    ForEach(model.composers, id: \.self) { Text($0).tag(Optional($0)) }
-                }.frame(maxWidth: 250)
-                Picker("Difficulty", selection: $model.difficulty) {
-                    Text("All levels").tag(nil as CatalogPiece.Difficulty?)
-                    ForEach(CatalogPiece.Difficulty.allCases, id: \.self) { Text($0.rawValue).tag(Optional($0)) }
-                }.frame(maxWidth: 200)
-                Toggle("Downloaded", isOn: $model.downloadedOnly).toggleStyle(.checkbox)
+            HStack(spacing: PP.Space.s2) {
+                LibrarySearchField(text: $model.query)
+                composerMenu
+                ForEach([nil] + CatalogPiece.Difficulty.allCases.map(Optional.some), id: \.self) { level in
+                    Toggle(level?.rawValue ?? "All levels", isOn: Binding(
+                        get: { model.difficulty == level },
+                        set: { if $0 { model.difficulty = level } }
+                    ))
+                    .toggleStyle(PPChipToggleStyle())
+                    .fixedSize()
+                }
+                Toggle(isOn: $model.downloadedOnly) {
+                    Label("Downloaded", systemImage: "arrow.down.circle")
+                }
+                .toggleStyle(PPChipToggleStyle())
+                .fixedSize()
             }
             .tourAnchor(.catalogFilters)
             if model.downloadingID != nil {
@@ -67,42 +70,55 @@ struct MusicLibraryView: View {
         .onDisappear { model.cancel() }
     }
 
-    private var musicTable: some View {
-        Table(model.filtered, selection: Binding(get: { model.selected?.id }, set: { model.selectedID = $0 })) {
-            TableColumn("Piece") { piece in
-                HStack(spacing: 6) {
-                    Text(piece.title).lineLimit(1).help(piece.title)
-                    if model.downloaded.contains(piece.id) {
-                        Image(systemName: "checkmark.circle.fill").foregroundColor(PP.success)
-                            .accessibilityLabel("Available offline")
-                    }
-                }
-            }.width(min: 200, ideal: 310, max: .infinity)
-            TableColumn("Composer", value: \.composer)
-                .width(min: 140, ideal: 190, max: 250)
-            TableColumn("Difficulty") { piece in
-                Text(piece.difficulty.rawValue)
-            }.width(110)
-            TableColumn("Key signature") { piece in
-                Text(piece.keySignatureDescription ?? "—")
-                    .foregroundColor(piece.keySignature == nil ? PP.inkMuted : PP.ink)
-                    .help(piece.keySignature == nil ? "No key signature is supplied by this MIDI edition." : "Opening signature from the reviewed MIDI edition.")
-            }.width(min: 125, ideal: 145, max: 170)
-            TableColumn("Preview") { piece in
-                let active = model.previewingID == piece.id
-                Button {
-                    model.preview(piece, play: { url, finished in
-                        session.previewCatalogPiece(url, onFinish: finished)
-                    }, stop: { session.preview.stop() })
-                } label: {
-                    Label(active ? "Stop" : "Preview", systemImage: active ? "stop.fill" : "play.fill")
-                        .frame(maxWidth: .infinity)
-                }
-                .buttonStyle(PPGlassButtonStyle(height: 24))
-                .accessibilityLabel("\(active ? "Stop preview of" : "Preview") \(piece.title)")
-            }.width(95)
+    private var composerMenu: some View {
+        Menu {
+            Picker("Composer", selection: $model.composer) {
+                Text("All composers").tag(nil as String?)
+                ForEach(model.composers, id: \.self) { Text($0).tag(Optional($0)) }
+            }
+            .pickerStyle(.inline)
+            .labelsHidden()
+        } label: {
+            HStack(spacing: PP.Space.s1) {
+                Image(systemName: "person.fill")
+                Text(model.composer ?? "All composers").lineLimit(1)
+                Image(systemName: "chevron.down").font(.system(size: 9, weight: .bold))
+            }
+            .foregroundColor(model.composer == nil ? PP.ink : PP.accent)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Composer: \(model.composer ?? "All composers")")
         }
-        .tableStyle(.inset(alternatesRowBackgrounds: true))
+        .menuStyle(.button)
+        .buttonStyle(PPGlassButtonStyle())
+        .menuIndicator(.hidden)
+        .fixedSize()
+    }
+
+    /// The pieces as glass rows under a quiet header; click a row to see its details.
+    private var musicTable: some View {
+        VStack(spacing: 0) {
+            LibraryRowLayout(piece: Text("Piece"), composer: Text("Composer"), level: Text("Level"),
+                             key: Text("Key signature"), action: Text("Preview"))
+            .font(.ppEyebrow).tracking(0.8).textCase(.uppercase).foregroundColor(PP.inkMuted)
+            .padding(.horizontal, PP.Space.s4).padding(.vertical, PP.Space.s2)
+            Rectangle().fill(PP.inkStaff.opacity(0.35)).frame(height: 1)
+            ScrollViewReader { proxy in
+                ScrollView {
+                    LazyVStack(spacing: 2) {
+                        ForEach(model.filtered) { piece in
+                            row(piece).id(piece.id)
+                        }
+                    }
+                    .padding(PP.Space.s2)
+                }
+                .onChange(of: model.selectedID) { id in
+                    guard let id else { return }
+                    withAnimation(.easeOut(duration: 0.15)) { proxy.scrollTo(id) }
+                }
+            }
+        }
+        .ppGlass(cornerRadius: PP.Radius.lg, padding: 0)
+        .modifier(ArrowKeySelection(step: step))
         .overlay {
             if model.filtered.isEmpty {
                 VStack(spacing: 8) {
@@ -111,6 +127,43 @@ struct MusicLibraryView: View {
                         .foregroundColor(PP.inkMuted)
                 }.allowsHitTesting(false)
             }
+        }
+    }
+
+    private func step(_ by: Int) {
+        let pieces = model.filtered
+        guard !pieces.isEmpty else { return }
+        let current = pieces.firstIndex { $0.id == model.selected?.id } ?? 0
+        model.selectedID = pieces[min(max(current + by, 0), pieces.count - 1)].id
+    }
+
+    private func row(_ piece: CatalogPiece) -> some View {
+        let active = model.previewingID == piece.id
+        return LibraryRow(selected: model.selected?.id == piece.id, select: { model.selectedID = piece.id }) {
+            LibraryRowLayout(piece: HStack(spacing: 6) {
+                    Text(piece.title).font(.ppCallout).foregroundColor(PP.ink).lineLimit(1).help(piece.title)
+                    if model.downloaded.contains(piece.id) {
+                        Image(systemName: "checkmark.circle.fill").foregroundColor(PP.success)
+                            .accessibilityLabel("Available offline")
+                    }
+                },
+                composer: Text(piece.composer).lineLimit(1),
+                level: LevelBadge(level: piece.difficulty),
+                key: Text(piece.keySignatureDescription ?? "—")
+                    .foregroundColor(piece.keySignature == nil ? PP.inkMuted : PP.ink)
+                    .help(piece.keySignature == nil ? "No key signature is supplied by this MIDI edition." : "Opening signature from the reviewed MIDI edition."),
+                action: Button {
+                    model.preview(piece, play: { url, finished in
+                        session.previewCatalogPiece(url, onFinish: finished)
+                    }, stop: { session.preview.stop() })
+                } label: {
+                    Label(active ? "Stop" : "Preview", systemImage: active ? "stop.fill" : "play.fill")
+                        .foregroundColor(active ? PP.accent : PP.ink)
+                }
+                .buttonStyle(PPGlassButtonStyle(height: 26))
+                .accessibilityLabel("\(active ? "Stop preview of" : "Preview") \(piece.title)"))
+            .font(.system(size: 13, weight: .medium))
+            .foregroundColor(PP.inkMuted)
         }
     }
 
@@ -153,6 +206,108 @@ struct MusicLibraryView: View {
                     .disabled(model.downloadingID != nil)
             }.frame(width: 180)
         }.ppGlass(cornerRadius: PP.Radius.lg, padding: PP.Space.s3)
+    }
+}
+/// The library's columns: the title takes the slack, the rest are fixed.
+private struct LibraryRowLayout<Piece: View, Composer: View, Level: View, Key: View, Action: View>: View {
+    let piece: Piece, composer: Composer, level: Level, key: Key, action: Action
+
+    var body: some View {
+        HStack(spacing: PP.Space.s3) {
+            piece.frame(minWidth: 160, maxWidth: .infinity, alignment: .leading)
+            composer.frame(width: 200, alignment: .leading)
+            level.frame(width: 120, alignment: .leading)
+            key.frame(width: 150, alignment: .leading)
+            action.frame(width: 96, alignment: .trailing)
+        }
+    }
+}
+
+/// Up and down arrows move the selection, as they did in the table (macOS 14 and later).
+private struct ArrowKeySelection: ViewModifier {
+    let step: (Int) -> Void
+
+    func body(content: Content) -> some View {
+        if #available(macOS 14.0, *) {
+            content
+                .focusable()
+                .focusEffectDisabled()
+                .onKeyPress(.upArrow) { step(-1); return .handled }
+                .onKeyPress(.downArrow) { step(1); return .handled }
+        } else {
+            content
+        }
+    }
+}
+
+/// One piece: iris tint when selected, a glass wash on hover.
+private struct LibraryRow<Content: View>: View {
+    let selected: Bool
+    let select: () -> Void
+    @ViewBuilder var content: Content
+    @State private var hovering = false
+
+    var body: some View {
+        let shape = RoundedRectangle(cornerRadius: PP.Radius.sm, style: .continuous)
+        content
+            .padding(.horizontal, PP.Space.s2)
+            .padding(.vertical, 6)
+            .background(shape.fill(selected ? PP.accent.opacity(0.22) : hovering ? PP.surfaceGlass : .clear))
+            .overlay(shape.strokeBorder(selected ? PP.accent.opacity(0.6) : .clear, lineWidth: 1))
+            .contentShape(shape)
+            .onTapGesture(perform: select)
+            .onHover { hovering = $0 }
+            .accessibilityElement(children: .contain)
+            .accessibilityAddTraits(selected ? [.isSelected, .isButton] : .isButton)
+            .accessibilityAction(named: "Select", select)
+    }
+}
+
+/// Elementary, Intermediate or Advanced, on the backdrop's mint, lilac or apricot.
+private struct LevelBadge: View {
+    let level: CatalogPiece.Difficulty
+
+    var body: some View {
+        let tint: Color = switch level {
+        case .elementary: PP.mint
+        case .intermediate: PP.lilac
+        case .advanced: PP.apricot
+        }
+        Text(level.rawValue)
+            .font(.ppCaption)
+            .foregroundColor(PP.ink)
+            .padding(.horizontal, PP.Space.s2)
+            .padding(.vertical, 3)
+            .background(Capsule().fill(tint.opacity(0.45)))
+            .overlay(Capsule().strokeBorder(tint, lineWidth: 1))
+    }
+}
+
+/// A glass capsule search field with a clear button.
+private struct LibrarySearchField: View {
+    @Binding var text: String
+    @FocusState private var focused: Bool
+
+    var body: some View {
+        HStack(spacing: PP.Space.s2) {
+            Image(systemName: "magnifyingglass").foregroundColor(PP.inkMuted)
+            TextField("Search title or composer", text: $text)
+                .textFieldStyle(.plain)
+                .font(.system(size: 13, weight: .medium))
+                .focused($focused)
+                .accessibilityLabel("Search music")
+            if !text.isEmpty {
+                Button { text = "" } label: { Image(systemName: "xmark.circle.fill") }
+                    .buttonStyle(.plain)
+                    .foregroundColor(PP.inkMuted)
+                    .accessibilityLabel("Clear search")
+            }
+        }
+        .padding(.horizontal, PP.Space.s3)
+        .frame(height: PP.Size.compact)
+        .background(Capsule().fill(PP.surfaceGlass))
+        .overlay(Capsule().strokeBorder(focused ? PP.focusRing : PP.inkStaff.opacity(0.45), lineWidth: focused ? 2 : 1))
+        .frame(minWidth: 200, maxWidth: .infinity)
     }
 }
 #endif
