@@ -69,10 +69,12 @@ extension PlaySession {
         tutorChatQueueScoreID = nil
         var remaining = actions[...]
         while let action = remaining.popFirst() {
-            let outcome = self.scoreID == scoreID || action.kind == .stop || action.kind == .setGoal
+            // Checked before the step runs: practiceExercise opens new music by design.
+            let current = self.scoreID == scoreID || action.kind == .stop || action.kind == .setGoal
+            let outcome = current
                 ? applyTutorChatAction(action)
                 : "The music changed while I was answering, so I left the player alone. Ask again about the current music."
-            let ran = tutorChatActionRan && (self.scoreID == scoreID || action.kind == .stop || action.kind == .setGoal)
+            let ran = tutorChatActionRan && current
             recordTutorChatOutcome(outcome)
             guard ran, !remaining.isEmpty else {
                 if !remaining.isEmpty { recordTutorChatOutcome(Self.skippedSteps(remaining.count)) }

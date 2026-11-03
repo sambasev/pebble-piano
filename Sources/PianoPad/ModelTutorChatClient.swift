@@ -15,7 +15,9 @@ struct ModelTutorChatClient: TutorChatClient {
     }
 
     /// Every action field, nullable when unused; all are required so the model always writes them.
-    static var actionFields: [String: JSONValue] { playerActionFields.merging(libraryActionFields) { a, _ in a } }
+    static var actionFields: [String: JSONValue] {
+        playerActionFields.merging(libraryActionFields) { a, _ in a }.merging(demoActionFields) { a, _ in a }
+    }
 
     static let playerActionFields: [String: JSONValue] = [
         "kind": ["type": "string", "enum": .array(TutorChatAction.Kind.allCases.map { .string($0.rawValue) })],
@@ -31,6 +33,18 @@ struct ModelTutorChatClient: TutorChatClient {
         "query": ["type": ["string", "null"]], "composer": ["type": ["string", "null"]],
         "difficulty": ["type": ["string", "null"], "enum": ["Elementary", "Intermediate", "Advanced", nil]],
         "pieceRef": ["type": ["string", "null"]], "page": ["type": ["integer", "null"]],
+    ]
+
+    /// practiceExercise, playNotes, highlight and the ear-training and sight-reading courses.
+    static let demoActionFields: [String: JSONValue] = [
+        "exercise": ["type": ["string", "null"],
+                     "enum": .array(ExerciseGenerator.Kind.allCases.map { .string($0.rawValue) } + [.null])],
+        "key": ["type": ["string", "null"]], "octaves": ["type": ["integer", "null"]],
+        "notes": ["type": ["array", "null"], "items": ["type": "string"]],
+        "tempoBPM": ["type": ["number", "null"]],
+        "bars": ["type": ["array", "null"], "items": ["type": "integer"]],
+        "keys": ["type": ["array", "null"], "items": ["type": "string"]],
+        "level": ["type": ["integer", "null"]],
     ]
 
     static let schema: JSONValue = [

@@ -215,7 +215,7 @@ struct ContentView: View {
                             showWholePage: session.showWholePage,
                             playheadQuarter: session.tutorPlayhead,
                             graded: session.phase == .graded && session.report != nil,
-                            mistakeMeasures: session.mistakeMeasures.union(session.tutorHighlight),
+                            mistakeMeasures: session.mistakeMeasures.union(session.tutorHighlight).union(session.tutorChatHighlightBars),
                             auditioning: session.isAuditioning,
                             staffPlacements: session.staffPlacements,
                             noteKey: session.noteKey,
@@ -277,6 +277,7 @@ struct ContentView: View {
                 audition: session.auditionHeld,
                 showGuide: session.showGuide,
                 keyLabel: session.keyLabel(for:),
+                highlight: session.tutorChatHighlightKeys,
                 hovered: hoveredPitch,
                 onPress: { session.mouseDown(on: $0) },
                 onRelease: { session.mouseUp() }
@@ -774,7 +775,7 @@ struct ContentView: View {
             // wash runs, so the two don't stack. Red bars stay as the ones to fix.
             cleanTints: !(session.showsTempoDisplay && session.tempoDisplayMoves),
             fingering: session.showFingering ? session.topStaffFingering : [],
-            focusMeasures: session.markedBars
+            focusMeasures: session.markedBars.union(session.tutorChatHighlightBars)
         )
     }
 
