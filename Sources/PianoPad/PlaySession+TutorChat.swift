@@ -46,14 +46,10 @@ extension PlaySession {
                 self.tutorChatBusy = false
                 self.tutorChatRequestTurn = nil
                 self.tutorChatTask = nil
-                if reply.onTopic, !reply.reply.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-                   let action = reply.action {
-                    let outcome = self.scoreID == scoreID || action.kind == .stop || action.kind == .setGoal
-                        ? self.applyTutorChatAction(action)
-                        : "The music changed while I was answering, so I left the player alone. Ask again about the current music."
-                    self.tutorChatActionResults = Array((self.tutorChatActionResults + [outcome]).suffix(6))
-                    self.tutorChat.observe(outcome)
+                if reply.onTopic, !reply.reply.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    self.runTutorChatPlan(Array(reply.actions.prefix(TutorChatReply.actionLimit)), scoreID: scoreID)
                 }
+                self.saveTutorChat()
                 self.flushTutorChatObservation()
             } catch {
                 guard let self, self.tutorChatGeneration == generation else { return }
@@ -67,6 +63,57 @@ extension PlaySession {
         }
     }
 
+    /// Runs a reply's first action now and queues the rest. A failed step drops what's left.
+    func runTutorChatPlan(_ actions: [TutorChatAction], scoreID: UUID) {
+        tutorChatQueuedActions = []
+        tutorChatQueueScoreID = nil
+        var remaining = actions[...]
+        while let action = remaining.popFirst() {
+            let outcome = self.scoreID == scoreID || action.kind == .stop || action.kind == .setGoal
+                ? applyTutorChatAction(action)
+                : "The music changed while I was answering, so I left the player alone. Ask again about the current music."
+            let ran = tutorChatActionRan && (self.scoreID == scoreID || action.kind == .stop || action.kind == .setGoal)
+            recordTutorChatOutcome(outcome)
+            guard ran, !remaining.isEmpty else {
+                if !remaining.isEmpty { recordTutorChatOutcome(Self.skippedSteps(remaining.count)) }
+                return
+            }
+            if action.endsPlan {
+                recordTutorChatOutcome(Self.skippedSteps(remaining.count))
+                return
+            }
+            if action.waitsForPlayer {
+                tutorChatQueuedActions = Array(remaining)
+                tutorChatQueueScoreID = self.scoreID
+                return
+            }
+        }
+    }
+
+    /// The next queued step, when the one before it has finished. False when nothing is queued
+    /// (the tutor is asked as usual) or the music changed (the plan is dropped).
+    func advanceTutorChatPlan() -> Bool {
+        guard canChatWithTutor, !tutorChatQueuedActions.isEmpty else { return false }
+        defer { saveTutorChat() }
+        guard tutorChatQueueScoreID == scoreID else {
+            recordTutorChatOutcome(Self.skippedSteps(tutorChatQueuedActions.count))
+            tutorChatQueuedActions = []
+            tutorChatQueueScoreID = nil
+            return false
+        }
+        runTutorChatPlan(tutorChatQueuedActions, scoreID: scoreID)
+        return true
+    }
+
+    private func recordTutorChatOutcome(_ outcome: String) {
+        tutorChatActionResults = Array((tutorChatActionResults + [outcome]).suffix(6))
+        tutorChat.observe(outcome)
+    }
+
+    static func skippedSteps(_ count: Int) -> String {
+        "Skipped the \(count == 1 ? "next step" : "\(count) remaining steps") of my plan."
+    }
+
     /// Stops waiting for an answer; the question is taken back.
     func stopTutorChat() {
         tutorChatTask?.cancel()
@@ -76,11 +123,19 @@ extension PlaySession {
         tutorChatRequestTurn = nil
         tutorChatTask = nil
         tutorChatPendingObservation = nil
+        tutorChatQueuedActions = []
+        tutorChatQueueScoreID = nil
     }
 
-    /// A new conversation (and none at all for a child: see `learner`).
-    func resetTutorChat() {
+    /// A new conversation (and none at all for a child: see `learner`). The one that ends gets a
+    /// note in the learner's tutor memory, unless it's `keepSaved` to reopen later.
+    func resetTutorChat(keepSaved: Bool = false) {
         stopTutorChat()
+        if !keepSaved, let owner = tutorChatOwner {
+            if TutorChatMemory.isWorthNoting(tutorChat.turns) { noteTutorChat(tutorChat.turns, learner: owner, piece: tutorTitle) }
+            try? tutorChatMemory(for: owner).save(piece: nil, turns: [])
+        }
+        tutorChatOwner = nil
         tutorChat.clear()
         tutorChatNote = nil
         tutorChatCoaching = false
@@ -89,6 +144,44 @@ extension PlaySession {
         tutorChatActionResults = []
         tutorChatRecentGrades = []
         tutorChatFocus = ""
+    }
+
+    // MARK: Memory
+
+    func tutorChatMemory(for learner: UUID) -> TutorChatMemory {
+        TutorChatMemory(folder: learnerStore.folder(for: learner).appendingPathComponent("tutor", isDirectory: true))
+    }
+
+    /// Keeps the conversation in the learner's folder, to reopen with this piece. A conversation
+    /// saved for another piece is noted before it's replaced.
+    func saveTutorChat() {
+        guard canChatWithTutor, let learner, !tutorChat.turns.isEmpty else { return }
+        let memory = tutorChatMemory(for: learner.id)
+        let piece = currentPieceID?.rawValue
+        if tutorChatOwner == nil, let old = memory.chat(), old.piece != piece, TutorChatMemory.isWorthNoting(old.turns) {
+            noteTutorChat(old.turns, learner: learner.id, piece: "an earlier piece")
+        }
+        tutorChatOwner = learner.id
+        try? memory.save(piece: piece, turns: tutorChat.turns)
+    }
+
+    /// Reopens the conversation saved with the open piece, if there's no conversation yet.
+    func restoreTutorChat() {
+        guard canChatWithTutor, let learner, tutorChat.turns.isEmpty, !tutorChatBusy,
+              let turns = tutorChatMemory(for: learner.id).chat(for: currentPieceID?.rawValue) else { return }
+        tutorChat = TutorChat(turns: turns)
+        tutorChatOwner = learner.id
+    }
+
+    /// A few lines about a finished conversation: the model's summary, else the questions asked.
+    func noteTutorChat(_ turns: [TutorChatTurn], learner: UUID, piece: String) {
+        let memory = tutorChatMemory(for: learner)
+        let client = try? tutorChatClient ?? makeTutorChatClient()
+        let piece = piece.isEmpty ? "no piece open" : piece
+        Task {
+            let summary = (try? await client?.summarize(turns)) ?? nil
+            try? memory.add(TutorChatNote(date: Date(), piece: piece, text: summary ?? TutorChatMemory.fallbackNote(turns)))
+        }
     }
 
     // MARK: Context
@@ -106,6 +199,7 @@ extension PlaySession {
         if !tutorSoFar.isEmpty { lesson += " " + tutorSoFar }
         var context = TutorChatContext(lesson: lesson.trimmingCharacters(in: .whitespaces))
         addTutorChatEvidence(to: &context, question: question)
+        if let learner { context.previousSessions = TutorChatMemory.prompt(tutorChatMemory(for: learner.id).notes()) }
         guard tutorChatUsesBook, let book = tutorChatBook() else { return context }
         let texts = Self.pageTexts(of: book.document)
         let near = Set((book.page - 1)...(book.page + 1)).filter { texts.indices.contains($0) }

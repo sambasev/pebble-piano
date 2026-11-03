@@ -41,6 +41,23 @@ struct TutorChatView: View {
                     withAnimation { proxy.scrollTo(last, anchor: .bottom) }
                 }
             }
+            if !session.tutorChatQueuedActions.isEmpty {
+                Text("Then: " + session.tutorChatQueuedActions.map(\.summary).joined(separator: " · "))
+                    .font(.caption).foregroundColor(PP.inkMuted).lineLimit(2)
+                    .accessibilityLabel("Next in the tutor's plan: " + session.tutorChatQueuedActions.map(\.summary).joined(separator: ", then "))
+            }
+            if !session.tutorChatBusy && !session.tutorChat.suggestions.isEmpty {
+                VStack(alignment: .leading, spacing: PP.Space.s1) {
+                    ForEach(session.tutorChat.suggestions, id: \.self) { suggestion in
+                        Button { session.sendTutorChat(suggestion) } label: {
+                            Text(suggestion).lineLimit(1).truncationMode(.tail)
+                        }
+                        .buttonStyle(PPGlassButtonStyle(height: 26))
+                        .help("Ask: \(suggestion)")
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
             if session.tutorChatBusy {
                 HStack {
                     ProgressView().controlSize(.small)

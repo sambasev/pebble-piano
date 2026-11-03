@@ -4,7 +4,7 @@ import PianoAI
 import PianoLessons
 
 /// Ask your tutor, answered by Muse Spark (the tutor model), its reply constrained to
-/// `{on_topic, reply}`. A reply that can't be read counts as off topic: the chat refuses
+/// `{on_topic, reply, actions, suggestions}`. A reply that can't be read counts as off topic: the chat refuses
 /// rather than show text that wasn't checked.
 struct ModelTutorChatClient: TutorChatClient {
     let client: ModelClient
@@ -19,20 +19,18 @@ struct ModelTutorChatClient: TutorChatClient {
         "properties": [
             "on_topic": ["type": "boolean"],
             "reply": ["type": "string"],
-            "action": ["anyOf": [
-                ["type": "null"],
-                ["type": "object", "properties": [
-                    "kind": ["type": "string", "enum": .array(TutorChatAction.Kind.allCases.map { .string($0.rawValue) })],
-                    "fromBar": ["type": ["integer", "null"]], "toBar": ["type": ["integer", "null"]],
-                    "hand": ["type": ["string", "null"], "enum": ["R", "L", "LR", nil]],
-                    "tempoPercent": ["type": ["number", "null"]],
-                    "mode": ["type": ["string", "null"], "enum": ["wait", "timed", nil]],
-                    "lessonID": ["type": ["string", "null"]], "goal": ["type": ["string", "null"]],
-                ], "required": ["kind", "fromBar", "toBar", "hand", "tempoPercent", "mode", "lessonID", "goal"],
-                 "additionalProperties": false],
-            ]],
+            "actions": ["type": "array", "items": ["type": "object", "properties": [
+                "kind": ["type": "string", "enum": .array(TutorChatAction.Kind.allCases.map { .string($0.rawValue) })],
+                "fromBar": ["type": ["integer", "null"]], "toBar": ["type": ["integer", "null"]],
+                "hand": ["type": ["string", "null"], "enum": ["R", "L", "LR", nil]],
+                "tempoPercent": ["type": ["number", "null"]],
+                "mode": ["type": ["string", "null"], "enum": ["wait", "timed", nil]],
+                "lessonID": ["type": ["string", "null"]], "goal": ["type": ["string", "null"]],
+            ], "required": ["kind", "fromBar", "toBar", "hand", "tempoPercent", "mode", "lessonID", "goal"],
+             "additionalProperties": false]],
+            "suggestions": ["type": "array", "items": ["type": "string"]],
         ],
-        "required": ["on_topic", "reply", "action"],
+        "required": ["on_topic", "reply", "actions", "suggestions"],
         "additionalProperties": false,
     ]
 
@@ -41,6 +39,17 @@ struct ModelTutorChatClient: TutorChatClient {
                                            options: .init(model: model, schema: (name: "tutor_chat", schema: Self.schema),
                                                           reasoningEffort: "low", maxTokens: 2048, requestTimeout: 45))
         return (try? result.decode(TutorChatReply.self)) ?? TutorChatReply(onTopic: false, reply: "")
+    }
+
+    func summarize(_ turns: [TutorChatTurn]) async throws -> String? {
+        let transcript = turns.filter { !$0.refused }.suffix(TutorChatMemory.savedTurns).map { turn in
+            "\(turn.role == .learner ? "Learner" : turn.role == .tutor ? "Teacher" : "App"): \(turn.text)"
+        }.joined(separator: "\n")
+        let result = try await client.chat([.system(TutorChatMemory.summaryInstructions),
+                                            .user("<conversation>\n\(transcript)\n</conversation>")],
+                                           options: .init(model: model, reasoningEffort: "low", maxTokens: 300, requestTimeout: 30))
+        let text = result.text.trimmingCharacters(in: .whitespacesAndNewlines)
+        return text.isEmpty ? nil : text
     }
 
     /// The instructions, the conversation, then the context (as data) with the new question.

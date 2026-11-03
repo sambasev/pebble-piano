@@ -64,6 +64,7 @@ final class TutorChatCoachingTests: XCTestCase {
         XCTAssertTrue(context.score.contains("finger"))
         XCTAssertNotNil(context.scoreImage)
         XCTAssertTrue(context.screen.contains("waiting"))
+        XCTAssertTrue(context.screen.contains("Section: practice (the open piece's score"))
         XCTAssertTrue(context.availableLessons.contains("p1"))
         XCTAssertTrue(context.grades.contains("No graded takes"))
     }
@@ -206,6 +207,116 @@ final class TutorChatCoachingTests: XCTestCase {
         XCTAssertTrue(fake.calls[1].0.grades.contains("Notes correct 1/1"))
         XCTAssertNil(session.tutorChatPendingObservation)
         session.pauseTutorChatCoaching(); session.endTutoring()
+    }
+
+    @MainActor func testPlanRunsItsNextStepAfterTheGradeWithoutAskingTheModel() async throws {
+        let session = try player()
+        let fake = CoachingChat()
+        fake.replies = [.init(onTopic: true, reply: "Bar 4 first, then bars 3–4.", actions: [
+            .init(kind: .setGoal, goal: "Play it smoothly"),
+            .init(kind: .practicePassage, fromBar: 4, toBar: 4),
+            .init(kind: .practicePassage, fromBar: 3, toBar: 4),
+        ], suggestions: ["Slower please"])]
+        session.tutorChatClient = fake
+        session.sendTutorChat("Teach me bar 4, then put it with bar 3")
+        await settle(session)
+        XCTAssertEqual(session.learnerSettings.tutorGoal, "Play it smoothly")
+        XCTAssertTrue(session.tutorChatFocus.contains("bars 4–4"))
+        XCTAssertEqual(session.tutorChatQueuedActions.map(\.fromBar), [3])
+        XCTAssertEqual(session.tutorChat.suggestions, ["Slower please"])
+        session.mouseDown(on: 65); session.mouseUp(); session.finishTake()
+        await settle(session)
+        XCTAssertEqual(fake.calls.count, 1)
+        XCTAssertTrue(session.tutorChatQueuedActions.isEmpty)
+        XCTAssertTrue(session.tutorChatFocus.contains("bars 3–4"))
+        session.pauseTutorChatCoaching(); session.endTutoring()
+    }
+
+    @MainActor func testAFailedStepDropsTheRestOfThePlan() async throws {
+        let session = try player()
+        let fake = CoachingChat()
+        fake.replies = [.init(onTopic: true, reply: "Let's go.", actions: [
+            .init(kind: .practicePassage, fromBar: 999, toBar: 999),
+            .init(kind: .practicePassage, fromBar: 4, toBar: 4),
+        ])]
+        session.tutorChatClient = fake
+        session.sendTutorChat("Practise the end")
+        await settle(session)
+        XCTAssertNil(session.tutor)
+        XCTAssertTrue(session.tutorChatQueuedActions.isEmpty)
+        XCTAssertEqual(session.tutorChat.turns.last?.text, PlaySession.skippedSteps(1))
+    }
+
+    @MainActor func testANewQuestionOrStopCancelsAQueuedPlan() async throws {
+        let session = try player()
+        let fake = CoachingChat()
+        fake.replies = [.init(onTopic: true, reply: "Two steps.", actions: [
+            .init(kind: .practicePassage, fromBar: 4, toBar: 4),
+            .init(kind: .practicePassage, fromBar: 3, toBar: 4),
+        ])]
+        session.tutorChatClient = fake
+        session.sendTutorChat("Bar 4 then bars 3–4")
+        await settle(session)
+        XCTAssertEqual(session.tutorChatQueuedActions.count, 1)
+        session.sendTutorChat("Actually, what does legato mean?")
+        XCTAssertTrue(session.tutorChatQueuedActions.isEmpty)
+        await settle(session)
+        fake.replies = [.init(onTopic: true, reply: "Stopping.", actions: [.init(kind: .stop), .init(kind: .practicePassage, fromBar: 4, toBar: 4)])]
+        session.sendTutorChat("Stop")
+        await settle(session)
+        XCTAssertTrue(session.tutorChatQueuedActions.isEmpty)
+        XCTAssertFalse(session.tutorChatCoaching)
+        XCTAssertEqual(session.tutorChat.turns.last?.text, PlaySession.skippedSteps(1))
+        session.endTutoring()
+    }
+
+    @MainActor func testSuggestionsAreOfferedForAnAdviceReply() async throws {
+        let session = try player()
+        let fake = CoachingChat()
+        fake.replies = [.init(onTopic: true, reply: "Count four beats.", suggestions: ["Play bar 4 for me", "Practise bar 4"])]
+        session.tutorChatClient = fake
+        session.sendTutorChat("How do I count bar 4?")
+        await settle(session)
+        XCTAssertEqual(session.tutorChat.suggestions, ["Play bar 4 for me", "Practise bar 4"])
+        session.sendTutorChat(session.tutorChat.suggestions[1])
+        XCTAssertEqual(session.tutorChat.turns.last?.text, "Practise bar 4")
+        await settle(session)
+    }
+
+    @MainActor func testConversationReopensWithThePieceAndANoteIsKeptWhenItEnds() async throws {
+        let session = try player()
+        session.sendTutorChat("How do I count bar 4?")
+        await settle(session)
+        let file = try XCTUnwrap(session.referenceURL)
+
+        // Relaunch: the same learner opening the same piece sees the conversation again.
+        let again = sandbox.session()
+        XCTAssertEqual(again.learner?.id, session.learner?.id)
+        XCTAssertTrue(again.loadReference(file))
+        XCTAssertEqual(again.tutorChat.turns.map(\.text), ["How do I count bar 4?", "Keep counting steadily."])
+
+        // Another piece ends it: the next conversation starts empty, with a note about this one.
+        again.tutorChatClient = CoachingChat()
+        XCTAssertTrue(again.loadReference(try XCTUnwrap(PlaySession.bundledResource("Examples/five-finger.mid")), remember: false))
+        XCTAssertTrue(again.tutorChat.turns.isEmpty)
+        let memory = again.tutorChatMemory(for: try XCTUnwrap(again.learner?.id))
+        for _ in 0..<100 where memory.notes().isEmpty { try await Task.sleep(nanoseconds: 5_000_000) }
+        XCTAssertEqual(memory.notes().map(\.text), ["Asked: How do I count bar 4?"])
+        XCTAssertTrue(again.tutorChatContext(for: "What did we do last time?").previousSessions.contains("How do I count bar 4?"))
+        XCTAssertTrue(again.loadReference(file))
+        XCTAssertTrue(again.tutorChat.turns.isEmpty)
+    }
+
+    @MainActor func testSwitchingLearnersKeepsEachConversationForTheirReturn() async throws {
+        let session = try player()
+        let first = try XCTUnwrap(session.learner)
+        session.sendTutorChat("What is legato?")
+        await settle(session)
+        session.addLearner(name: "Other", kind: .adult)
+        XCTAssertTrue(session.tutorChat.turns.isEmpty)
+        session.switchLearner(to: first.id)
+        XCTAssertEqual(session.tutorChat.turns.first?.text, "What is legato?")
+        XCTAssertTrue(session.tutorChatMemory(for: first.id).notes().isEmpty)
     }
 
     @MainActor func testSilentTakeDoesNotStartAnAutomaticModelLoop() async throws {

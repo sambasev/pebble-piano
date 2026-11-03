@@ -18,6 +18,20 @@ Examples:
 - “Open a beginner lesson on the notes I am missing.”
 - “Stop coaching.”
 
+Each answer can offer up to three **follow-up chips** (“Slower, left hand only”, “Play it for
+me”); tapping one asks it. A reply can also carry a short **plan** of up to three actions, run
+in order: the next step starts only when the one before finishes (a demonstration ends or a
+practice take is graded), without another model request. The chat shows what's queued
+(“Then: Practise bars 3–4”). A failed step, a lesson or Stop ends the plan; a new question,
+pausing coaching or changing piece cancels what's left.
+
+The conversation is saved per learner in `Learners/<id>/tutor/chat.json` and reopens with the
+same piece (even after relaunch, for up to a week). Switching learner keeps it for their
+return. Opening another piece or **New chat** ends it: the tutor writes a few lines about it to
+`notes.json` (the model's summary, or the questions asked when there's no key), and the latest
+three notes go with every question as “Previous sessions”, so “what did we work on last
+time?” has an answer.
+
 Practice requests prepare one repetition at a time. Timed exercises wait for **Start practice**
 before their count-in; note-by-note exercises wait for the learner's first note. Empty timed
 runs return to ready without a grade or saved take. Tempo requests use `setTempo`, keeping
@@ -41,6 +55,7 @@ Context is bounded: score excerpts prioritize requested/current/error bars; rece
 takes, lesson history and model conversation are capped. An excerpt image is rendered
 from music data; it does not capture other apps or the desktop.
 
-Validation: `swift test --filter 'TutorChat|PiecePractice|LearnerStoreTests|LessonProgress'`.
+Validation: `swift test --filter 'TutorChat|PiecePractice|LearnerStoreTests|LessonProgress'`
+(includes `TutorChatMemoryTests`).
 The opt-in live tutor test requires `PIANOAI_LIVE=1` and `MODEL_API_KEY`; it sends a synthetic
 eight-bar score and checks score reading and the requested passage action against Meta.

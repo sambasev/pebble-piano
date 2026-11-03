@@ -10,11 +10,22 @@ extension PlaySession {
         learnerSettings.tutorGoal ?? GoalSongs.song(learnerSettings.goalSong).map { "Learn to play \($0.title)." } ?? ""
     }
 
+    /// What the learner is looking at, so a question asked from any tab reads in context.
+    static func tutorChatSectionMeaning(_ tab: AppTab) -> String {
+        switch tab {
+        case .learn: return "the guided course: unit map, lesson pages and ear training"
+        case .practice: return "the open piece's score and player, with the piece tutor"
+        case .musicLibrary: return "browsing the music library of public-domain pieces; the player state below is the last piece opened in Practice"
+        case .books: return "reading the learner's books and the pieces read from them; the player state below is the last piece opened in Practice"
+        case .backingTracks: return "linking backing tracks to pieces; the player state below is the last piece opened in Practice"
+        }
+    }
+
     /// The app's own state and musical data, not a capture of the user's desktop.
     func addTutorChatEvidence(to context: inout TutorChatContext, question: String) {
         guard canChatWithTutor else { return }
         context.goal = tutorChatGoal.isEmpty ? "Not set; ask what the learner wants to achieve when relevant." : tutorChatGoal
-        context.screen = "Section: \(tab.rawValue). Player: \(phase). Mode: \(mode.rawValue). Speed: \(Int(tempoPercent))%. "
+        context.screen = "Section: \(tab.rawValue) (\(Self.tutorChatSectionMeaning(tab))). Player: \(phase). Mode: \(mode.rawValue). Speed: \(Int(tempoPercent))%. "
             + "Notes recorded in ongoing take: \(noteCount). Guide: \(guideProgress.done)/\(guideProgress.total). "
             + "Listening: \(isAuditioning). Coaching after takes: \(tutorChatCoaching). "
             + "Marked printed bars: \(markedBars.sorted())."

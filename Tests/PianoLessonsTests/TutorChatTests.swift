@@ -67,4 +67,44 @@ final class TutorChatTests: XCTestCase {
         XCTAssertEqual(BookTextSearch.best(for: "what is it", in: pages), [])
         XCTAssertEqual(BookTextSearch.excerpt("a\n\n  b"), "a b")
     }
+
+    func testRepliesDecodeActionListsAndTheOlderSingleAction() throws {
+        let list = #"{"on_topic":true,"reply":"Listen, then try.","actions":[{"kind":"listenPassage","fromBar":1,"toBar":2},{"kind":"practicePassage","fromBar":1,"toBar":2,"mode":"wait"}],"suggestions":["Slower"]}"#
+        let reply = try JSONDecoder().decode(TutorChatReply.self, from: Data(list.utf8))
+        XCTAssertEqual(reply.actions.map(\.kind), [.listenPassage, .practicePassage])
+        XCTAssertEqual(reply.action?.kind, .listenPassage)
+        XCTAssertEqual(reply.suggestions, ["Slower"])
+        let single = #"{"on_topic":true,"reply":"Bar 4.","action":{"kind":"practicePassage","fromBar":4,"toBar":4}}"#
+        XCTAssertEqual(try JSONDecoder().decode(TutorChatReply.self, from: Data(single.utf8)).actions.map(\.fromBar), [4])
+        let none = #"{"on_topic":true,"reply":"Advice.","action":null}"#
+        let advice = try JSONDecoder().decode(TutorChatReply.self, from: Data(none.utf8))
+        XCTAssertEqual(advice.actions, [])
+        XCTAssertEqual(advice.suggestions, [])
+    }
+
+    func testSuggestionsAreCleanedAndOnlyOfferedAfterAnOnTopicAnswer() {
+        XCTAssertEqual(TutorChatReply.clean(suggestions: [" Slower ", "slower", "", String(repeating: "x", count: 80),
+                                                          "Left hand only", "Play it for me", "One too many"]),
+                       ["Slower", "Left hand only", "Play it for me"])
+        var chat = TutorChat()
+        let id = chat.ask("How do I count bar 2?")
+        chat.answer(TutorChatReply(onTopic: true, reply: "Count 1-and-2.", suggestions: ["Play it for me"]), to: id)
+        XCTAssertEqual(chat.suggestions, ["Play it for me"])
+        chat.observe("Started bars 2–2.")
+        XCTAssertEqual(chat.suggestions, ["Play it for me"])
+        chat.ask("Thanks")
+        XCTAssertEqual(chat.suggestions, [])
+        let off = chat.ask("Write code")
+        chat.answer(TutorChatReply(onTopic: false, reply: "", suggestions: ["More code"]), to: off)
+        XCTAssertEqual(chat.suggestions, [])
+    }
+
+    func testActionSummariesAndPlanRules() {
+        XCTAssertEqual(TutorChatAction(kind: .practicePassage, fromBar: 3, toBar: 4, hand: .right, tempoPercent: 60).summary,
+                       "Practise bars 3–4, right hand, 60%")
+        XCTAssertEqual(TutorChatAction(kind: .listenPassage, fromBar: 2, toBar: 2).summary, "Listen to bar 2")
+        XCTAssertTrue(TutorChatAction(kind: .listenPassage).waitsForPlayer)
+        XCTAssertFalse(TutorChatAction(kind: .setTempo, tempoPercent: 50).waitsForPlayer)
+        XCTAssertTrue(TutorChatAction(kind: .startLesson).endsPlan)
+    }
 }

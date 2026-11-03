@@ -523,6 +523,12 @@ final class PlaySession: ObservableObject {
     @Published var tutorChatOffersGrade = false
     var tutorChatControlsExercise = false
     var tutorChatActionResults: [String] = []
+    /// The rest of a multi-step reply, run one at a time as each step finishes.
+    @Published var tutorChatQueuedActions: [TutorChatAction] = []
+    var tutorChatQueueScoreID: UUID?
+    var tutorChatActionRan = false
+    /// The learner whose saved conversation is open (`TutorChatMemory`); nil for a new one.
+    var tutorChatOwner: UUID?
     var tutorChatRecentGrades: [String] = []
     var tutorChatFocus = ""
     var tutorChatPendingObservation: TutorChatObservation?
@@ -639,7 +645,11 @@ final class PlaySession: ObservableObject {
     /// The learner whose settings, recent pieces and (later) takes are in use; nil until one is added.
     @Published var learner: Learner? {
         // Ask your tutor is one adult's conversation: it's cleared for anyone else, and never kept for a child.
-        didSet { if oldValue?.id != learner?.id || learner?.kind != .adult { resetTutorChat() } }
+        didSet {
+            guard oldValue?.id != learner?.id || learner?.kind != .adult else { return }
+            resetTutorChat(keepSaved: true) // still saved for when they're back
+            restoreTutorChat()
+        }
     }
     @Published var learners: [Learner] = []
     /// True at launch when there is more than one learner, until someone picks who's playing.
@@ -1675,6 +1685,7 @@ final class PlaySession: ObservableObject {
         setupPlayAlong()
         resetTake()
         rememberPracticePiece()
+        restoreTutorChat()
         return true
     }
 

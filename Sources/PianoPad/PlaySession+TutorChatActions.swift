@@ -27,13 +27,13 @@ extension PlaySession {
         let scope = tutorAttempt.map { "\($0.title), printed bars \(tutorPrinted($0))" } ?? "current passage"
         let evidence = "\(tutorTitle), \(scope), \(mode.rawValue), \(Int(tempoPercent))% speed:\n" + Self.tutorChatGradeText(report)
         tutorChatRecentGrades = Array((tutorChatRecentGrades + [evidence]).suffix(3))
-        guard tutorChatCoaching, !lastTake.isEmpty else { return }
+        guard tutorChatCoaching, !lastTake.isEmpty, !advanceTutorChatPlan() else { return }
         tutorChatObserve("Take graded · \(tutorTitle) · \(Int(report.notes.score * 100))% notes",
                          question: "The grader has finished a real take. Use the latest grader evidence and musical goal to explain what improved, identify one concrete issue, and select the next practice action. Do not claim mastery from wait mode or a slowed run.")
     }
 
     func tutorChatDidListen() {
-        guard canChatWithTutor, tutorChatCoaching, tutor != nil else { return }
+        guard canChatWithTutor, tutorChatCoaching, tutor != nil, !advanceTutorChatPlan() else { return }
         tutorChatObserve("Demonstration finished",
                          question: "The app finished demonstrating the passage. Start its next lesson step with continueLesson, or choose practicePassage for the demonstrated bars. Do not replay the demonstration unless the learner asked.")
     }
@@ -56,6 +56,7 @@ extension PlaySession {
     /// Only these bounded player operations can be requested by model output.
     @discardableResult
     func applyTutorChatAction(_ action: TutorChatAction) -> String {
+        tutorChatActionRan = false
         guard canChatWithTutor else { return "Tutor actions are available only for the active adult learner." }
         // Never replace an ungraded performance or cut off a demonstration with an old decision.
         if phase == .recording && ![.gradeTake, .stop, .setGoal, .setTempo].contains(action.kind) {
@@ -74,13 +75,13 @@ extension PlaySession {
             _ = tutorBeforeAttempt?.setExerciseTempo(speed)
             tutorAttempt?.tempoPercent = speed
             tempoPercent = speed
-            return "Set this passage to \(Int(speed))% speed. Your take has not been graded."
+            return ran("Set this passage to \(Int(speed))% speed. Your take has not been graded.")
 
         case .setGoal:
             guard let goal = TutorChat.clean(action.goal ?? "") else { return "No musical goal was provided." }
             learnerSettings.tutorGoal = String(goal.prefix(500))
             saveLearnerSettings()
-            return "Goal saved: \(learnerSettings.tutorGoal!)."
+            return ran("Goal saved: \(learnerSettings.tutorGoal!).")
 
         case .gradeTake:
             guard phase == .recording, noteCount > 0, playAlongState != .countIn else {
@@ -88,7 +89,7 @@ extension PlaySession {
             }
             tutorChatOffersGrade = true
             tutorChatCoaching = true
-            return "Press Grade take when you've finished playing. Changing settings does not grade your take."
+            return ran("Press Grade take when you've finished playing. Changing settings does not grade your take.")
 
         case .stop:
             pauseTutorChatCoaching()
@@ -96,10 +97,10 @@ extension PlaySession {
             if phase == .recording && noteCount > 0 {
                 stopPlayAlong(discard: false)
                 tutorChatOffersGrade = true
-                return "Coaching paused. Your ungraded take is kept; press Grade take when you're finished."
+                return ran("Coaching paused. Your ungraded take is kept; press Grade take when you're finished.")
             }
             endTutoring()
-            return "Coaching paused. No take was graded."
+            return ran("Coaching paused. No take was graded.")
 
         case .openLesson:
             guard let id = action.lessonID, let unit = Self.unitOne?.unit,
@@ -115,7 +116,7 @@ extension PlaySession {
             lessonRunner.arrive()
             openStockLesson(id)
             guard lessonRunner.page?.id == id else { return "The lesson could not be opened. Your practice setup was kept." }
-            return "Opened \(page.title). I'll follow the graded attempts in this lesson. Open Tutor in the header to keep chatting."
+            return ran("Opened \(page.title). I'll follow the graded attempts in this lesson. Open Tutor in the header to keep chatting.")
 
         case .startLesson:
             guard !isInLesson, reference?.notes.isEmpty == false else { return "Open a piece in Practice before starting its tutor lesson." }
@@ -127,16 +128,16 @@ extension PlaySession {
             } else if !tutorPlanning {
                 startTutorExercise(waitForReady: true)
             }
-            return tutorPlanning ? "Planning a lesson for \(tutorTitle). I'll prepare its first step when the plan is ready."
+            return ran(tutorPlanning ? "Planning a lesson for \(tutorTitle). I'll prepare its first step when the plan is ready."
                 : tutorChatAwaitingStart ? "The next step is ready. Press Start practice when you're ready."
-                : "Started the next step for \(tutorTitle)."
+                : "Started the next step for \(tutorTitle).")
 
         case .continueLesson:
             guard !isInLesson, tutor != nil, !tutorPlanning else { return "No piece-tutor step is ready. Start a lesson first, or continue the open Learn lesson with its controls." }
             tutorChatCoaching = true
             startTutorExercise(waitForReady: true)
-            return tutorChatAwaitingStart ? "The next step is ready. Press Start practice when you're ready for the count-in."
-                : "Started \(tutorAttempt?.title ?? "the demonstration") for \(tutorTitle)."
+            return ran(tutorChatAwaitingStart ? "The next step is ready. Press Start practice when you're ready for the count-in."
+                : "Started \(tutorAttempt?.title ?? "the demonstration") for \(tutorTitle).")
 
         case .practicePassage, .listenPassage:
             guard !isInLesson, let full = tutorFullReference ?? reference, !full.notes.isEmpty else {
@@ -164,9 +165,15 @@ extension PlaySession {
             tutorChatFocus = "Practise printed bars \(start)–\(end), hand \(hand?.rawValue ?? "LR"), toward the learner's goal. Keep this passage until grading supports moving on."
             startTutorExercise(waitForReady: true)
             let mode = action.kind == .listenPassage ? "demonstration" : action.mode == .timed ? "in time" : "note by note"
-            return "\(tutorChatAwaitingStart ? "Prepared" : "Started") bars \(start)–\(end), \(hand?.rawValue ?? "both hands"), \(Int(speed))%, \(mode). "
-                + (tutorChatAwaitingStart ? "Press Start practice when you're ready." : "Play when you're ready; I'll review the graded take.")
+            return ran("\(tutorChatAwaitingStart ? "Prepared" : "Started") bars \(start)–\(end), \(hand?.rawValue ?? "both hands"), \(Int(speed))%, \(mode). "
+                + (tutorChatAwaitingStart ? "Press Start practice when you're ready." : "Play when you're ready; I'll review the graded take."))
         }
+    }
+
+    /// A successful outcome: the plan may go on to its next step.
+    private func ran(_ outcome: String) -> String {
+        tutorChatActionRan = true
+        return outcome
     }
 
     private func saveChatGoal(from action: TutorChatAction) {
