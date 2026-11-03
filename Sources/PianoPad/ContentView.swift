@@ -7,7 +7,6 @@ import SwiftUI
 @MainActor
 struct ContentView: View {
     @EnvironmentObject var session: PlaySession
-    @StateObject private var musicLibrary = MusicLibraryModel()
     @State private var showJudgeSettings = false
     @State private var showSettings = false
     @State private var showAISettings = false
@@ -35,7 +34,7 @@ struct ContentView: View {
                 practice
                     .onAppear { session.startTourIfNew(.practice) }
             case .musicLibrary:
-                MusicLibraryView(model: musicLibrary)
+                MusicLibraryView(model: session.musicLibrary)
                     .onAppear { session.startTourIfNew(.musicLibrary) }
             case .books:
                 BooksView(model: session.bookImport)
@@ -216,7 +215,7 @@ struct ContentView: View {
                             showWholePage: session.showWholePage,
                             playheadQuarter: session.tutorPlayhead,
                             graded: session.phase == .graded && session.report != nil,
-                            mistakeMeasures: session.mistakeMeasures.union(session.tutorHighlight),
+                            mistakeMeasures: session.mistakeMeasures.union(session.tutorHighlight).union(session.tutorChatHighlightBars),
                             auditioning: session.isAuditioning,
                             staffPlacements: session.staffPlacements,
                             noteKey: session.noteKey,
@@ -278,6 +277,7 @@ struct ContentView: View {
                 audition: session.auditionHeld,
                 showGuide: session.showGuide,
                 keyLabel: session.keyLabel(for:),
+                highlight: session.tutorChatHighlightKeys,
                 hovered: hoveredPitch,
                 onPress: { session.mouseDown(on: $0) },
                 onRelease: { session.mouseUp() }
@@ -775,7 +775,7 @@ struct ContentView: View {
             // wash runs, so the two don't stack. Red bars stay as the ones to fix.
             cleanTints: !(session.showsTempoDisplay && session.tempoDisplayMoves),
             fingering: session.showFingering ? session.topStaffFingering : [],
-            focusMeasures: session.markedBars
+            focusMeasures: session.markedBars.union(session.tutorChatHighlightBars)
         )
     }
 

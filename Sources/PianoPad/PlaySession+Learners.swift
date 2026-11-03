@@ -270,7 +270,7 @@ extension PlaySession {
 
     /// The file a recent piece refers to: through its bookmark (starting security-scoped
     /// access, and refreshing a stale bookmark), else its saved path. Nil if it can't be found.
-    private func resolveRecent(_ piece: inout RecentPiece) -> URL? {
+    func resolveRecent(_ piece: inout RecentPiece) -> URL? {
         let fm = FileManager.default
         if let bookmark = piece.bookmark {
             var stale = false

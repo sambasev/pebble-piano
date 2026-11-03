@@ -447,6 +447,19 @@ final class PlaySession: ObservableObject {
     lazy var backingEditor = BackingEditorModel(store: backingStore)
     /// The Books tab: reading a piece from a PDF music book.
     lazy var bookImport = BookImportModel(session: self)
+    /// The Music Library tab's catalog and browsing state; the tutor searches and opens from it too.
+    var musicLibrary: MusicLibraryModel {
+        get {
+            MainActor.assumeIsolated {
+                if let musicLibraryStorage { return musicLibraryStorage }
+                let model = MusicLibraryModel()
+                musicLibraryStorage = model
+                return model
+            }
+        }
+        set { musicLibraryStorage = newValue }
+    }
+    private var musicLibraryStorage: MusicLibraryModel?
 
     /// Plays one note (nudging a note while checking a piece read from a book).
     func previewPitch(_ pitch: Int) {
@@ -526,6 +539,10 @@ final class PlaySession: ObservableObject {
     /// The rest of a multi-step reply, run one at a time as each step finishes.
     @Published var tutorChatQueuedActions: [TutorChatAction] = []
     var tutorChatQueueScoreID: UUID?
+    /// A tutor's `highlight`: printed bars on the score and keys on the keyboard, for a few seconds.
+    @Published var tutorChatHighlightBars: Set<Int> = []
+    @Published var tutorChatHighlightKeys: Set<Int> = []
+    var tutorChatHighlightID = UUID()
     var tutorChatActionRan = false
     /// The learner whose saved conversation is open (`TutorChatMemory`); nil for a new one.
     var tutorChatOwner: UUID?
@@ -534,6 +551,10 @@ final class PlaySession: ObservableObject {
     var tutorChatPendingObservation: TutorChatObservation?
     var tutorChatRequestTurn: UUID?
     var tutorChatPreservesConversation = false
+    /// Library search results in this conversation, by ID: the only music `openPiece` opens.
+    var tutorChatFoundPieces: [String: TutorLibraryItem] = [:]
+    /// The latest search's IDs, best first ("#1" is the first).
+    var tutorChatLatestSearch: [String] = []
     var tutorChatTask: Task<Void, Never>?
     var tutorChatGeneration = UUID()
     /// Tests inject a fake; nil uses Muse Spark when a key is configured.
@@ -1512,6 +1533,21 @@ final class PlaySession: ObservableObject {
     func auditionNote(pitch: Int, quarters: Double) {
         let seconds = max(0.15, quarters * practiceSecondsPerQuarter)
         audition([PianoSynth.SequenceNote(pitch: pitch, velocity: 80, start: 0, end: seconds)], clock: nil, steps: [])
+    }
+
+    /// A tutor's demonstration: each group of pitches sounds together for one beat at `bpm`,
+    /// lighting their keys. The reference and score are left as they were. False when nothing
+    /// could play (no sound output, or a take or play-along is running).
+    @discardableResult
+    func auditionNotes(_ chords: [[Int]], bpm: Double, onFinish: (() -> Void)? = nil) -> Bool {
+        let beat = 60 / max(1, bpm), leadIn = 0.25
+        let notes = chords.enumerated().flatMap { i, pitches in
+            pitches.map { PianoSynth.SequenceNote(pitch: $0, velocity: 80, start: leadIn + Double(i) * beat,
+                                                  end: leadIn + (Double(i) + 0.9) * beat) }
+        }
+        guard !notes.isEmpty else { return false }
+        audition(notes, clock: nil, steps: [], onFinish: onFinish)
+        return isAuditioning
     }
 
     /// Plays notes through the built-in piano with the microphone muted, lighting their keys.

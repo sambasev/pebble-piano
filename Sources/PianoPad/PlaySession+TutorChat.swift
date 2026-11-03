@@ -69,10 +69,12 @@ extension PlaySession {
         tutorChatQueueScoreID = nil
         var remaining = actions[...]
         while let action = remaining.popFirst() {
-            let outcome = self.scoreID == scoreID || action.kind == .stop || action.kind == .setGoal
+            // Checked before the step runs: practiceExercise opens new music by design.
+            let current = self.scoreID == scoreID || action.kind == .stop || action.kind == .setGoal
+            let outcome = current
                 ? applyTutorChatAction(action)
                 : "The music changed while I was answering, so I left the player alone. Ask again about the current music."
-            let ran = tutorChatActionRan && (self.scoreID == scoreID || action.kind == .stop || action.kind == .setGoal)
+            let ran = tutorChatActionRan && current
             recordTutorChatOutcome(outcome)
             guard ran, !remaining.isEmpty else {
                 if !remaining.isEmpty { recordTutorChatOutcome(Self.skippedSteps(remaining.count)) }
@@ -144,6 +146,8 @@ extension PlaySession {
         tutorChatActionResults = []
         tutorChatRecentGrades = []
         tutorChatFocus = ""
+        tutorChatFoundPieces = [:]
+        tutorChatLatestSearch = []
     }
 
     // MARK: Memory
@@ -199,6 +203,7 @@ extension PlaySession {
         if !tutorSoFar.isEmpty { lesson += " " + tutorSoFar }
         var context = TutorChatContext(lesson: lesson.trimmingCharacters(in: .whitespaces))
         addTutorChatEvidence(to: &context, question: question)
+        if canChatWithTutor { context.library = MainActor.assumeIsolated { tutorChatLibraryText() } }
         if let learner { context.previousSessions = TutorChatMemory.prompt(tutorChatMemory(for: learner.id).notes()) }
         guard tutorChatUsesBook, let book = tutorChatBook() else { return context }
         let texts = Self.pageTexts(of: book.document)
