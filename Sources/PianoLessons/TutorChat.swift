@@ -104,8 +104,12 @@ public struct TutorChatReply: Codable, Equatable, Sendable {
 public struct TutorChatAction: Codable, Equatable, Sendable {
     public enum Kind: String, Codable, Sendable, CaseIterable {
         case practicePassage, listenPassage, startLesson, openLesson, continueLesson, gradeTake, stop, setGoal, setTempo
+        // C3: demonstrations, generated exercises and the ear-training and sight-reading courses.
+        case practiceExercise, playNotes, highlight, startEarTraining, startSightReading
     }
     public enum Mode: String, Codable, Sendable { case wait, timed }
+    /// Most notes one playNotes may play (each pitch of a chord counts).
+    public static let playNotesLimit = 32
     public var kind: Kind
     public var fromBar: Int?
     public var toBar: Int?
@@ -114,16 +118,34 @@ public struct TutorChatAction: Codable, Equatable, Sendable {
     public var mode: Mode?
     public var lessonID: String?
     public var goal: String?
+    // C3 fields.
+    /// practiceExercise: an `ExerciseGenerator.Kind` raw value.
+    public var exercise: String?
+    /// practiceExercise: "G", "F#", "Bb minor".
+    public var key: String?
+    public var octaves: Int?
+    /// playNotes: note names ("C4", "Bb3"); "C4+E4+G4" is a chord.
+    public var notes: [String]?
+    public var tempoBPM: Double?
+    /// highlight: printed bar numbers, and note names of keyboard keys.
+    public var bars: [Int]?
+    public var keys: [String]?
+    /// startEarTraining: the ear-training level to open.
+    public var level: Int?
 
     public init(kind: Kind, fromBar: Int? = nil, toBar: Int? = nil, hand: Hand? = nil,
-                tempoPercent: Double? = nil, mode: Mode? = nil, lessonID: String? = nil, goal: String? = nil) {
+                tempoPercent: Double? = nil, mode: Mode? = nil, lessonID: String? = nil, goal: String? = nil,
+                exercise: String? = nil, key: String? = nil, octaves: Int? = nil, notes: [String]? = nil,
+                tempoBPM: Double? = nil, bars: [Int]? = nil, keys: [String]? = nil, level: Int? = nil) {
         self.kind = kind; self.fromBar = fromBar; self.toBar = toBar; self.hand = hand
         self.tempoPercent = tempoPercent; self.mode = mode; self.lessonID = lessonID; self.goal = goal
+        self.exercise = exercise; self.key = key; self.octaves = octaves; self.notes = notes
+        self.tempoBPM = tempoBPM; self.bars = bars; self.keys = keys; self.level = level
     }
     /// The next step waits for this one: a demonstration to finish, or a take to be graded.
     /// Lessons run their own steps, so nothing is queued after one.
-    public var waitsForPlayer: Bool { kind == .listenPassage || kind == .practicePassage }
-    public var endsPlan: Bool { [.startLesson, .openLesson, .continueLesson, .stop].contains(kind) }
+    public var waitsForPlayer: Bool { [.listenPassage, .practicePassage, .practiceExercise, .playNotes].contains(kind) }
+    public var endsPlan: Bool { [.startLesson, .openLesson, .continueLesson, .stop, .startEarTraining, .startSightReading].contains(kind) }
 
     /// A short label for a queued step: "Practise bars 3–4, right hand, 60%".
     public var summary: String {
@@ -140,6 +162,13 @@ public struct TutorChatAction: Codable, Equatable, Sendable {
         case .openLesson: return "Open lesson \(lessonID ?? "")"
         case .continueLesson: return "Next lesson step"
         case .stop: return "Stop coaching"
+        case .practiceExercise:
+            let what = [key, exercise.flatMap(ExerciseGenerator.Kind.init(rawValue:)).map(\.name)].compactMap { $0 }.joined(separator: " ")
+            return "Practise " + (what.isEmpty ? "an exercise" : what) + hands + speed
+        case .playNotes: return "Listen to \(notes?.count ?? 0) notes"
+        case .highlight: return "Show " + (self.bars?.isEmpty == false ? "bars" : "keys")
+        case .startEarTraining: return "Ear training" + (level.map { ", level \($0)" } ?? "")
+        case .startSightReading: return "Sight reading"
         }
     }
 }
@@ -239,7 +268,7 @@ public enum TutorChatInstructions {
     empty "reply". "actions" is [] for advice, or up to 3 player actions run in order: each
     starts after the one before finishes (a demonstration ends, or a practice take is graded),
     e.g. listenPassage then practicePassage for "play it for me, then let me try". Put
-    startLesson, openLesson, continueLesson or stop last. "suggestions" holds up to 3 short
+    startLesson, openLesson, continueLesson, startEarTraining, startSightReading or stop last. "suggestions" holds up to 3 short
     follow-ups (under 60 characters, in the learner's voice, e.g. "Slower, left hand only")
     that this learner would likely ask or do next; [] when off topic.
     Musical learning requests are on topic, including short follow-ups about the current piece.
@@ -263,6 +292,18 @@ public enum TutorChatInstructions {
     stop pauses coaching and playback. setGoal stores the learner's own musical goal in goal.
     Do not invent a goal or change it just because the context contains one. Other actions
     may include goal only when the learner has just stated it. Unused action fields are null.
+    practiceExercise generates a graded technical exercise and opens it as the practice
+    piece: exercise majorScale, naturalMinorScale, harmonicMinorScale, arpeggio, brokenChord
+    or fiveFinger; key such as "G", "F#" or "Bb minor" (minor matters for arpeggio,
+    brokenChord and fiveFinger); octaves 1 or 2; hand R/L/LR; mode; tempoPercent. The app
+    writes its notes and standard fingering; never list notes for an exercise the learner
+    will be graded on. playNotes demonstrates up to 32 notes in C2–C6 (C4 is middle C), one
+    beat each at tempoBPM (default 80), lighting the keys: notes like ["C4","E4","G4"], or
+    "C4+E4+G4" for a chord. Use it for "play the chord" or "what does an arpeggio sound
+    like"; for the open piece's own bars use listenPassage. A plan can play, then
+    practise: playNotes then practiceExercise. highlight briefly shows printed bars and/or
+    keys (note names) for "show me where". startEarTraining (optional level) and
+    startSightReading open those courses from Courses in availableLessons; put them last.
     Act when the learner asks to practise, loop bars or begin a lesson, rather than merely
     describing buttons. Describe the intended action briefly; the app reports whether it ran.
     For an automatic graded-take event while coaching is on, explain the actual errors and

@@ -90,6 +90,10 @@ extension PlaySession {
                     "\($0.id): \($0.title), new notes \($0.newNotes.map(\.name).joined(separator: ", ")), completed \(done.contains($0.id))."
                 }.joined(separator: "\n")
             }
+            // C3: the courses startEarTraining and startSightReading open.
+            let ear = EarCurriculum.levels.map(\.id), sight = SightCurriculum.levels.map(\.id)
+            context.availableLessons += (context.availableLessons.isEmpty ? "" : "\n")
+                + "Courses: ear training levels \(ear.min() ?? 1)–\(ear.max() ?? 1) (startEarTraining), sight reading levels \(sight.min() ?? 1)–\(sight.max() ?? 1) (startSightReading)."
         }
         if let report = tutorDisplayReport {
             context.grades += "\n\nCurrent take, \(tutorTitle), printed measure numbers, \(mode.rawValue), \(Int(tempoPercent))% speed:\n" + Self.tutorChatGradeText(report)

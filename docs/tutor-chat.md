@@ -45,6 +45,27 @@ discarding the current recording. A requested Stop keeps a played take ungraded 
 to finish with **Grade take**.
 The Tutor button in the header keeps chat accessible while a stock Learn lesson is open.
 
+### Demonstrations and generated exercises
+
+- “Teach me the G major scale, two octaves, hands together” → `practiceExercise`. The
+  exercise comes from `ExerciseGenerator` (`Sources/PianoLessons/ExerciseGenerator.swift`), not
+  the model: major, natural minor and harmonic minor scales, arpeggios, broken chords and
+  five-finger patterns, in any key, 1–2 octaves, right, left or both hands, with standard
+  fingering tables (C major RH 1-2-3-1-2-3-4-5, F major RH 4 on B♭). It opens as the practice
+  piece (saved under `TutorExercises/` in app support, its fingering shown as printed), stays
+  within C2–C6, and is graded by the normal grader. Hands together puts the left hand an octave
+  lower on its own track. Only two-octave broken chords with both hands in A, B♭ and B don't
+  fit the keyboard; the tutor says so.
+- “Play a C minor chord” → `playNotes`: up to 32 named notes (C2–C6, “C4+E4+G4” for a chord),
+  one beat each at `tempoBPM` (30–200, default 80), through the audition path so the keys
+  light up. The open piece is left as it was. Like `listenPassage` it waits for the player,
+  so “play it, then let me try” runs `playNotes` then `practiceExercise`.
+- “Show me where” → `highlight`: up to 16 printed bars of the open piece and/or 16 keys, for
+  four seconds, on the score and the Practice keyboard.
+- “Quiz me on intervals” / “Help me read faster” → `startEarTraining {level?}` /
+  `startSightReading`: the learner's next unlocked page of that course (in that level when
+  given). Like lessons, they end a plan.
+
 Player actions are checked locally: bars must exist, an excerpt is at most 16 bars,
 speed must be 25–100%, hand separation requires separate MIDI tracks, and stock lessons
 must be unlocked. An active take must be graded before another exercise replaces it.
@@ -55,7 +76,10 @@ Context is bounded: score excerpts prioritize requested/current/error bars; rece
 takes, lesson history and model conversation are capped. An excerpt image is rendered
 from music data; it does not capture other apps or the desktop.
 
-Validation: `swift test --filter 'TutorChat|PiecePractice|LearnerStoreTests|LessonProgress'`
-(includes `TutorChatMemoryTests`).
+Notes off the keyboard, unknown exercises or keys, more than two octaves and bars outside the
+piece are refused without changing the player.
+
+Validation: `swift test --filter 'TutorChat|PiecePractice|LearnerStoreTests|LessonProgress|ExerciseGenerator'`
+(includes `TutorChatMemoryTests` and `TutorChatDemoTests`).
 The opt-in live tutor test requires `PIANOAI_LIVE=1` and `MODEL_API_KEY`; it sends a synthetic
 eight-bar score and checks score reading and the requested passage action against Meta.
