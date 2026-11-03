@@ -136,6 +136,27 @@ public enum Block: Equatable, Sendable {
     /// The unit's goal song: listen, learn, practise, perform. Stages arrive with M6.
     case songChallenge(SongChallenge)
     case earTraining(EarTraining)
+    /// A reading quiz: a tiny staff per question, answered by choice or at the keys.
+    case sightReading(SightReading)
+
+    public struct SightReading: Codable, Equatable, Sendable {
+        public var level: Int
+        public var stage: Int
+        public var questions: Int
+        public var passAccuracy: Double
+        public init(level: Int, stage: Int, questions: Int = 10, passAccuracy: Double = 0.8) {
+            self.level = level; self.stage = stage; self.questions = questions; self.passAccuracy = passAccuracy
+        }
+        public var stageID: SightStageID { SightStageID(level: level, stage: stage) }
+        private enum CodingKeys: String, CodingKey { case level, stage, questions, passAccuracy }
+        public init(from decoder: Decoder) throws {
+            let c = try decoder.container(keyedBy: CodingKeys.self)
+            level = try c.decode(Int.self, forKey: .level)
+            stage = try c.decode(Int.self, forKey: .stage)
+            questions = try c.decodeIfPresent(Int.self, forKey: .questions) ?? 10
+            passAccuracy = try c.decodeIfPresent(Double.self, forKey: .passAccuracy) ?? 0.8
+        }
+    }
 
     public struct EarTraining: Codable, Equatable, Sendable {
         public var level: Int
@@ -311,17 +332,18 @@ public enum Block: Equatable, Sendable {
         case .timed: return .timed
         case .songChallenge: return .songChallenge
         case .earTraining: return .earTraining
+        case .sightReading: return .sightReading
         }
     }
 
     public enum Kind: String, Codable, Sendable {
-        case explain, concept, wait, listen, timed, songChallenge, earTraining
+        case explain, concept, wait, listen, timed, songChallenge, earTraining, sightReading
     }
 
     /// The MIDI file the block plays or grades against, if any.
     public var midi: String? {
         switch self {
-        case .explain, .concept, .earTraining: return nil
+        case .explain, .concept, .earTraining, .sightReading: return nil
         case .wait(let b): return b.midi
         case .listen(let b): return b.midi
         case .timed(let b): return b.midi
@@ -350,7 +372,7 @@ public enum Block: Equatable, Sendable {
     /// Blocks whose result is a grade report (and so count attempts).
     public var isGraded: Bool {
         switch self {
-        case .wait, .timed, .songChallenge, .earTraining: return true
+        case .wait, .timed, .songChallenge, .earTraining, .sightReading: return true
         default: return false
         }
     }
@@ -376,6 +398,7 @@ extension Block: Codable {
         case .timed: self = .timed(try Timed(from: decoder))
         case .songChallenge: self = .songChallenge(try SongChallenge(from: decoder))
         case .earTraining: self = .earTraining(try EarTraining(from: decoder))
+        case .sightReading: self = .sightReading(try SightReading(from: decoder))
         }
     }
 
@@ -388,6 +411,7 @@ extension Block: Codable {
         case .timed(let b): try b.encode(to: encoder)
         case .songChallenge(let b): try b.encode(to: encoder)
         case .earTraining(let b): try b.encode(to: encoder)
+        case .sightReading(let b): try b.encode(to: encoder)
         }
         var c = encoder.container(keyedBy: TypeKey.self)
         try c.encode(kind, forKey: .type)

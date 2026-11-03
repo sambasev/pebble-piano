@@ -103,6 +103,9 @@ private struct PagePlayerView: View {
         if case .earTraining(let config) = block {
             EarLessonQuizView(session: session.earTraining.session, passAccuracy: config.passAccuracy) { runner.finishEarExercise() }
                 .ppGlass(cornerRadius: PP.Radius.lg, padding: 0)
+        } else if case .sightReading(let config) = block {
+            SightReadingQuizView(session: runner.sightReading, passAccuracy: config.passAccuracy) { runner.finishSightExercise() }
+                .ppGlass(cornerRadius: PP.Radius.lg, padding: 0)
         } else if case .songChallenge = block, let result = runner.songResult {
             ScrollView {
                 SongResultsCard(runner: runner, result: result)
@@ -172,6 +175,7 @@ private struct PagePlayerView: View {
         case .explain(let b): return b.advanceOn == nil ? "Look" : "Find it"
         case .concept: return "Good to know"
         case .earTraining: return EarCheckWording.eyebrow(newNotes: runner.page?.newNotes ?? [])
+        case .sightReading: return "Read it"
         case .wait: return "Your turn: take your time"
         case .listen: return "Listen"
         case .timed: return "Play in time"
@@ -186,6 +190,9 @@ private struct PagePlayerView: View {
         case .explain(let b): return b.text
         case .concept(let b): return b.text
         case .earTraining(let b): return EarCheckWording.prompt(newNotes: runner.page?.newNotes ?? [], quizNotes: b.notes)
+        case .sightReading(let b):
+            return SightCurriculum.stage(b.stageID)?.answersAtKeys == true
+                ? "Name each note: choose a letter, or play the key." : "Look closely, then choose the answer."
         case .wait(let b): return b.prompt ?? "Play the notes on the staff."
         case .listen(let b): return b.prompt ?? "Listen first."
         case .timed(let b): return b.prompt ?? "Play along with the clicks."
@@ -252,6 +259,9 @@ private struct PagePlayerView: View {
                 }
             case .earTraining:
                 Text("Use the reference and aim for 80% correct.").font(.ppCallout).foregroundColor(PP.inkMuted)
+            case .sightReading(let b):
+                Text("Aim for \(Int((b.passAccuracy * 100).rounded()))% correct. The examples show every answer.")
+                    .font(.ppCallout).foregroundColor(PP.inkMuted)
             case .wait:
                 Button(session.isAuditioning ? "Stop" : "Listen") { runner.listen() }
                     .buttonStyle(PPGlassButtonStyle(height: PP.Size.targetMin))
@@ -298,7 +308,7 @@ private struct PagePlayerView: View {
                 .buttonStyle(PPGlassButtonStyle())
                 .help("Go back to step \(runner.shownIndex)")
             }
-            if block.midi != nil || block.kind == .explain || block.kind == .concept || block.kind == .earTraining {
+            if block.midi != nil || block.kind == .explain || block.kind == .concept || block.kind == .earTraining || block.kind == .sightReading {
                 Button("Skip") { runner.skip() }
                     .buttonStyle(PPGlassButtonStyle())
                     .help("Move on without finishing this step")

@@ -1,4 +1,5 @@
 #if os(macOS)
+import PianoGraderCore
 import PianoLessons
 import PianoPadState
 import SwiftUI
@@ -40,11 +41,30 @@ struct UnitMapView: View {
                     PiecesSection(runner: runner)
                 }
                 Divider().padding(.vertical, PP.Space.s3)
-                EarPathSection(runner: runner)
+                CoursePathSection(runner: runner, eyebrow: "Sight reading path · \(SightCurriculum.levels.count) levels",
+                                  title: "Read music", symbol: "music.quarternote.3",
+                                  blurb: "The staff, clefs, note names in both clefs, note values and rests.",
+                                  name: "sight reading", unit: SightReadingCourse.unit, progress: runner.sightPathProgress,
+                                  open: { runner.openSightPage($0) })
+                Divider().padding(.vertical, PP.Space.s3)
+                CoursePathSection(runner: runner, eyebrow: "Ear training path · 8 levels", title: "Train your ear", symbol: "ear",
+                                  blurb: "Listen and recognize notes, chords, and jazz harmony.",
+                                  name: "ear training", unit: EarLessonCourse.unit, progress: runner.earPathProgress,
+                                  open: { runner.openEarPage($0) },
+                                  note: { page in runner.previousEarBest(for: page).map { "Previous best: \($0)/10" } })
             }
             .padding(.bottom, PP.Space.s6)
         }
         .onAppear { session.startTourIfNew(.learnMap) }
+    }
+
+    private var courseEyebrow: String {
+        switch runner.course {
+        case .piano: return "Book 1 · Unit 1"
+        case .ear: return "Ear training · 8 levels"
+        case .sight: return "Sight reading · \(SightCurriculum.levels.count) levels"
+        case .pieces: return "My pieces"
+        }
     }
 
     private var header: some View {
@@ -52,7 +72,7 @@ struct UnitMapView: View {
         let stars = runner.unitStars
         return HStack(alignment: .bottom, spacing: PP.Space.s6) {
             VStack(alignment: .leading, spacing: PP.Space.s1) {
-                Text(runner.course == .piano ? "Book 1 · Unit 1" : "Ear training · 8 levels").ppEyebrow()
+                Text(courseEyebrow).ppEyebrow()
                 Text(unit.title).font(.ppTitle)
                 HStack(spacing: PP.Space.s4) {
                     Text("\(done) of \(unit.pages.count) pages done").font(.ppCallout).foregroundColor(PP.inkMuted)
@@ -190,14 +210,24 @@ private struct PiecesSection: View {
     }
 }
 
-/// The second path on the same lesson map. Opening a card selects its unit before routing.
-private struct EarPathSection: View {
+/// A path of its own on the same lesson map (ear training, sight reading). Opening a card
+/// selects its course before routing.
+private struct CoursePathSection: View {
     @ObservedObject var runner: LessonRunner
+    let eyebrow: String
+    let title: String
+    let symbol: String
+    let blurb: String
+    /// "ear training", "sight reading": for Start / Continue.
+    let name: String
+    let unit: LessonUnit
+    let progress: [String: PageProgress]
+    let open: (String) -> Void
+    /// An extra line on a card, e.g. the previous best.
+    var note: (LessonPage) -> String? = { _ in nil }
     private let columns = [GridItem(.adaptive(minimum: 200, maximum: 260), spacing: PP.Space.s4)]
 
     var body: some View {
-        let unit = EarLessonCourse.unit
-        let progress = runner.earPathProgress
         let states = progress.mapValues {
             CoachPageState(completed: $0.isCompleted, inProgress: $0.currentBlock > 0,
                            bestStars: $0.bestStars, flagged: !$0.flaggedBlocks.isEmpty)
@@ -207,24 +237,23 @@ private struct EarPathSection: View {
         return VStack(alignment: .leading, spacing: PP.Space.s6) {
             HStack(alignment: .bottom) {
                 VStack(alignment: .leading, spacing: PP.Space.s2) {
-                    Text("Ear training path · 8 levels").ppEyebrow()
-                    Label("Train your ear", systemImage: "ear").font(.ppTitle)
-                    Text("Listen and recognize notes, chords, and jazz harmony.")
-                        .font(.ppCallout).foregroundColor(PP.inkMuted)
+                    Text(eyebrow).ppEyebrow()
+                    Label(title, systemImage: symbol).font(.ppTitle)
+                    Text(blurb).font(.ppCallout).foregroundColor(PP.inkMuted)
                     Text("\(done) of \(unit.pages.count) lessons done").font(.ppCallout).foregroundColor(PP.inkMuted)
                     ProgressView(value: Double(done), total: Double(unit.pages.count))
                         .tint(PP.accent).frame(maxWidth: 320)
                 }
                 Spacer()
                 if let next {
-                    Button(progress.isEmpty ? "Start ear training" : "Continue ear training") { runner.openEarPage(next.id) }
+                    Button(progress.isEmpty ? "Start \(name)" : "Continue \(name)") { open(next.id) }
                         .buttonStyle(PPPrimaryButtonStyle())
                 }
             }
             LazyVGrid(columns: columns, alignment: .leading, spacing: PP.Space.s4) {
                 ForEach(Array(unit.pages.enumerated()), id: \.element.id) { index, page in
                     let saved = progress[page.id]
-                    Button { runner.openEarPage(page.id) } label: {
+                    Button { open(page.id) } label: {
                         VStack(alignment: .leading, spacing: PP.Space.s3) {
                             HStack {
                                 Text("\(index + 1)").font(.ppHeadline)
@@ -238,8 +267,8 @@ private struct EarPathSection: View {
                                 }
                             }
                             Text(page.title).font(.ppHeadline).lineLimit(2)
-                            if let best = runner.previousEarBest(for: page) {
-                                Text("Previous best: \(best)/10").font(.ppCaption).foregroundColor(PP.inkMuted)
+                            if let line = note(page) {
+                                Text(line).font(.ppCaption).foregroundColor(PP.inkMuted)
                             }
                             Spacer(minLength: 0)
                             Text(saved?.isCompleted == true ? (saved?.flaggedBlocks.isEmpty == true ? "Play again" : "Revisit skipped step")
