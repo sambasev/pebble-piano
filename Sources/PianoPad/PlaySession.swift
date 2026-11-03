@@ -2581,7 +2581,7 @@ extension PlaySession {
         let title = tutorTitle
         let known = knownNotes()
         let fingering = fingeringNotes
-        let profile = learnerSkills().summary
+        let profile = learnerSkills().summary + (learner?.kind == .child ? "\nA young child." : "")
         tutorPlanning = true
         tutorPlanNote = model == nil ? nil : "Planning your lesson with Muse Spark…"
         tutorPlanTask = Task { @MainActor [weak self] in
@@ -2877,7 +2877,8 @@ extension PlaySession {
                 + p.phrases.map { "\($0.label) bars \($0.bars.lowerBound)-\($0.bars.upperBound)\($0.tip.map { " (tip: \($0))" } ?? "")" }.joined(separator: "; ")
                 + (p.handsSeparately ? "; hands separately first." : ".")
         }
-        tutorContext = "Piece: \(tutorTitle). Teacher: \(engine.persona.name).\(plan) Last exercise: \(attempt.title), \(attempt.whereText), speed \(attempt.tempoPercent)%\(stars.map { ", earned \($0) of 3 stars" } ?? ""). Findings: \(tutorText) Selected next exercise: \(engine.exercise.title), \(engine.exercise.whereText), speed \(engine.exercise.tempoPercent)%. Recent results: \(tutorRecent.joined(separator: "\n"))"
+        let child = learner?.kind == .child ? " The learner is a young child." : ""
+        tutorContext = "Piece: \(tutorTitle). Teacher: \(engine.persona.name) (\(engine.persona.summary)).\(child)\(plan) Last exercise: \(attempt.title), \(attempt.whereText), speed \(attempt.tempoPercent)%\(stars.map { ", earned \($0) of 3 stars" } ?? ""). Findings: \(tutorText) Selected next exercise: \(engine.exercise.title), \(engine.exercise.whereText), speed \(engine.exercise.tempoPercent)%. Recent results: \(tutorRecent.joined(separator: "\n"))"
         var feedbackEvidence = mapped
         feedbackEvidence.flags = Array(mapped.flags.prefix(8))
         feedbackEvidence.results = Array(mapped.results.filter { $0.kind != .correct }.prefix(8))

@@ -44,11 +44,15 @@ public struct SystemReader: Sendable {
       0 = bottom line, 1 = space above the bottom line, 2 = second line, 3 = second space, 4 = middle line,
       5 = third space, 6 = fourth line, 7 = top space, 8 = top line, 9 = space just above the top line,
       10 = first ledger line above, -1 = space just below the bottom line, -2 = first ledger line below.
-    Read each staff's clef from the image; in this book BOTH staves are often treble. Beginner music sometimes
-    prints no clef (a letter like "G" may mark the first note instead): a staff with no clef is treble.
-    Durations: whole (hollow, no stem), half (hollow, stem), quarter (filled, stem), eighth (filled, flag or beam).
+    Read each staff's clef from the image; don't assume the lower staff is bass, as beginner books often put both
+    staves in treble. Beginner music sometimes prints no clef (a letter like "G" may mark the first note instead):
+    a staff with no clef is treble.
+    Durations: whole (hollow, no stem), half (hollow, stem), quarter (filled, stem), eighth (filled, one flag or
+    beam), sixteenth (filled, two flags or beams). A rest takes the duration of its symbol; give it position 4.
+    dotted = a dot right after the notehead or rest. accidental = a sharp, flat or natural printed just before
+    that note, else none; don't apply the key signature or carry accidentals through the bar yourself.
     finger = a printed fingering number (1-5) above or below that note, else null. Ignore text, slurs and dynamics.
-    Count the barlines first so the number of measures is right.
+    Count the barlines first and give that count as measureCount; measures must have exactly that many entries.
     """
 
     static let singleStaffNote = """
