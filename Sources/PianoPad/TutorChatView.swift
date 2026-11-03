@@ -59,6 +59,15 @@ struct TutorChatView: View {
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
             }
+            if let offer = session.tutorChatConfirmation, !session.tutorChatBusy {
+                HStack(spacing: PP.Space.s2) {
+                    Button(offer.label) { session.confirmTutorChatOffer() }
+                        .buttonStyle(PPPrimaryButtonStyle(height: PP.Size.compact))
+                        .help("Your tutor suggested this; nothing changes until you press it")
+                    Button("Not now") { session.declineTutorChatOffer() }
+                        .buttonStyle(PPGlassButtonStyle())
+                }
+            }
             if session.tutorChatBusy {
                 HStack {
                     ProgressView().controlSize(.small)

@@ -4,6 +4,14 @@ import Foundation
 import PDFKit
 import PianoLessons
 
+/// A settings change the tutor offered, waiting for the learner's tap.
+struct TutorChatConfirmation: Equatable {
+    var label: String
+    var action: TutorChatAction
+}
+
+enum TutorChatPanel: String, Equatable { case input, practice, ai }
+
 struct TutorChatObservation {
     var label: String
     var question: String
@@ -127,6 +135,7 @@ extension PlaySession {
         tutorChatPendingObservation = nil
         tutorChatQueuedActions = []
         tutorChatQueueScoreID = nil
+        tutorChatConfirmation = nil
     }
 
     /// A new conversation (and none at all for a child: see `learner`). The one that ends gets a
@@ -206,6 +215,10 @@ extension PlaySession {
         addTutorChatEvidence(to: &context, question: question)
         if canChatWithTutor { context.library = MainActor.assumeIsolated { tutorChatLibraryText() } }
         if let learner { context.previousSessions = TutorChatMemory.prompt(tutorChatMemory(for: learner.id).notes()) }
+        if TutorAppGuide.isAppQuestion(question) || tutorChatFewNotesDetected {
+            context.appGuide = TutorAppGuide.text
+            context.diagnostics = tutorChatDiagnostics
+        }
         guard tutorChatUsesBook, let book = tutorChatBook() else { return context }
         let texts = Self.pageTexts(of: book.document)
         let near = Set((book.page - 1)...(book.page + 1)).filter { texts.indices.contains($0) }

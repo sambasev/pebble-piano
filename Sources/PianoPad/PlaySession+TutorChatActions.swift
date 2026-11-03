@@ -85,6 +85,29 @@ extension PlaySession {
             return ran("Goal saved: \(learnerSettings.tutorGoal!)"
                 + (learnerSettings.tutorGoalDate.map { ", by \(Self.tutorChatDay($0))" } ?? "") + ".")
 
+        case .openCalibration:
+            guard calibrationPrompt == nil else { return "Calibration is already running; follow its prompts." }
+            return offer("Calibrate the mic (10 s)", action)
+
+        case .switchInput:
+            guard let source = action.input.flatMap(InputSource.init(rawValue:)) else {
+                return "Choose an input: midi, microphone or computerKeyboard. Nothing changed."
+            }
+            guard source != chosenInput else { return ran("You're already playing with the \(Self.tutorChatInputName(source)).") }
+            if source == .midi && midiSources.isEmpty {
+                return "No Bluetooth MIDI piano is connected. Connect one from the Practice tab's ⋯ menu first. Nothing changed."
+            }
+            return offer("Use the \(Self.tutorChatInputName(source))", action)
+
+        case .openSettings:
+            guard let panel = action.section.flatMap(TutorChatPanel.init(rawValue:)) else {
+                return "Choose settings to open: input, practice or ai. Nothing changed."
+            }
+            return offer(panel == .input ? "Open input settings" : panel == .practice ? "Open practice settings" : "Open AI settings", action)
+
+        case .markPlayedRight:
+            return markTutorChatTakePlayedRight()
+
         case .planSession:
             guard let plan = TutorSessionPlan(minutes: action.minutes, steps: action.planSteps) else {
                 return "A plan needs 2–\(TutorSessionPlan.stepLimit) steps and 5–120 minutes. Nothing was saved."
@@ -364,6 +387,95 @@ extension PlaySession {
         learnerSettings.tutorGoalDate = Self.tutorChatGoalDateProblem(action.goalDate) == nil
             ? action.goalDate.flatMap(Self.tutorChatParseDay) : nil
         saveLearnerSettings()
+    }
+
+    // MARK: C5 · App help
+
+    /// Shows the change as a button; the learner's tap runs it (`confirmTutorChatOffer`).
+    private func offer(_ label: String, _ action: TutorChatAction) -> String {
+        tutorChatConfirmation = TutorChatConfirmation(label: label, action: action)
+        return ran("Offered: \(label). Nothing changes until you press the button.")
+    }
+
+    /// The learner pressed the offered button.
+    func confirmTutorChatOffer() {
+        guard canChatWithTutor, let offer = tutorChatConfirmation else { return }
+        tutorChatConfirmation = nil
+        switch offer.action.kind {
+        case .openCalibration:
+            startCalibration()
+        case .switchInput:
+            if let source = offer.action.input.flatMap(InputSource.init(rawValue:)) { setInput(source) }
+        case .openSettings:
+            tutorChatOpenPanel = offer.action.section.flatMap(TutorChatPanel.init(rawValue:))
+        default:
+            return
+        }
+        tutorChat.observe("Done: \(offer.label).")
+        saveTutorChat()
+    }
+
+    func declineTutorChatOffer() { tutorChatConfirmation = nil }
+
+    static func tutorChatInputName(_ source: InputSource) -> String {
+        switch source {
+        case .midi: return "Bluetooth MIDI piano"
+        case .microphone: return "microphone"
+        case .computerKeyboard: return "computer keyboard"
+        }
+    }
+
+    /// The latest graded take of the open piece, kept with its report for checking the grader.
+    /// The grade itself stays as it was.
+    private func markTutorChatTakePlayedRight() -> String {
+        guard let learner, let piece = currentPieceID,
+              let take = learnerStore.history(for: learner.id).takes(for: piece).last else {
+            return "There's no graded take of this piece to save yet. Play it and let it be graded first."
+        }
+        let folder = BookLibrary.support.appendingPathComponent("PlayedRight", isDirectory: true)
+        let stamp = take.midiURL.deletingPathExtension().lastPathComponent
+        let name = "\(piece.rawValue.map { $0.isLetter || $0.isNumber ? $0 : "-" }.reduce(into: "") { $0.append($1) }.prefix(60))-\(stamp)"
+        do {
+            try FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+            for (from, ext) in [(take.midiURL, "mid"), (take.reportURL, "json")] {
+                let to = folder.appendingPathComponent("\(name).\(ext)")
+                try? FileManager.default.removeItem(at: to)
+                try FileManager.default.copyItem(at: from, to: to)
+            }
+            let label: [String: String] = ["piece": piece.rawValue, "title": tutorTitle,
+                                           "input": chosenInput?.rawValue ?? "unknown",
+                                           "note": "The learner says this take was played right."]
+            try JSONSerialization.data(withJSONObject: label, options: [.prettyPrinted, .sortedKeys])
+                .write(to: folder.appendingPathComponent("\(name).label.json"), options: .atomic)
+        } catch {
+            return "The take couldn't be saved for checking. Your grade is unchanged."
+        }
+        return ran("Saved your latest take of \(tutorTitle) for checking the grader. Your grade is unchanged.")
+    }
+
+    /// Few of the expected notes were heard in the latest take: worth checking the input.
+    var tutorChatFewNotesDetected: Bool {
+        guard let report = tutorDisplayReport ?? self.report, report.notes.expected >= 4 else { return false }
+        return Double(report.notes.correct + report.notes.wrongPitch) < Double(report.notes.expected) * 0.5
+    }
+
+    /// How the learner is playing and whether the app can hear it.
+    var tutorChatDiagnostics: String {
+        var lines = ["Chosen input: \(chosenInput.map(Self.tutorChatInputName) ?? "not chosen"). Microphone on: \(micOn)\(micName.isEmpty ? "" : " (\(micName))")."]
+        lines.append("Bluetooth MIDI connected: " + (midiSources.isEmpty ? "none." : midiSources.joined(separator: ", ") + "."))
+        if micOn {
+            lines.append(String(format: "Mic level now: %.2f (0–1).", micLevel))
+            if let date = Self.calibrationDate, isCalibrated {
+                let days = Calendar.current.dateComponents([.day], from: date, to: Date()).day ?? 0
+                lines.append("Mic calibrated \(days) day\(days == 1 ? "" : "s") ago.")
+            } else {
+                lines.append("The mic is not calibrated on this Mac.")
+            }
+        }
+        if let report = tutorDisplayReport ?? report {
+            lines.append("Latest take: \(report.notes.correct + report.notes.wrongPitch) of \(report.notes.expected) expected notes heard (\(report.notes.missed) missed, \(report.notes.extra) extra).")
+        }
+        return lines.joined(separator: "\n")
     }
 
     // MARK: C4 · Progress and planning

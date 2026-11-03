@@ -24,6 +24,7 @@ struct ContentView: View {
     var body: some View {
         VStack(spacing: 0) {
             header
+                .onChange(of: session.tutorChatOpenPanel) { panel in openTutorChatPanel(panel) }
                 .padding(.horizontal, PP.Space.s4)
                 .padding(.top, PP.Space.s3)
             switch session.tab {
@@ -79,6 +80,19 @@ struct ContentView: View {
     }
 
     /// The app's name, the two sections, and what is listening.
+
+    /// A settings panel the learner opened from the tutor's offer. Practice settings and AI
+    /// settings live in the Practice tab, so that tab is shown first.
+    private func openTutorChatPanel(_ panel: TutorChatPanel?) {
+        guard let panel else { return }
+        session.tutorChatOpenPanel = nil
+        if panel == .input { showInput = true; return }
+        if session.tab != .practice { session.tab = .practice }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+            if panel == .practice { showSettings = true } else { showAISettings = true }
+        }
+    }
+
     private var header: some View {
         HStack(spacing: headerWidth < 1100 ? PP.Space.s2 : PP.Space.s4) {
             HStack(spacing: PP.Space.s2) {

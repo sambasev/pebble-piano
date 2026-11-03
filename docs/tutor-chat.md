@@ -44,6 +44,15 @@ saves today's plan (2–6 steps, 5–120 minutes) as a checklist card in the cha
 `tutor/plan.json` for that day; the tutor sees which steps are ticked. `setGoal` can carry a
 `goalDate`, shown to the tutor with the days left; a new goal without a date drops the old date.
 
+**App help.** Questions that look like app help (a keyword check in `TutorAppGuide`), or any
+question after a take where under half the expected notes were heard, carry the app guide
+and input diagnostics: chosen input, mic on and level, calibration age, connected Bluetooth
+MIDI and notes heard in the latest take. `openCalibration`, `switchInput` and `openSettings`
+(input, practice or AI settings) only offer a button in the chat; nothing changes until the
+learner presses it, and “Not now” drops it. `markPlayedRight` copies the latest graded take of
+the open piece, its report and a label to `PlayedRight/` in Application Support for checking
+the grader; the grade is unchanged. Each of these ends a plan.
+
 Practice requests prepare one repetition at a time. Timed exercises wait for **Start practice**
 before their count-in; note-by-note exercises wait for the learner's first note. Empty timed
 runs return to ready without a grade or saved take. Tempo requests use `setTempo`, keeping
@@ -112,6 +121,6 @@ piece are refused without changing the player.
 
 Validation: `swift test --filter 'TutorChat|PiecePractice|LearnerStoreTests|LessonProgress|ExerciseGenerator'`
 (includes `TutorChatMemoryTests`, `TutorChatLibraryTests`, `TutorChatDemoTests`,
-`TutorChatProgressTests` and `MistakeTrendsTests`).
+`TutorChatProgressTests`, `MistakeTrendsTests`, `TutorChatHelpTests` and `TutorAppGuideTests`).
 The opt-in live tutor test requires `PIANOAI_LIVE=1` and `MODEL_API_KEY`; it sends a synthetic
 eight-bar score and checks score reading and the requested passage action against Meta.

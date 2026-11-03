@@ -548,6 +548,11 @@ final class PlaySession: ObservableObject {
     var tutorChatOwner: UUID?
     /// Today's practice plan from the tutor, saved in the learner's tutor memory.
     @Published var tutorChatSessionPlan: TutorSessionPlan?
+    /// A change the tutor offered (calibrate, switch input, open settings): it happens only
+    /// when the learner presses its button.
+    @Published var tutorChatConfirmation: TutorChatConfirmation?
+    /// A settings panel to open, for `ContentView` (which owns the popovers and sheets).
+    @Published var tutorChatOpenPanel: TutorChatPanel?
     var tutorChatRecentGrades: [String] = []
     var tutorChatFocus = ""
     var tutorChatPendingObservation: TutorChatObservation?
@@ -1074,6 +1079,11 @@ final class PlaySession: ObservableObject {
         case let (nil, p?): return p
         case (nil, nil): return nil
         }
+    }
+
+    /// When this Mac's mic calibration was saved; nil when it isn't calibrated.
+    static var calibrationDate: Date? {
+        (try? FileManager.default.attributesOfItem(atPath: profileURL.path))?[.modificationDate] as? Date
     }
 
     private static var profileURL: URL {

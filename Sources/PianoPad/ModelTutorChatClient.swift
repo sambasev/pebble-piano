@@ -17,7 +17,7 @@ struct ModelTutorChatClient: TutorChatClient {
     /// Every action field, nullable when unused; all are required so the model always writes them.
     static var actionFields: [String: JSONValue] {
         playerActionFields.merging(libraryActionFields) { a, _ in a }.merging(demoActionFields) { a, _ in a }
-            .merging(progressActionFields) { a, _ in a }
+            .merging(progressActionFields) { a, _ in a }.merging(helpActionFields) { a, _ in a }
     }
 
     static let playerActionFields: [String: JSONValue] = [
@@ -52,6 +52,12 @@ struct ModelTutorChatClient: TutorChatClient {
     static let progressActionFields: [String: JSONValue] = [
         "goalDate": ["type": ["string", "null"]], "minutes": ["type": ["integer", "null"]],
         "planSteps": ["type": ["array", "null"], "items": ["type": "string"]],
+    ]
+
+    /// switchInput and openSettings.
+    static let helpActionFields: [String: JSONValue] = [
+        "input": ["type": ["string", "null"], "enum": ["midi", "microphone", "computerKeyboard", nil]],
+        "section": ["type": ["string", "null"], "enum": ["input", "practice", "ai", nil]],
     ]
 
     static let schema: JSONValue = [
