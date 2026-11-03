@@ -95,7 +95,7 @@ struct ScoreView: View {
                             .fill(Color.white.opacity(0.001))
                             .frame(width: m.box.width * scale, height: m.box.height * scale)
                             .offset(offset(of: m.box, region: region, scale: scale))
-                            .help("Click a note to hear it, or the bar to hear bar \(m.number)")
+                            .help("Click a note to hear it, click the bar to listen from bar \(m.number), or double-click it to hear just that bar")
                     }
                 }
 

@@ -165,6 +165,9 @@ struct ContentView: View {
         })
     }
 
+    /// The click being handled is the second of a double-click.
+    private var isDoubleClick: Bool { (NSApp.currentEvent?.clickCount ?? 1) >= 2 }
+
     private var practice: some View {
         VStack(alignment: .leading, spacing: compact ? PP.Space.s2 : PP.Space.s3) {
             toolbar
@@ -214,7 +217,8 @@ struct ContentView: View {
                             showFingering: session.showFingering,
                             replayMeasure: session.replayMeasure,
                             followsMusic: session.isPlayingAlong,
-                            onTapMeasure: { session.playFrom(printedMeasure: $0) },
+                            // A click chooses where Listen plays from; a double-click plays the bar.
+                            onTapMeasure: { session.playFrom(printedMeasure: $0, hear: isDoubleClick) },
                             referenceNotes: session.reference?.notes ?? [],
                             onHoverNote: { hoveredPitch = $0 },
                             onTapNote: { session.auditionNote(pitch: $0, quarters: $1) }
@@ -240,9 +244,10 @@ struct ContentView: View {
                         }
                         NotationView(score: score, scoreID: session.scoreID, overlay: notationOverlay,
                                      onTapMeasure: { index in
-                                         // Option-click marks the bar to focus on; a click plays from it.
+                                         // Option-click marks the bar to focus on; a click chooses where
+                                         // Listen plays from; a double-click plays the bar.
                                          if NSEvent.modifierFlags.contains(.option) { session.toggleMark(bar: index + 1) }
-                                         else { session.playFrom(bar: index) }
+                                         else { session.playFrom(bar: index, hear: isDoubleClick) }
                                      },
                                      // The tempo wash, in play-along only (with or without a backing track).
                                      tempoProgress: session.showsTempoDisplay
@@ -384,7 +389,8 @@ struct ContentView: View {
                 .buttonStyle(PPPrimaryButtonStyle(height: PP.Size.compact))
                 .fixedSize()
                 .disabled(session.reference == nil || session.phase == .recording)
-                .help("Hear the reference (Space)")
+                .help(session.listenFromBar.map { "Hear the reference from bar \($0 + 1) (Space). Click a bar to choose where; double-click to hear just that bar" }
+                      ?? "Hear the reference (Space). Click a bar to listen from there; double-click to hear just that bar")
                 .tourAnchor(.listen)
             }
 

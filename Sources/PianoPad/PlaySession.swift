@@ -112,6 +112,9 @@ final class PlaySession: ObservableObject {
     var isPlayingReference: Bool { isAuditioning && !auditionIsNote }
     @Published private(set) var auditionHeld: Set<Int> = []
     @Published var auditionSpeed: Double = 1.0
+    /// The bar last clicked on the score (played order, from 0): Listen plays from it to the
+    /// end. Nil: from the top.
+    @Published private(set) var listenFromBar: Int?
 
     /// Grade automatically once the guide reaches the end of the passage and the keys go quiet.
     @Published var autoGrade = true {
@@ -1338,6 +1341,7 @@ final class PlaySession: ObservableObject {
         stopAudition()
         stopPlayAlong(discard: false)
         playAlongState = .idle
+        listenFromBar = nil
         discardTake()
         if mode == .playAlong { playheadQuarter = nil }
         message = nil
@@ -1416,20 +1420,27 @@ final class PlaySession: ObservableObject {
     // MARK: Audition
 
     func toggleAudition() {
-        if isPlayingReference { stopAudition() } else { startAudition() }
+        if isPlayingReference { stopAudition() } else { startAudition(fromBar: listenFromBar) }
     }
 
-    /// Plays the reference through the built-in piano and lights its keys.
+    /// Plays the reference through the built-in piano and lights its keys, from bar `bar`
+    /// (played order, from 0) to the end; nil: all of it.
     /// Plays even with Sound off, since listening is the point.
-    func startAudition() {
+    func startAudition(fromBar bar: Int? = nil) {
         guard let reference, !reference.notes.isEmpty else {
             if reference == nil { message = "Open a reference MIDI file first." }
             return
         }
+        var played = reference.notes
+        if let bar, bar > 0, let clock {
+            let from = clock.barStart(bar)
+            played = played.filter { $0.onsetBeats >= from - 1e-6 }
+            if played.isEmpty { played = reference.notes }
+        }
         let leadIn = 0.25
         let speed = max(0.1, auditionSpeed)
-        let start = reference.notes.map(\.onset).min() ?? 0
-        let notes = reference.notes.map { note in
+        let start = played.map(\.onset).min() ?? 0
+        let notes = played.map { note in
             PianoSynth.SequenceNote(pitch: note.pitch, velocity: note.velocity,
                                     start: leadIn + (note.onset - start) / speed,
                                     end: leadIn + max(note.offset - start, note.onset - start + 0.05) / speed)
@@ -1437,8 +1448,8 @@ final class PlaySession: ObservableObject {
         // The reference has one tempo, so time maps linearly to quarter notes.
         let clock = AuditionClock(startedAt: 0, leadIn: leadIn, speed: speed,
                                   secondsPerQuarter: 60.0 / max(1, reference.initialTempoBPM),
-                                  firstQuarter: reference.notes.map(\.onsetBeats).min() ?? 0)
-        audition(notes, clock: clock, steps: reference.notes.map(\.onsetBeats)) { [weak self] in
+                                  firstQuarter: played.map(\.onsetBeats).min() ?? 0)
+        audition(notes, clock: clock, steps: played.map(\.onsetBeats)) { [weak self] in
             self?.lessonObserver?.playerListenFinished()
         }
     }
@@ -1627,6 +1638,7 @@ final class PlaySession: ObservableObject {
         if let tempo, tempo > 0 { sequence = sequence.retimed(bpm: tempo) }
         if let measures { sequence = sequence.measures(measures) }
         stopAudition()
+        listenFromBar = nil
         sourceReference = sequence
         reference = sequence
         referenceURL = url
@@ -2386,16 +2398,19 @@ extension PlaySession {
     // MARK: Click a bar
 
     /// A bar was clicked on the score (0-based, played order). While playing along: play on
-    /// from it, seeking the backing track. Otherwise it's heard at the practice tempo, and in
-    /// wait mode the guide then waits there.
-    func playFrom(bar: Int) {
+    /// from it, seeking the backing track. Otherwise it's chosen for Listen to play from, and
+    /// in wait mode the guide waits there. `hear` (a double-click): also play just that bar
+    /// at the practice tempo.
+    func playFrom(bar: Int, hear: Bool = false) {
         guard tutor == nil else { return }
         guard reference != nil else { return }
-        if isAuditioning { stopAudition() }
         if isPlayingAlong {
-            startPlayAlong(fromBar: bar)
+            // The first click of a double-click already moved the music here.
+            if !hear { startPlayAlong(fromBar: bar) }
             return
         }
+        if isAuditioning { stopAudition() }
+        listenFromBar = bar
         if mode == .wait, let clock {
             let target = clock.barStart(bar)
             let index = chords.firstIndex { $0.onsetBeats >= target - 1e-6 } ?? chords.count
@@ -2404,18 +2419,19 @@ extension PlaySession {
             gradeFromQuarter = target
             updateExpected()
         }
-        auditionBar(bar)
+        if hear { auditionBar(bar) }
     }
 
     /// A printed measure was clicked on the book page. With repeats it is played more than
     /// once: pick the next time it comes round after where the music is, else the first.
-    func playFrom(printedMeasure number: Int) {
+    func playFrom(printedMeasure number: Int, hear: Bool = false) {
         guard let passage else { return }
         let order = passage.order
-        let current = playAlongBar ?? -1
+        // A double-click's second click hears the time the first click chose.
+        let current = hear ? (listenFromBar ?? 0) - 1 : playAlongBar ?? -1
         let times = order.indices.filter { order[$0] == number }
         guard let first = times.first else { return }
-        playFrom(bar: times.first(where: { $0 > current }) ?? first)
+        playFrom(bar: times.first(where: { $0 > current }) ?? first, hear: hear)
     }
 
     // MARK: Strictness
