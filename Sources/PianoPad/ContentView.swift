@@ -10,6 +10,7 @@ struct ContentView: View {
     @State private var showJudgeSettings = false
     @State private var showSettings = false
     @State private var showAISettings = false
+    @State private var showCredits = false
     @State private var showTutorChat = false
     @State private var showInput = false
     @State private var progressLearner: Learner?
@@ -95,15 +96,24 @@ struct ContentView: View {
 
     private var header: some View {
         HStack(spacing: headerWidth < 1100 ? PP.Space.s2 : PP.Space.s4) {
-            HStack(spacing: PP.Space.s2) {
-                Image(systemName: "pianokeys")
-                    .font(.system(size: 15, weight: .semibold))
-                    .foregroundColor(PP.onAccent)
-                    .frame(width: 30, height: 30)
-                    .background(RoundedRectangle(cornerRadius: PP.Radius.sm, style: .continuous).fill(PP.accent))
-                    .accessibilityHidden(true)
-                Text("Pebble Piano").font(.ppHeadline).lineLimit(1).fixedSize()
+            Button {
+                showCredits = true
+            } label: {
+                HStack(spacing: PP.Space.s2) {
+                    Image(systemName: "pianokeys")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(PP.onAccent)
+                        .frame(width: 30, height: 30)
+                        .background(RoundedRectangle(cornerRadius: PP.Radius.sm, style: .continuous).fill(PP.accent))
+                        .accessibilityHidden(true)
+                    Text("Pebble Piano").font(.ppHeadline).foregroundColor(PP.ink).lineLimit(1).fixedSize()
+                }
+                .contentShape(Rectangle())
             }
+            .buttonStyle(.plain)
+            .help("About Pebble Piano and credits")
+            .accessibilityLabel("About Pebble Piano and credits")
+            .sheet(isPresented: $showCredits) { CreditsView { showCredits = false }.ppDefaultButtons() }
             Spacer()
             PPSegmented(selection: $session.tab, [
                 (PlaySession.AppTab.learn, "Learn"),
