@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!-- Linked into the `swift run PianoPad` executable (see Package.swift) so the menu bar,
+     Dock and About box say Pebble Piano instead of the executable's name. No
+     CFBundleIdentifier on purpose: adding one would move the dev build's UserDefaults
+     to a new domain and lose its saved settings. The packaged app's Info.plist comes
+     from App/project.yml instead. -->
+<plist version="1.0">
+<dict>
+	<key>CFBundleName</key>
+	<string>Pebble Piano</string>
+	<key>CFBundleDisplayName</key>
+	<string>Pebble Piano</string>
+</dict>
+</plist>

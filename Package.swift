@@ -72,7 +72,11 @@ let package = Package(
         // Mac app for quick testing: on-screen keyboard, musical typing, MIDI input, grading.
         .executableTarget(
             name: "PianoPad",
-            dependencies: ["PianoGraderCore", "PianoGraderIO", "PianoPadState", "PianoLessons", "PianoAI", "EarTrainingUI", "EarTrainingIntegration", "PianoCatalog"]
+            dependencies: ["PianoGraderCore", "PianoGraderIO", "PianoPadState", "PianoLessons", "PianoAI", "EarTrainingUI", "EarTrainingIntegration", "PianoCatalog"],
+            // A bare executable has no Info.plist, so macOS would name the app after the binary
+            // ("PianoPad") in the menu bar. Embed one that only sets the display name.
+            linkerSettings: [.unsafeFlags(["-Xlinker", "-sectcreate", "-Xlinker", "__TEXT",
+                                           "-Xlinker", "__info_plist", "-Xlinker", "Support/PianoPad-Info.plist"])]
         ),
         .testTarget(
             name: "PianoGraderCoreTests",
