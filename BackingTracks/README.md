@@ -1,5 +1,8 @@
 # Bundled backing tracks
 
+The public repo bundles no backing tracks: the recording used during development isn't ours to
+share. Add your own here (audio you made or have the rights to), and the packaged app will ship it.
+
 Everything here ships inside the packaged app and is added to each user's backing-track
 library on launch. Same layout as the library, plus the audio:
 

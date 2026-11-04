@@ -79,6 +79,12 @@ This was built quickly, and these are the rough edges we know about:
   developer command **Choose Book…** (a hand-made `.annotations.json` file) only works for the
   bundled book.
 
+## Bundled content and licences
+
+The books, scans and font in this repo come from other people and keep their own licences:
+*Learning the Code, Book 1* (CC BY-SA 4.0 / GNU FDL), Beyer's Op. 101 (public domain) and the
+Bravura font (SIL OFL). See [CREDITS.md](CREDITS.md). No backing-track audio is bundled.
+
 ---
 
 # Developer reference

@@ -1,0 +1,14 @@
+Creative Commons Attribution-ShareAlike 4.0 International (CC BY-SA 4.0)
+
+Applies to: Books/learning-the-code-book1.pdf ("Learning the Code, Book 1",
+James L. King III, 2003), and the annotations and reference MIDI made from it
+(Books/learning-the-code-book1.annotations.json, Examples/ltc-*.mid).
+
+The PDF is unmodified. The annotations and MIDI are adaptations, shared under
+the same licence.
+
+Full legal text: https://creativecommons.org/licenses/by-sa/4.0/legalcode
+Summary:         https://creativecommons.org/licenses/by-sa/4.0/
+
+The work was originally released under the GNU Free Documentation License,
+Version 1.1 or any later version: https://www.gnu.org/licenses/fdl-1.3.html
