@@ -62,8 +62,6 @@ struct TutorChatView: View {
                 HStack {
                     ProgressView().controlSize(.small)
                     Text("Your tutor is thinking…").font(.caption).foregroundColor(PP.inkMuted)
-                    Spacer()
-                    Button("Stop") { session.stopTutorChat() }
                 }
             }
             if let note = session.tutorChatNote {
@@ -83,7 +81,7 @@ struct TutorChatView: View {
             }
             HStack(alignment: .bottom, spacing: PP.Space.s2) {
                 TutorChatComposer(text: $draft, focused: $focused, height: $composerHeight,
-                                  send: send)
+                                  send: send, stop: session.tutorChatBusy ? stop : nil)
                     .frame(height: composerHeight)
                 Button {
                     if session.tutorChatCoaching { session.pauseTutorChatCoaching() }
@@ -94,13 +92,15 @@ struct TutorChatView: View {
                 .accessibilityValue(session.tutorChatCoaching ? "On" : "Off")
                 .help(session.tutorChatCoaching ? "Pause automatic coaching" : "Let the tutor review each graded take and choose the next step")
                 .padding(.bottom, 1)
-                Button(action: send) {
-                    Image(systemName: "arrow.up").font(.system(size: 14, weight: .bold))
+                // While the tutor is thinking, Send becomes Stop in the same place.
+                Button(action: session.tutorChatBusy ? stop : send) {
+                    Image(systemName: session.tutorChatBusy ? "stop.fill" : "arrow.up")
+                        .font(.system(size: session.tutorChatBusy ? 12 : 14, weight: .bold))
                 }
                 .buttonStyle(PPIconButtonStyle(kind: .mode, isOn: true))
-                .disabled(TutorChat.clean(draft) == nil || session.tutorChatBusy)
-                .accessibilityLabel("Send question")
-                .help("Send question (Return). Shift-Return adds a new line.")
+                .disabled(!session.tutorChatBusy && TutorChat.clean(draft) == nil)
+                .accessibilityLabel(session.tutorChatBusy ? "Stop the tutor" : "Send question")
+                .help(session.tutorChatBusy ? "Stop the tutor (Esc)" : "Send question (Return). Shift-Return adds a new line.")
                 .padding(.bottom, 1)
             }
             .padding(6)
@@ -119,6 +119,11 @@ struct TutorChatView: View {
         guard !session.tutorChatBusy, TutorChat.clean(draft) != nil else { return }
         session.sendTutorChat(draft)
         draft = ""
+    }
+
+    private func stop() {
+        guard session.tutorChatBusy else { return }
+        session.stopTutorChat()
     }
 
     @ViewBuilder private func bubble(_ turn: TutorChatTurn) -> some View {
