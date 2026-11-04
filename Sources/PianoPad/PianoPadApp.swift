@@ -62,7 +62,7 @@ struct PianoPadApp: App {
                 ))
             }
             CommandGroup(before: .help) {
-                Button("Show Me Around") { session.startTour(session.currentScreenTour) }
+                Button("Show Me Around") { session.startTour(session.helpTour) }
                     .disabled(session.isChoosingLearner)
                 Button("Show All Tours Again") { session.resetTours() }
                     .disabled(session.isChoosingLearner)

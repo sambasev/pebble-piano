@@ -41,6 +41,7 @@ struct TutorChatView: View {
                     .padding(.vertical, PP.Space.s2)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .tourAnchor(.tutorChatTranscript)
                 .onAppear {
                     if let last = session.tutorChat.turns.last { proxy.scrollTo(last.id, anchor: .bottom) }
                 }
@@ -68,6 +69,7 @@ struct TutorChatView: View {
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
+                .tourAnchor(.tutorChatSuggestions)
             }
             if let offer = session.tutorChatConfirmation, !session.tutorChatBusy {
                 HStack(spacing: PP.Space.s2) {
@@ -114,13 +116,15 @@ struct TutorChatView: View {
                                   send: send, stop: session.tutorChatBusy ? stop : nil)
                     .frame(height: composerHeight)
                 Button {
-                    if session.tutorChatCoaching { session.pauseTutorChatCoaching() }
-                    else { session.tutorChatCoaching = true }
+                    session.setTutorChatCoaching(!session.tutorChatCoaching)
                 } label: { Image(systemName: session.tutorChatCoaching ? "pause.fill" : "sparkles") }
                 .buttonStyle(PPIconButtonStyle(kind: .mode, isOn: session.tutorChatCoaching))
                 .accessibilityLabel("Coach after each take")
                 .accessibilityValue(session.tutorChatCoaching ? "On" : "Off")
-                .help(session.tutorChatCoaching ? "Pause automatic coaching" : "Let the tutor review each graded take and choose the next step")
+                .help(session.tutorChatCoaching
+                      ? "Coaching after each take is on: your tutor reviews every graded take and sets up the next step. Click to pause."
+                      : "Coaching is paused. Click to let your tutor review each graded take and choose the next step.")
+                .tourAnchor(.tutorChatCoach)
                 .padding(.bottom, 1)
                 // While the tutor is thinking, Send becomes Stop in the same place.
                 Button(action: session.tutorChatBusy ? stop : send) {
@@ -138,8 +142,16 @@ struct TutorChatView: View {
             .overlay(RoundedRectangle(cornerRadius: PP.Radius.sm)
                 .strokeBorder(focused ? PP.focusRing : PP.inkStaff.opacity(0.45), lineWidth: focused ? 2 : 1)
                 .allowsHitTesting(false))
+            .tourAnchor(.tutorChatComposer)
             }
         }
+        .onAppear { session.applyTutorChatCoachingDefault() }
+        .onDisappear { session.leaveTutorChat() }
+        // A new chat (or another learner) starts with coaching off: put the default back.
+        .onChange(of: session.tutorChat.turns.isEmpty) { empty in
+            if empty { session.applyTutorChatCoachingDefault() }
+        }
+        .onChange(of: session.learner?.id) { _ in session.applyTutorChatCoachingDefault() }
     }
 
     /// The book page sent with each question, shown like an attachment. ✕ leaves it out; the
@@ -171,6 +183,7 @@ struct TutorChatView: View {
             .help("Your tutor sees this page's text and a picture of it with each question")
             .accessibilityElement(children: .contain)
             .accessibilityLabel("Your tutor can see \(page.title), page \(page.page)")
+            .tourAnchor(.tutorChatBookPage)
         } else {
             Button { session.tutorChatUsesBook = true } label: {
                 Label("Add page \(page.page)", systemImage: "plus")

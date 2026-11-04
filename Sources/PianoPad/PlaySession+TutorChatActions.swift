@@ -19,7 +19,42 @@ extension PlaySession {
     /// Pausing cancels pending decisions without throwing away a take in progress.
     func pauseTutorChatCoaching() {
         tutorChatCoaching = false
+        tutorChatCoachingFromDefault = false
         stopTutorChat()
+    }
+
+    /// Coaching after each take is on by default (the ✦ button); pressing it remembers the choice.
+    static let tutorChatCoachesByDefaultKey = "PianoPad.tutor.coachAfterTakes"
+    var tutorChatCoachesByDefault: Bool {
+        get { UserDefaults.standard.object(forKey: Self.tutorChatCoachesByDefaultKey) as? Bool ?? true }
+        set { UserDefaults.standard.set(newValue, forKey: Self.tutorChatCoachesByDefaultKey) }
+    }
+
+    /// The ✦ button: on or off now, and the same next time the chat opens.
+    func setTutorChatCoaching(_ on: Bool) {
+        tutorChatCoachesByDefault = on
+        if on {
+            tutorChatCoaching = true
+            tutorChatCoachingFromDefault = false
+        } else {
+            pauseTutorChatCoaching()
+        }
+    }
+
+    /// The chat is showing: coach after each take, unless the learner turned that off.
+    func applyTutorChatCoachingDefault() {
+        guard canChatWithTutor, !tutorChatCoaching, tutorChatCoachesByDefault else { return }
+        tutorChatCoaching = true
+        tutorChatCoachingFromDefault = true
+    }
+
+    /// The chat was closed. Coaching that only came from the default stops, so the Lesson tab
+    /// and Learn lessons give their own feedback again; coaching the tutor started carries on.
+    func leaveTutorChat() {
+        guard tutorChatCoachingFromDefault, tutorChatCoaching, !tutorChatBusy,
+              tutorChatQueuedActions.isEmpty, tutorChatPendingObservation == nil, !tutorChatAwaitingStart else { return }
+        tutorChatCoaching = false
+        tutorChatCoachingFromDefault = false
     }
 
     func tutorChatDidGrade() {
@@ -70,6 +105,8 @@ extension PlaySession {
     @discardableResult
     func applyTutorChatAction(_ action: TutorChatAction) -> String {
         tutorChatActionRan = false
+        // The tutor is steering now, so its coaching stays on when the chat is closed.
+        tutorChatCoachingFromDefault = false
         guard canChatWithTutor || (tutorChatIsChild && TutorChildPrompts.actions.contains(action.kind)) else {
             return "Tutor actions are available only for the active adult learner."
         }

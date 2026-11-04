@@ -212,6 +212,33 @@ final class TutorChatCoachingTests: XCTestCase {
         session.pauseTutorChatCoaching(); session.endTutoring()
     }
 
+    /// Opening the chat turns coaching on; closing it turns that default off again, and the
+    /// ✦ button's choice is remembered for next time.
+    @MainActor func testCoachingIsOnByDefaultWhileTheChatIsOpen() throws {
+        let key = PlaySession.tutorChatCoachesByDefaultKey
+        let saved = UserDefaults.standard.object(forKey: key)
+        defer { UserDefaults.standard.set(saved, forKey: key) }
+        UserDefaults.standard.removeObject(forKey: key)
+        let session = try player()
+        XCTAssertFalse(session.tutorChatCoaching)
+
+        session.applyTutorChatCoachingDefault()
+        XCTAssertTrue(session.tutorChatCoaching, "on from the start")
+        session.leaveTutorChat()
+        XCTAssertFalse(session.tutorChatCoaching, "the default stops when the chat closes")
+
+        session.applyTutorChatCoachingDefault()
+        session.setTutorChatCoaching(false)
+        XCTAssertFalse(session.tutorChatCoaching)
+        session.applyTutorChatCoachingDefault()
+        XCTAssertFalse(session.tutorChatCoaching, "pausing is remembered")
+
+        session.setTutorChatCoaching(true)
+        session.leaveTutorChat()
+        XCTAssertTrue(session.tutorChatCoaching, "turned on by hand: it stays on")
+        session.pauseTutorChatCoaching(); session.endTutoring()
+    }
+
     @MainActor func testRefusedModelResponseCannotRunAnAction() async throws {
         let session = try player()
         let fake = CoachingChat()

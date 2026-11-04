@@ -17,12 +17,24 @@ extension PlaySession {
         }
     }
 
+    /// The tutor chat is open in the Practice panel, where its tour can point at it.
+    var showsTutorChatPanel: Bool {
+        tab == .practice && canChatWithTutor && UserDefaults.standard.bool(forKey: "PianoPad.tutor.asking")
+    }
+
+    /// The tour the ? button plays: the chat's while it's open, else the screen's.
+    var helpTour: TourID { showsTutorChatPanel ? .tutorChat : currentScreenTour }
+
+    private func tourFitsScreen(_ tour: TourID) -> Bool {
+        tour == .tutorChat ? showsTutorChatPanel : currentScreenTour == tour
+    }
+
     /// Starts `tour` if this learner hasn't seen it, once the screen has settled (so its parts
     /// have reported where they are), and only if nothing else wants their attention.
     func startTourIfNew(_ tour: TourID) {
         guard !learnerSettings.hasSeenTour(tour.rawValue) else { return }
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.6) { [weak self] in
-            guard let self, self.currentScreenTour == tour, self.canStartTourByItself,
+            guard let self, self.tourFitsScreen(tour), self.canStartTourByItself,
                   !self.learnerSettings.hasSeenTour(tour.rawValue) else { return }
             self.startTour(tour)
         }

@@ -211,6 +211,7 @@ extension PlaySession {
         tutorChat.clear()
         tutorChatNote = nil
         tutorChatCoaching = false
+        tutorChatCoachingFromDefault = false
         tutorChatAwaitingStart = false
         tutorChatOffersGrade = false
         tutorChatActionResults = []

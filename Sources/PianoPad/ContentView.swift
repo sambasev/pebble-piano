@@ -171,7 +171,7 @@ struct ContentView: View {
                 }
             }
             Button {
-                session.startTour(session.currentScreenTour)
+                session.startTour(session.helpTour)
             } label: {
                 Image(systemName: "questionmark")
             }

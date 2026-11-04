@@ -30,6 +30,7 @@ struct TutorPanel: View {
                 ])
                 .accessibilityLabel("")
                 .help("Ask your tutor about this piece, the book page, or anything about music")
+                .tourAnchor(.tutorChatModes)
             }
             if asking && session.canAskTutor {
                 TutorChatView()
@@ -37,6 +38,11 @@ struct TutorPanel: View {
                 lesson
             }
         }.sheet(isPresented: $settings) { AISettingsView { settings = false }.ppDefaultButtons() }
+        // The first time Ask opens here, a short tour of the chat (adults only; not in the
+        // header popover, which is its own window the spotlight can't reach).
+        .onAppear { if asking { session.startTourIfNew(.tutorChat) } }
+        .onChange(of: asking) { if $0 { session.startTourIfNew(.tutorChat) } }
+        .onChange(of: session.activeTour) { if $0 == nil && asking { session.startTourIfNew(.tutorChat) } }
     }
 
     @ViewBuilder private var lesson: some View {

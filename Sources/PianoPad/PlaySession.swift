@@ -532,6 +532,9 @@ final class PlaySession: ObservableObject {
     /// Send the book page (its text and a picture) with each question.
     @Published var tutorChatUsesBook = true
     @Published var tutorChatCoaching = false
+    /// Coaching switched on only because the chat was opened (`applyTutorChatCoachingDefault`),
+    /// not by the learner or a tutor action; closing the chat switches it off again.
+    var tutorChatCoachingFromDefault = false
     @Published var tutorChatAwaitingStart = false
     @Published var tutorChatOffersGrade = false
     var tutorChatControlsExercise = false

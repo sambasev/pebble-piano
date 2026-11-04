@@ -7,6 +7,8 @@ import SwiftUI
 /// header (or Help → Show Me Around) plays the one for the screen showing.
 enum TourID: String, CaseIterable {
     case practice, learnMap, lessonPage, musicLibrary, books, backingTracks, backingEditor
+    /// Ask your tutor, in the Practice panel (adults only).
+    case tutorChat
 }
 
 /// Something a tour step points at. Views mark themselves with `.tourAnchor(_:)`; a step whose
@@ -26,6 +28,8 @@ enum TourTarget: Hashable {
     case library, bookMain
     // Backing tracks
     case backingList, backingMain, waveform, transport, markers, timing
+    // Ask your tutor
+    case tutorChatModes, tutorChatTranscript, tutorChatSuggestions, tutorChatBookPage, tutorChatCoach, tutorChatComposer
 }
 
 struct TourStep {
@@ -143,6 +147,22 @@ extension TourID {
                          body: "Stop where a bar starts, then mark it. Trim cuts silence from the start and end."),
                 TourStep(target: .timing, title: "Tempo and time",
                          body: "Type the tempo or tap along with the music, and set the time signature and the count-in."),
+                Self.helpStep,
+            ]
+        case .tutorChat:
+            return [
+                TourStep(target: .tutorChatModes, title: "Lesson or Ask",
+                         body: "Lesson walks you through the piece step by step. Ask is a chat with your tutor, in your own words."),
+                TourStep(target: .tutorChatTranscript, title: "Your tutor knows how you played",
+                         body: "It reads the open score and your recent takes. Ask for a practice plan, or say ‘teach me bar 4 slowly’ and it sets the exercise up for you."),
+                TourStep(target: .tutorChatSuggestions, title: "One-click questions",
+                         body: "Ideas for what to ask next. Click one to send it."),
+                TourStep(target: .tutorChatBookPage, title: "The page goes along",
+                         body: "Your tutor sees this book page with every question. ✕ leaves it out."),
+                TourStep(target: .tutorChatCoach, title: "Coaching after each take",
+                         body: "On from the start: after every graded take your tutor says what went well, picks the next step and gets it ready. Click to pause; it remembers your choice."),
+                TourStep(target: .tutorChatComposer, title: "Ask anything about music",
+                         body: "Return sends; Shift-Return starts a new line. While your tutor answers, the arrow becomes Stop."),
                 Self.helpStep,
             ]
         }
