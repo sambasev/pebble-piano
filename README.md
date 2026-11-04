@@ -119,13 +119,15 @@ natural notes to advanced jazz harmony. All pages remain available; previous ful
 quiz scores are shown on the course map.
 
 Exercises include labeled examples, a tonic reference, unlimited replay, immediate
-explanations, and first-answer scoring. Press Space to play, numbered keys to answer,
-and Return for Next. A complete listen enables answers. Reach 80% to Continue, retry
+explanations, and first-answer scoring. Each question plays by itself: the reference
+(C4 for notes, the root or tonic otherwise), then the question. A complete listen enables
+answers; numbered keys answer, and the next question follows by itself (after 1 s when
+right, 2.5 s when wrong; Hear the solution stays put). Space replays, Return skips ahead. Reach 80% to Continue, retry
 with new questions, or use the lesson's Skip action (which flags the step for review).
 Ear checks do not alter piano-performance stars.
 
 Both kinds of activity share the lesson's page progression, learner history, practice
-summary, and streak. Completed ten-question course quizzes also update the existing
+summary, and streak. Completed course quizzes also update the existing
 `ear-training.json` scores; shorter/custom note-pool checks never inflate those scores.
 Unfinished checks restart at the saved lesson step. Changing learners, leaving a page,
 or going Back stops playback. Microphone grading, MIDI note input, and musical typing

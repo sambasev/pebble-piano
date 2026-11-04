@@ -97,7 +97,7 @@ public enum EarQuestionGenerator {
         switch template.pattern {
         case .note:
             prompt = "Which note do you hear?"
-            context = "Name the pitch class. The C reference is always available."
+            context = "You'll hear C first (the reference), then the note to name."
             add(voices[0], at: 0, duration: 0.85)
         case .chord:
             prompt = stage.level == 4 && stage.stage != 2 ? "Which inversion do you hear?" : "Which chord quality do you hear?"

@@ -108,7 +108,7 @@ final class EarTrainingUITests: XCTestCase {
         let audio = TestPlayback(), store = TestStore()
         let session = EarTrainingSession(playback: audio, store: store)
         session.startQuiz(seed: 1)
-        XCTAssertTrue(audio.sequences.isEmpty, "Starting a quiz must not autoplay")
+        XCTAssertEqual(audio.sequences.count, 1, "Starting a quiz plays the first question by itself")
         let answer = session.question!.correctAnswer.id
         session.answer(answer)
         XCTAssertNil(session.quiz?.response)
@@ -125,6 +125,37 @@ final class EarTrainingUITests: XCTestCase {
         session.answer(session.question!.choices.first!.id)
         XCTAssertEqual(session.quiz?.responses.count, 1)
         XCTAssertEqual(store.saves, 0)
+    }
+
+    @MainActor func testQuestionPlaysReferenceFirstThenTheNote() {
+        let audio = TestPlayback()
+        let session = EarTrainingSession(playback: audio, store: TestStore())
+        session.startQuiz(seed: 1)
+        let question = session.question!
+        let played = audio.sequences.last!
+        XCTAssertEqual(Array(played.prefix(question.reference.count)), question.reference)
+        let start = question.reference.map(\.offset).max()! + 0.45
+        let stimulus = Array(played.dropFirst(question.reference.count))
+        XCTAssertEqual(stimulus.map(\.pitch), question.stimulus.map(\.pitch))
+        XCTAssertEqual(stimulus.first!.onset, question.stimulus.first!.onset + start, accuracy: 1e-9)
+    }
+
+    @MainActor func testAnswerMovesOnByItselfUnlessTheLearnerPlaysSomething() async throws {
+        let audio = TestPlayback()
+        let session = EarTrainingSession(playback: audio, store: TestStore())
+        session.startQuiz(seed: 1)
+        audio.finish()
+        session.answer(session.question!.correctAnswer.id)
+        XCTAssertEqual(session.quiz?.index, 0)
+        try await Task.sleep(nanoseconds: 1_300_000_000)
+        XCTAssertEqual(session.quiz?.index, 1, "A correct answer moves on after a second")
+        XCTAssertNil(session.quiz?.response)
+
+        audio.finish()
+        session.answer(session.question!.correctAnswer.id)
+        session.playSolution() // lingering on the answer cancels the move
+        try await Task.sleep(nanoseconds: 1_300_000_000)
+        XCTAssertEqual(session.quiz?.index, 1)
     }
 
     @MainActor func testNavigationRejectsOldCompletionAndRetainsNoPartialProgress() async {

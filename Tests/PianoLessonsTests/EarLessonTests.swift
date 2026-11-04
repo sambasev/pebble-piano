@@ -21,7 +21,8 @@ final class EarLessonTests: XCTestCase {
             if case .earTraining(let b) = block { return b }; return nil
         }
         XCTAssertEqual(Set(configs.map(\.stageID)), Set(EarCurriculum.levels.flatMap(\.stages).map(\.id)))
-        XCTAssertTrue(configs.allSatisfy { $0.questions == 10 })
+        XCTAssertTrue(configs.allSatisfy { $0.questions == ($0.stageID.level == 1 ? 5 : 10) },
+                      "Level 1 is a five-question warm-up; every other level has ten")
         XCTAssertTrue(LoadedUnit(unit: unit, folder: URL(fileURLWithPath: "/unused")).validate().isEmpty)
     }
 

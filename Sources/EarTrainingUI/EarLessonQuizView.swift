@@ -44,7 +44,7 @@ import PianoGraderCore
                         Button(question.referenceLabel) { session.playReference() }.earButton(.secondary)
                         if session.isPlaying { Button("Stop") { session.stop() }.earButton(.secondary) }
                     }
-                    Text(session.isPlaying ? "Listening…" : session.heardQuestion ? "Choose an answer." : "Listen to the complete example before answering.")
+                    Text(session.isPlaying ? "Listening… \(question.listenOrder)" : session.heardQuestion ? "Choose an answer." : "Press Play to listen. \(question.listenOrder)")
                         .font(.caption).foregroundStyle(.secondary)
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 180), spacing: 12)], spacing: 12) {
                         ForEach(Array(question.choices.enumerated()), id: \.element.id) { i, answer in

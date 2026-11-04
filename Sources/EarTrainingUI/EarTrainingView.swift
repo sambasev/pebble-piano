@@ -237,7 +237,7 @@ import PianoGraderCore
                             .buttonStyle(.borderless)
                     }
                 }
-                Text(session.isPlaying ? "Listening…" : session.heardQuestion ? "Choose your answer. Replay as often as you like." : "Press Play and listen to the complete example to answer.")
+                Text(session.isPlaying ? "Listening… \(question.listenOrder)" : session.heardQuestion ? "Choose your answer. Replay as often as you like." : "Press Play to listen. \(question.listenOrder)")
                     .font(.caption).foregroundStyle(.secondary)
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 220), spacing: 12)], spacing: 12) {
                     ForEach(Array(question.choices.enumerated()), id: \.element.id) { index, answer in

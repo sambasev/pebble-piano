@@ -81,11 +81,15 @@ final class LessonRunner: ObservableObject, PlayerObserver {
             all[.lessonPage(unit: PieceLessonBuilder.unitID, page: page.id)].map { (page.id, $0) }
         })
     }
-    func previousEarBest(for page: LessonPage) -> Int? {
+    /// "4/5" or "8/10": the stage's best score, on this page's quiz length.
+    func previousEarBest(for page: LessonPage) -> String? {
         guard let config = page.blocks.compactMap({ block -> Block.EarTraining? in
             if case .earTraining(let b) = block { return b }; return nil
         }).first else { return nil }
-        return MainActor.assumeIsolated { player.earTraining.session.progress.stages[config.stageID.id]?.bestCorrect }
+        guard let best = MainActor.assumeIsolated({
+            player.earTraining.session.progress.stages[config.stageID.id]?.bestCorrect
+        }) else { return nil }
+        return "\(best * config.questions / 10)/\(config.questions)"
     }
     func selectCourse(_ value: Course) {
         guard value != course else { return }

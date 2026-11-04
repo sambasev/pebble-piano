@@ -214,4 +214,13 @@ final class EarTrainingTests: XCTestCase {
         progress.record(EarQuizResult(stage: final, correct: 10, total: 10, missed: []))
         XCTAssertEqual(progress.recommendedStage, final)
     }
+
+    func testFiveQuestionQuizCountsOutOfTen() {
+        var progress = EarProgress()
+        let second = EarStageID(level: 1, stage: 2)
+        progress.record(EarQuizResult(stage: second, correct: 4, total: 5, missed: []))
+        XCTAssertEqual(progress.stages["1.2"]?.bestCorrect, 8, "4 of 5 is mastered, like 8 of 10")
+        progress.record(EarQuizResult(stage: second, correct: 3, total: 7, missed: []))
+        XCTAssertEqual(progress.stages["1.2"]?.completedQuizzes, 1, "other quiz lengths are not recorded")
+    }
 }

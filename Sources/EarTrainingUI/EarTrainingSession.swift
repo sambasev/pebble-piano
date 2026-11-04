@@ -37,6 +37,13 @@ import PianoGraderCore
     private var playToken: UInt64 = 0
     private var lessonCount = 10
     private var lessonNotes: [Int]?
+    /// Each new question plays by itself (reference first), and an answer moves on by itself.
+    public var autoPlay = true
+    private var advanceTask: Task<Void, Never>?
+    /// Silence between the reference and the question.
+    static let referenceGap = 0.45
+    /// How long the answer stays on screen before the next question.
+    static let advanceDelay = (correct: 1.0, wrong: 2.5)
 
     public func startLessonQuiz(stage: EarStageID, questions: Int, notes: [Int]? = nil) {
         select(stage)
@@ -88,11 +95,20 @@ import PianoGraderCore
         quiz = EarQuiz(questions: EarQuestionGenerator.quiz(stage: selectedStage, seed: seed, count: lessonCount, notes: lessonNotes))
         heardQuestion = false
         screen = .quiz
+        if autoPlay { playQuestion() }
     }
 
+    /// The reference (C4 for notes, the root or tonic otherwise), a short gap, then the question.
     public func playQuestion() {
         guard screen == .quiz, let question else { return }
-        play(question.stimulus, marksQuestionHeard: true)
+        let start = (question.reference.map(\.offset).max() ?? 0) + Self.referenceGap
+        let stimulus = question.stimulus.map { note -> NoteEvent in
+            var n = note
+            n.onset += start
+            n.offset += start
+            return n
+        }
+        play(question.reference + stimulus, marksQuestionHeard: true)
     }
 
     public func playReference() {
@@ -112,13 +128,33 @@ import PianoGraderCore
 
     public func answer(_ id: String) {
         guard canAnswer else { return }
-        if quiz?.submit(answerID: id) == true { onActivity?(.answer) }
+        if quiz?.submit(answerID: id) == true {
+            onActivity?(.answer)
+            advanceSoon(correct: quiz?.response?.isCorrect == true)
+        }
     }
 
     public func skip() {
         guard screen == .quiz, quiz?.response == nil else { return }
         stop()
-        if quiz?.submit(answerID: nil) == true { onActivity?(.skip) }
+        if quiz?.submit(answerID: nil) == true {
+            onActivity?(.skip)
+            advanceSoon(correct: false)
+        }
+    }
+
+    /// Moves to the next question once the answer has been seen. Playing anything first
+    /// (Hear the solution, Replay) cancels it, and Next still works straight away.
+    private func advanceSoon(correct: Bool) {
+        guard autoPlay, let index = quiz?.index else { return }
+        let delay = correct ? Self.advanceDelay.correct : Self.advanceDelay.wrong
+        advanceTask?.cancel()
+        advanceTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+            guard let self, !Task.isCancelled, self.screen == .quiz,
+                  self.quiz?.index == index, self.quiz?.response != nil else { return }
+            self.next()
+        }
     }
 
     public func next() {
@@ -126,8 +162,10 @@ import PianoGraderCore
         stop()
         quiz?.next()
         heardQuestion = false
+        if quiz?.result == nil, autoPlay { playQuestion() }
         if let result = quiz?.result {
-            if lessonCount == 10 && lessonNotes == nil {
+            // Course quizzes (any length) count toward progress; piano-page checks on a few notes don't.
+            if lessonNotes == nil {
                 progress.record(result)
                 retrySave()
             }
@@ -148,6 +186,8 @@ import PianoGraderCore
     }
 
     public func stop() {
+        advanceTask?.cancel()
+        advanceTask = nil
         playToken &+= 1
         playback.stop()
         isPlaying = false
@@ -171,6 +211,13 @@ import PianoGraderCore
             }
         }
         if error == nil { onActivity?(.listening) }
+    }
+}
+
+public extension EarQuestion {
+    /// What plays, in order, for the line under the Play buttons.
+    var listenOrder: String {
+        "First the \(referenceLabel), then the \(stage.level <= 2 ? "note to name" : "question")."
     }
 }
 #endif

@@ -7,9 +7,11 @@ public enum EarLessonCourse {
         return LessonUnit(id: "ear-training", title: "Train your ear", pages: stages.enumerated().map { index, item in
             let (level, stage) = item
             let next = index + 1 < stages.count ? "ear-\(stages[index + 1].1.id.id)" : nil
+            // Level 1 (single notes) is a short warm-up: five questions instead of ten.
+            let questions = level.id == 1 ? 5 : 10
             return LessonPage(id: "ear-\(stage.id.id)", title: "Level \(level.id) · \(stage.title)", blocks: [
-                .explain(.init(text: stage.detail + " Listen, use the reference, and choose the answer. Aim for 8 out of 10.")),
-                .earTraining(.init(level: level.id, stage: stage.id.stage, questions: 10))
+                .explain(.init(text: stage.detail + " Listen, use the reference, and choose the answer. Aim for \(questions * 8 / 10) out of \(questions).")),
+                .earTraining(.init(level: level.id, stage: stage.id.stage, questions: questions))
             ], unlocks: next)
         })
     }

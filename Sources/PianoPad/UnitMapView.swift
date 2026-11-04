@@ -27,7 +27,7 @@ struct UnitMapView: View {
                         VStack(spacing: PP.Space.s2) {
                             PageCard(runner: runner, page: page, number: index + 1)
                             if runner.course == .ear, let best = runner.previousEarBest(for: page) {
-                                Text("Previous best: \(best)/10").font(.ppCaption).foregroundColor(PP.inkMuted)
+                                Text("Previous best: \(best)").font(.ppCaption).foregroundColor(PP.inkMuted)
                             }
                         }
                     }
@@ -51,7 +51,7 @@ struct UnitMapView: View {
                                   blurb: "Listen and recognize notes, chords, and jazz harmony.",
                                   name: "ear training", unit: EarLessonCourse.unit, progress: runner.earPathProgress,
                                   open: { runner.openEarPage($0) },
-                                  note: { page in runner.previousEarBest(for: page).map { "Previous best: \($0)/10" } })
+                                  note: { page in runner.previousEarBest(for: page).map { "Previous best: \($0)" } })
             }
             .padding(.bottom, PP.Space.s6)
         }

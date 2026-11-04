@@ -52,11 +52,12 @@ public struct EarQuiz: Sendable {
 }
 
 public struct EarStageProgress: Codable, Equatable, Sendable {
+    /// Best score, out of 10 (a 5-question quiz counts double), so 8 always means mastered.
     public private(set) var bestCorrect: Int = 0
     public private(set) var completedQuizzes: Int = 0
     public init() {}
     mutating func record(_ result: EarQuizResult) {
-        bestCorrect = max(bestCorrect, result.correct)
+        bestCorrect = max(bestCorrect, result.correct * 10 / result.total)
         completedQuizzes += 1
     }
 }
@@ -68,7 +69,8 @@ public struct EarProgress: Codable, Equatable, Sendable {
     public init() {}
 
     public mutating func record(_ result: EarQuizResult) {
-        guard result.total == 10, (0...10).contains(result.correct), EarCurriculum.stage(result.stage) != nil else { return }
+        guard [5, 10].contains(result.total), (0...result.total).contains(result.correct),
+              EarCurriculum.stage(result.stage) != nil else { return }
         var stageProgress = stages[result.stage.id] ?? EarStageProgress()
         stageProgress.record(result)
         stages[result.stage.id] = stageProgress
