@@ -1,0 +1,167 @@
+{
+ "meta": {
+  "model": "muse-spark-1.3",
+  "mode": "replay",
+  "title": "replay of recorded tutor replies",
+  "note": "Replay: no model calls. The tutor replies recorded in docs/tutor_evaluation.json (model-only, 31 checks) and docs/tutor_live_evaluation.json (the app end to end, text only) re-scored with these scorers. Latency is the recorded wall time of the original (non-streamed) call, so first-token numbers aren't available. Live transcripts have no chips or action objects, so follow-up and action checks don't apply to them.",
+  "date": "20261104-204216"
+ },
+ "samples": 54,
+ "cases": 52,
+ "metrics": {
+  "task": {
+   "pass": 54,
+   "n": 54,
+   "rate": 1.0,
+   "ci95": [
+    0.9335841332189981,
+    1.0
+   ]
+  },
+  "adherence": {
+   "pass": 47,
+   "n": 54,
+   "rate": 0.8703703703703703,
+   "ci95": [
+    0.7557801946793228,
+    0.9357636077051201
+   ]
+  },
+  "grounding": {
+   "pass": 53,
+   "n": 54,
+   "rate": 0.9814814814814815,
+   "ci95": [
+    0.902283346415128,
+    0.996723596684648
+   ]
+  },
+  "followups": {
+   "pass": 54,
+   "n": 54,
+   "rate": 1.0,
+   "ci95": [
+    0.9335841332189981,
+    1.0
+   ]
+  },
+  "overall": {
+   "pass": 47,
+   "n": 54,
+   "rate": 0.8703703703703703,
+   "ci95": [
+    0.7557801946793228,
+    0.9357636077051201
+   ]
+  },
+  "hallucination_rate": {
+   "bad": 1,
+   "n": 43,
+   "rate": 0.023255813953488372,
+   "ci95": [
+    0.004116981177419918,
+    0.12059267861216882
+   ]
+  },
+  "followup_coverage": {
+   "n": 43,
+   "rate": 0.4418604651162791
+  }
+ },
+ "by_category": {
+  "legacy:adversarial": {
+   "n": 4,
+   "overall": 1.0
+  },
+  "legacy:guardrails_negative": {
+   "n": 4,
+   "overall": 1.0
+  },
+  "legacy:guardrails_positive": {
+   "n": 5,
+   "overall": 0.6
+  },
+  "legacy:guardrails_pretext": {
+   "n": 3,
+   "overall": 1.0
+  },
+  "legacy:multimodal_vision": {
+   "n": 4,
+   "overall": 1.0
+  },
+  "legacy:pedagogy": {
+   "n": 4,
+   "overall": 0.75
+  },
+  "legacy:player_actions": {
+   "n": 6,
+   "overall": 0.6666666666666666
+  },
+  "live:A": {
+   "n": 3,
+   "overall": 1.0
+  },
+  "live:B": {
+   "n": 6,
+   "overall": 0.8333333333333334
+  },
+  "live:C": {
+   "n": 2,
+   "overall": 1.0
+  },
+  "live:D": {
+   "n": 3,
+   "overall": 1.0
+  },
+  "live:E": {
+   "n": 3,
+   "overall": 1.0
+  },
+  "live:F": {
+   "n": 4,
+   "overall": 1.0
+  },
+  "live:G": {
+   "n": 3,
+   "overall": 0.6666666666666666
+  }
+ },
+ "rules": {
+  "adherence.length": 3,
+  "adherence.claims_done": 3,
+  "adherence.length (soft)": 2,
+  "grounding.invented_date": 1,
+  "adherence.promise_without_action": 1
+ },
+ "latency": {
+  "total_s": {
+   "n": 54,
+   "mean": 7.905185185185185,
+   "p50": 6.09,
+   "p90": 13.540000000000006,
+   "p95": 16.81,
+   "max": 26.2
+  }
+ },
+ "judge": {},
+ "errors": 0,
+ "consistency": {
+  "trials": 2,
+  "all_trials_pass": 45,
+  "flaky": [],
+  "cases": 52
+ },
+ "judge_errors": 0,
+ "latency_budget": {
+  "ttfv_s": {
+   "p90": null,
+   "limit": 4.0,
+   "ok": null
+  },
+  "total_s": {
+   "p90": 13.540000000000006,
+   "limit": 10.0,
+   "ok": false
+  }
+ }
+}

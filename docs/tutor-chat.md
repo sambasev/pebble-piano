@@ -160,3 +160,8 @@ eight-bar score and checks score reading and the requested passage action agains
   instructions and schema from `docs/tutor_contract.json`, which the app's code writes;
   `TutorContractTests` fails when the file is stale (`UPDATE_TUTOR_CONTRACT=1 swift test
   --filter TutorContractTests`). Results: `docs/tutor_evaluation.md`.
+- **Quality metrics:** `python3 evals/tutor/run.py live --trials 3` scores follow-ups,
+  instruction adherence, hallucination (claims checked against the score and grader facts)
+  and streamed latency on 38 realistic contexts, with an optional LLM judge;
+  `run.py replay` re-scores the recorded replies above without the network. See
+  `evals/tutor/README.md`.
