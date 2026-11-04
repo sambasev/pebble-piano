@@ -1,13 +1,94 @@
-# PianoGrader
+# PerfectPiano
 
-Milestone 0 of the piano eBook tutor: a MIDI rater. It grades a played take against
-a reference MIDI passage, using a rubric file, and reports which notes were right,
-wrong, missed or extra, plus rhythm and tempo.
+A piano tutor for the Mac that listens to you play. It hears each note through a MIDI keyboard
+or the microphone of an acoustic piano, grades it against the score (right, wrong, missed or
+extra notes, plus rhythm and tempo), and an AI tutor built on Meta's models coaches you from
+those measurements: what went wrong, which bar to drill and what to practise next.
 
-- `PianoGraderCore`: the grading library. Pure Swift, no UI and no CoreMIDI, so the
-  macOS/iOS app can use it unchanged later.
-- `grade`: a command-line tool that grades a recorded take, records one live from a
-  MIDI keyboard, or re-grades your labelled fixtures.
+## Quick start
+
+**You need:**
+
+- A Mac on macOS 13 or later (tested on Apple silicon with macOS 15).
+- Xcode 15 or later (Swift 5.9). Nothing else to install: Swift Package Manager fetches the
+  three dependencies.
+- **Something to play on**, any of:
+  - a MIDI keyboard over USB or Bluetooth (most accurate),
+  - an acoustic piano and the Mac's microphone (works best in a quiet room), or
+  - nothing at all: the computer keyboard plays notes (A S D F … is C D E F …), and you can
+    click the on-screen keys.
+- **A Meta Model API key** for the AI features (see below). Grading, lessons and the mic work
+  without one.
+
+**Build and run:**
+
+```sh
+git clone https://github.com/sambasev/interactive-piano.git && cd interactive-piano
+swift run PianoPad
+```
+
+Or open `Package.swift` in Xcode, choose the **PianoPad** scheme and press ⌘R. A clean build
+takes about 30 seconds on an M-series Mac. `swift test` runs the 738 unit tests (none need
+the network).
+
+**Add the Meta key:** in the app, open the **⋯** menu → **AI settings…** and paste it. It is
+saved in the Keychain, never in the repo. For the command line and tests you can set
+`MODEL_API_KEY` instead.
+
+**Try it in two minutes:**
+
+1. Open **Learn** and start the first lesson, or stay on **Practice** with the bundled book page.
+2. Play the passage (press **Space** first to hear it). Play a wrong note on purpose.
+3. Read the grade, then ask the tutor in the chat panel what went wrong.
+
+## Where Meta's models are used
+
+| Model | What it does in PerfectPiano |
+| --- | --- |
+| Muse Spark | The tutor chat: explains a take, plans lessons, makes exercises, answers questions about your progress |
+| Muse Wonder | Reads printed sheet music line by line, so a book page becomes a playable, gradable piece |
+
+The client also supports SAM 3.1 and Muse Voice Transcribe (`ModelClient.segment` and
+`transcribe`), but the app only uses them in the **AI settings** connection check so far.
+
+Note detection and grading are our own code (DSP and score alignment, no AI) and run on the
+Mac, so the tutor reasons from real measurements of your playing, not from guesses. Piano
+audio never leaves the Mac. `Sources/PianoAI` holds the model client; Fireworks and Modal
+work as alternative hosts for open-weight models.
+
+## Known issues
+
+This was built quickly, and these are the rough edges we know about:
+
+- **Mac only.** The libraries build for iOS, but there is no iPad or iPhone app yet.
+- **The microphone is less reliable than MIDI.** In a noisy room it misses many soft notes (about
+  a quarter of clean chords accepted on our synthetic benchmark, against about 84% in a quiet one).
+  Its sustain check is tuned to avoid phantom notes, so it lets some real wrong notes through.
+  Stay quiet for the first second after turning **Mic** on, while it measures the room.
+- **AI replies can be slow** (several seconds for the tutor) and occasionally aren't in the
+  expected form, in which case the app retries.
+- **Without a Meta key** the tutor and reading new book pages are unavailable. The app says
+  what needs a key; everything else works.
+- **Book pages are images,** so notes you've played get a green circle over the printed note
+  rather than turning green themselves (see `TODO.md`).
+- **Opening MIDI files:** there are no triplets yet, and pickup bars aren't detected, so a piece
+  starting on an upbeat has its barlines a beat early.
+- **Grading:** tempo is fitted for the whole take, so steadily slowing down counts as rhythm
+  error. More in *Known limits* below.
+- **The sandboxed TestFlight build** can only open the bundled book, not other book files.
+
+---
+
+# Developer reference
+
+The rest of this README covers each part in detail. The code is a Swift package:
+
+- `PianoGraderCore`: grading, note detection, notation and sight reading. Pure Swift, no UI.
+- `PianoGraderIO`: MIDI input, audio input and piano sound (Apple platforms).
+- `PianoLessons`, `PianoPadState`, `PianoCatalog`: lessons, saved learner state, the music library.
+- `PianoAI`: the model client for Meta's Model API.
+- `PianoPad`: the Mac app. `grade`: a command-line tool that grades a recorded take, records
+  one live from a MIDI keyboard, or re-grades your labelled fixtures.
 
 ## Ear Training inside lessons
 
