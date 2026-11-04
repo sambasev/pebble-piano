@@ -105,3 +105,26 @@ Before the fix, each new "good" golden failed (33/37). After it, selftest passes
   - `claims_done` doesn't catch "I've flagged your take" (`rc_played_it_right` #1).
   - `no_numbers` only runs when the context has a graded take, so "you're up to 85%" (`rc_plan_session` #3,
     from progress trends) isn't caught.
+
+## Coaching rerun (after the harness fix in d747697)
+
+`--only co_ --trials 3 --judge claude`, results in `results/live-20261104-coaching/`. Each coaching
+case now names its own current exercise and the app's "Deterministic next step", in the app's format
+(`PlaySession+TutorChatContext.swift:50`). Selftest passes 41/41. **3 of 6 pass** (overall 50%, task 67%, adherence 100%,
+grounding 100%, follow-ups 67%). Judge: grounding 4.33, helpfulness 4.17, teaching 4.00, follow-ups 3.17,
+and 3 of 6 replies have an unsupported claim. All 3 failures are real; there were no scorer false positives, and no scorer changed.
+
+- **Ignores the app's next step (`co_auto_event` #2).** The next step is bars 3–4 at 70%, but the tutor set up
+  "the full 8 bars again at full speed" (`practicePassage 1–8, 100%`). The judge gave it helpfulness 2.
+- **Says one thing and does another (`co_auto_event` #3).** "Let's zoom in on bars 3-4 a bit slower… I'll set
+  that up now", but the only action is `continueLesson`, so bars 3–4 are never set up. The promise check
+  doesn't catch it, because a different action is present.
+- **Left-hand chip on a one-track piece again** (`co_auto_event` #2 "Left hand only please",
+  `co_wait_mode_pass` #3 "Try left hand only"). This is the same cause as failure 4 above.
+
+When it follows the next step it does well: `co_auto_event` #1 set bars 3–4 at 70%, and `co_wait_mode_pass` set the warm-up
+timed at 80% in 3/3 trials, saying correctly that timing hadn't been checked yet. The judge still finds the
+praise for things the grader doesn't measure: "Lovely singing tone" (#1), and "tidy fingering" in 2 of 3 `co_wait_mode_pass`
+replies. #2 also says "bars 1-3 hands together" on a one-track piece. That isn't a rule failure: hand LR is
+allowed, and `hand_tracks` only checks R/L. Latency in this small rerun (n=6) is first visible text
+p50 9.1 s / p90 15.8 s and full reply p50 9.9 s / p90 16.8 s, slower than the main run.
