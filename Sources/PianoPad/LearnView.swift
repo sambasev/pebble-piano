@@ -60,38 +60,62 @@ private struct PagePlayerView: View {
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                 .clipped()
-                if runner.showsKeyboard {
-                    KeyboardView(
-                        range: session.displayRange,
-                        held: session.held,
-                        wrong: session.wrong,
-                        expected: session.expected,
-                        audition: session.auditionHeld,
-                        showGuide: session.showGuide,
-                        keyLabel: session.keyLabel(for:),
-                        highlight: runner.highlight,
-                        onPress: { session.mouseDown(on: $0) },
-                        onRelease: { session.mouseUp() }
-                    )
-                    .frame(height: compact ? PP.Size.keyboardCompact : PP.Size.keyboard)
-                    .ppGlass(cornerRadius: PP.Radius.xl, padding: compact ? PP.Space.s2 : PP.Space.s3)
-                    .tourAnchor(.keyboard)
-                    .transition(.move(edge: .bottom).combined(with: .opacity))
-                }
-                if runner.showsDancers, block.kind != .earTraining {
-                    DancerStrip(reaction: runner.dancerReaction)
-                        .tourAnchor(.dancers)
-                }
-                feedbackLine
-                    .frame(height: Self.feedbackHeight)
-                    .tourAnchor(.feedback)
-                controls(block)
+                if readingLayout {
+                    // Reading pages: the feedback and buttons share one row above the keys, the
+                    // keyboard sits at the bottom, and the Pebbles get a thin strip under it.
+                    HStack(spacing: PP.Space.s3) {
+                        HStack(spacing: PP.Space.s3) { feedbackChip }
+                            .tourAnchor(.feedback)
+                        controls(block)
+                    }
                     .frame(height: Self.controlsHeight)
+                    .animation(.easeInOut(duration: 0.15), value: runner.feedback)
                     .tourAnchor(.lessonControls)
+                    keyboard
+                    if runner.showsDancers {
+                        DancerStrip(reaction: runner.dancerReaction, height: compact ? 44 : 60)
+                            .tourAnchor(.dancers)
+                    }
+                } else {
+                    if runner.showsKeyboard { keyboard }
+                    if runner.showsDancers, block.kind != .earTraining {
+                        DancerStrip(reaction: runner.dancerReaction)
+                            .tourAnchor(.dancers)
+                    }
+                    feedbackLine
+                        .frame(height: Self.feedbackHeight)
+                        .tourAnchor(.feedback)
+                    controls(block)
+                        .frame(height: Self.controlsHeight)
+                        .tourAnchor(.lessonControls)
+                }
             }
         }
         .animation(.easeInOut(duration: 0.25), value: runner.showsKeyboard)
         .onAppear { session.startTourIfNew(.lessonPage) }
+    }
+
+    /// The sight-reading course: the quiz needs the room, and nothing there plays along, so
+    /// the bottom is just the keys with the Pebbles under them.
+    private var readingLayout: Bool { runner.course == .sight }
+
+    private var keyboard: some View {
+        KeyboardView(
+            range: session.displayRange,
+            held: session.held,
+            wrong: session.wrong,
+            expected: session.expected,
+            audition: session.auditionHeld,
+            showGuide: session.showGuide,
+            keyLabel: session.keyLabel(for:),
+            highlight: runner.highlight,
+            onPress: { session.mouseDown(on: $0) },
+            onRelease: { session.mouseUp() }
+        )
+        .frame(height: compact ? PP.Size.keyboardCompact : PP.Size.keyboard)
+        .ppGlass(cornerRadius: PP.Radius.xl, padding: compact ? PP.Space.s2 : PP.Space.s3)
+        .tourAnchor(.keyboard)
+        .transition(.move(edge: .bottom).combined(with: .opacity))
     }
 
     private static let feedbackHeight: CGFloat = 52
@@ -161,13 +185,19 @@ private struct PagePlayerView: View {
                     .font(.ppCallout).foregroundColor(PP.inkMuted)
             }
         }
-        .frame(maxWidth: .infinity, minHeight: runner.isChild && block.midi == nil ? 140 : nil, alignment: .leading)
-        .ppGlass(cornerRadius: PP.Radius.lg, padding: runner.isChild && block.midi == nil ? PP.Space.s6 : PP.Space.s4)
+        .frame(maxWidth: .infinity, minHeight: runner.isChild && block.midi == nil && block.kind != .sightReading ? 140 : nil, alignment: .leading)
+        .ppGlass(cornerRadius: PP.Radius.lg, padding: promptPadding(block))
+    }
+
+    private func promptPadding(_ block: Block) -> CGFloat {
+        if block.kind == .sightReading { return compact ? PP.Space.s3 : PP.Space.s4 }
+        return runner.isChild && block.midi == nil ? PP.Space.s6 : PP.Space.s4
     }
 
     /// Explain and concept cards are bigger for children.
     private func promptFont(_ block: Block) -> Font {
-        guard block.midi == nil else { return .ppHeadline }
+        // The quiz has its own question: the card above it is just the instruction.
+        guard block.midi == nil, block.kind != .sightReading else { return .ppHeadline }
         return runner.isChild ? .system(size: 34, weight: .bold, design: .rounded) : .ppTitle
     }
 
@@ -213,17 +243,23 @@ private struct PagePlayerView: View {
     @ViewBuilder
     private var feedbackLine: some View {
         HStack(spacing: PP.Space.s3) {
-            if let f = runner.feedback {
-                PPFeedbackChip(kind: chipKind(f.kind), text: f.text, lines: 2)
-                if let stars = f.stars { StarsView(stars: stars) }
-            } else if let hintText = runner.hintText {
-                PPFeedbackChip(kind: .hint, text: hintText, lines: 2)
-            } else if session.isPlayingAlong {
-                PPFeedbackChip(kind: .hint, text: session.playAlongState == .countIn ? "Count-in… come in on the next bar." : "Playing: keep going.")
-            }
+            feedbackChip
             Spacer()
         }
         .animation(.easeInOut(duration: 0.15), value: runner.feedback)
+    }
+
+    /// What just happened, or the hint: nothing when there's nothing to say.
+    @ViewBuilder
+    private var feedbackChip: some View {
+        if let f = runner.feedback {
+            PPFeedbackChip(kind: chipKind(f.kind), text: f.text, lines: 2)
+            if let stars = f.stars { StarsView(stars: stars) }
+        } else if let hintText = runner.hintText {
+            PPFeedbackChip(kind: .hint, text: hintText, lines: 2)
+        } else if session.isPlayingAlong {
+            PPFeedbackChip(kind: .hint, text: session.playAlongState == .countIn ? "Count-in… come in on the next bar." : "Playing: keep going.")
+        }
     }
 
     private func chipKind(_ kind: LessonRunner.Feedback.Kind) -> PPFeedbackChip.Kind {

@@ -60,18 +60,21 @@ struct SightReadingQuizView: View {
     let passAccuracy: Double
     let onContinue: () -> Void
     @State private var showExamples = true
+    /// A short window (a small laptop): a smaller staff and buttons, so the choices fit
+    /// above the keyboard without scrolling.
+    @Environment(\.ppCompact) private var compact
 
     var body: some View {
         ScrollView {
-            VStack(alignment: .leading, spacing: PP.Space.s4) {
+            VStack(alignment: .leading, spacing: compact ? PP.Space.s3 : PP.Space.s4) {
                 if let result = session.result {
                     results(result)
                 } else if let question = session.question, let quiz = session.quiz {
                     HStack(alignment: .top, spacing: PP.Space.s6) {
-                        VStack(alignment: .leading, spacing: PP.Space.s3) {
+                        VStack(alignment: .leading, spacing: compact ? PP.Space.s2 : PP.Space.s3) {
                             Text("Question \(quiz.index + 1) of \(quiz.questions.count)").ppEyebrow()
                             Text(question.prompt).font(.ppHeadline)
-                            SightStaffView(score: question.score, spacing: 14, mark: mark(quiz.response))
+                            SightStaffView(score: question.score, spacing: compact ? 10 : 14, mark: mark(quiz.response))
                         }
                         Spacer(minLength: 0)
                         if quiz.response != nil { feedback(question, quiz: quiz) }
@@ -84,7 +87,7 @@ struct SightReadingQuizView: View {
                     }
                 }
             }
-            .padding(PP.Space.s4)
+            .padding(compact ? PP.Space.s3 : PP.Space.s4)
             .frame(maxWidth: .infinity, alignment: .leading)
         }
         .foregroundColor(PP.ink)
@@ -104,7 +107,7 @@ struct SightReadingQuizView: View {
                 Button { session.answer(answer.id) } label: {
                     Text(answer.title)
                         .font(answer.title.count <= 2 ? .system(size: 26, weight: .bold, design: .rounded) : .ppButton)
-                        .frame(maxWidth: .infinity, minHeight: 52)
+                        .frame(maxWidth: .infinity, minHeight: compact ? 42 : 52)
                         .background(RoundedRectangle(cornerRadius: PP.Radius.md)
                             .fill(isAnswer ? PP.success.opacity(0.18) : chosen ? PP.mistake.opacity(0.15) : PP.surfaceGlass))
                         .overlay(RoundedRectangle(cornerRadius: PP.Radius.md)
