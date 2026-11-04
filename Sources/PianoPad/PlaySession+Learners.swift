@@ -361,7 +361,7 @@ extension PlaySession {
         }
         let panel = NSSavePanel()
         panel.allowedContentTypes = [.zip]
-        panel.nameFieldStringValue = "\(learner.name) - PerfectPiano.zip"
+        panel.nameFieldStringValue = "\(learner.name) - Pebble Piano.zip"
         guard panel.runModal() == .OK, let destination = panel.url else { return }
 
         // Reading a folder "for uploading" hands back a zip of it; it works in the sandbox.

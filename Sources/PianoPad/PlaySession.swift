@@ -818,7 +818,7 @@ final class PlaySession: ObservableObject {
             if let midi {
                 midi.connectAllSources()
             } else {
-                // PerfectPiano hears a piano two ways: the microphone, or Bluetooth MIDI.
+                // Pebble Piano hears a piano two ways: the microphone, or Bluetooth MIDI.
                 midi = try MIDIInput(
                     policy: .bluetoothOnly,
                     onNoteOn: { [weak self] pitch, velocity, time in
@@ -2796,7 +2796,7 @@ extension PlaySession {
         saveTutorProgress()
         tutorPlanning = false
         tutorAttempt = nil
-        tutorPlanNote = plan.source == .model ? "Lesson planned by Muse Spark, checked by PianoPad." : "Quick plan (no AI): phrases of about four bars."
+        tutorPlanNote = plan.source == .model ? "Lesson planned by Muse Spark, checked by Pebble Piano." : "Quick plan (no AI): phrases of about four bars."
         if resumed {
             let done = engine.completedSteps.count, total = engine.steps.count
             tutorText = "Welcome back to \(tutorTitle): \(done) of \(total) steps done. "

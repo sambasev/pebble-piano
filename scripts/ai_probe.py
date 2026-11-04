@@ -48,7 +48,7 @@ def api_key():
             ["security", "find-generic-password", "-s", "com.sambasev.perfectpiano.ai", "-a", "meta", "-w"],
             check=True, capture_output=True, text=True).stdout.strip()
     except Exception:
-        sys.exit("No key: save it in PerfectPiano's AI settings, or set MODEL_API_KEY.")
+        sys.exit("No key: save it in Pebble Piano's AI settings, or set MODEL_API_KEY.")
 
 
 def post(path, body, key, accept="application/json"):

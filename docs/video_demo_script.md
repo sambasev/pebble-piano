@@ -1,5 +1,5 @@
 # Meta Hackathon: Recorded Video Demo Script & Storyboard
-**App:** PerfectPiano (PianoPad) · **Track:** Multimodal AI & Meta Model API  
+**App:** Pebble Piano (PianoPad) · **Track:** Multimodal AI & Meta Model API  
 **Duration:** 3:00 Minutes · **Format:** Screen Recording + Voiceover & Camera PiP
 
 ---
@@ -8,7 +8,7 @@
 
 | Timestamp | Section | Visual Focus | Key Narrative |
 |---|---|---|---|
-| **0:00–0:35** | **The Hook & Problem** | PerfectPiano interactive app + Physical Beyer book | The grand staff OMR challenge for piano beginners |
+| **0:00–0:35** | **The Hook & Problem** | Pebble Piano interactive app + Physical Beyer book | The grand staff OMR challenge for piano beginners |
 | **0:35–1:15** | **SAM 3.1 Layout Understanding** | Raw scan + Live SAM 3.1 zero-shot segmentation | Extracting systems and barlines in < 2 seconds |
 | **1:15–1:55** | **The Model Shootout** | Benchmark charts & tables (LEGATO vs Spark vs Wonder) | Why Muse Wonder's high reasoning dominates polyphony |
 | **1:55–2:30** | **The Hybrid Breakthrough** | Visual overlay (`ai_probe3 --draw`) with green noteheads | Pairing Wonder's rhythm with CV notehead geometry = 99% |
@@ -21,7 +21,7 @@
 ### Scene 1: The Hook & The Problem (0:00 – 0:35)
 
 - **On Screen**:
-  - Start with PerfectPiano (`PianoPad.app`) open on macOS.
+  - Start with Pebble Piano (`PianoPad.app`) open on macOS.
   - The presenter plays a short phrase on a connected MIDI keyboard or computer keyboard. The keys light up purple, notes turn green, and the wait guide advances.
   - Cut to a physical copy or PDF of Ferdinand Beyer's *Op. 101* (1895 Peters edition).
 - **Voiceover**:
@@ -81,12 +81,12 @@
 
 - **On Screen**:
   - Quick cut to `scripts/expand_benchmark.py`: compiling LilyPond sources on Modal to scale the benchmark across 170+ two-hand exercises.
-  - Seamless import: click `Open MIDI file…` in PerfectPiano.
+  - Seamless import: click `Open MIDI file…` in Pebble Piano.
   - The freshly transcribed piece is rendered instantly on the screen as engraved notation.
   - The presenter plays the piece: notes light up green, the wait playhead tracks every chord, and the auto-grader awards 3 stars upon completion.
 - **Voiceover**:
   > "To ensure our evaluation is rigorous, our automated LilyPond pipeline scales this benchmark across 170+ progressive two-hand exercises in the cloud.
-  > And best of all, the output isn't just data—it flows directly into PerfectPiano.
+  > And best of all, the output isn't just data—it flows directly into Pebble Piano.
   > Students can immediately practice the piece with interactive key lights, wait-mode pacing, and real-time grading.
   > With Meta's models, we've bridged the gap from paper to performance."
 
@@ -101,7 +101,7 @@
   - `.build/eval_charts/hybrid_ablation_breakthrough.png`
   - `.build/eval_charts/omr_pareto_frontier.png`
   - `.build/ai-probe3/scan-no12.png` and `modern-no12.png` (with green circle overlays)
-  - `Fixtures/beyer/midi/no12-wonder.mid` (ready to drag into PerfectPiano)
+  - `Fixtures/beyer/midi/no12-wonder.mid` (ready to drag into Pebble Piano)
 - [ ] **Software Ready**:
-  - PerfectPiano running in Xcode with Sound on and Guide toggled on.
+  - Pebble Piano running in Xcode with Sound on and Guide toggled on.
   - Modal dashboard or terminal with `uv run` commands ready.

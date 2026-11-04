@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Master Test Runner for PerfectPiano Computer Use Testing.
+Master Test Runner for Pebble Piano Computer Use Testing.
 
 Usage:
   python3 scripts/cu/run.py --check          # Pass 0: Baseline & capability check
@@ -57,7 +57,7 @@ def main():
         success = run_journey_b()
     elif "--smoke" in args or "--all" in args:
         print("\n==========================================")
-        print("   PERFECTPIANO COMPUTER USE TEST SUITE   ")
+        print("   PEBBLE PIANO COMPUTER USE TEST SUITE   ")
         print("==========================================\n")
         ok_a = run_journey_a()
         print("\n------------------------------------------\n")

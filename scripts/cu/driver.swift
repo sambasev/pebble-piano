@@ -2,7 +2,7 @@ import Foundation
 import Cocoa
 import ApplicationServices
 
-/// Computer Use Driver for PerfectPiano.
+/// Computer Use Driver for Pebble Piano.
 /// Provides native desktop automation, window management, accessibility tree inspection,
 /// pixel capture, and synthetic mouse/keyboard events on macOS.
 
@@ -29,7 +29,7 @@ final class CUDriver {
         let windowList = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []
         for w in windowList {
             let owner = w[kCGWindowOwnerName as String] as? String ?? ""
-            if owner.contains("PianoPad") || owner.contains("PerfectPiano") {
+            if owner.contains("PianoPad") || owner.contains("Pebble Piano") {
                 if let idNum = w[kCGWindowNumber as String] as? NSNumber,
                    let boundsDict = w[kCGWindowBounds as String] as? [String: Any],
                    let bounds = CGRect(dictionaryRepresentation: boundsDict as CFDictionary) {

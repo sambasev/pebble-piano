@@ -10,7 +10,7 @@ import TelemetryDeck
 
 /// Anonymous usage analytics for the beta, sent to TelemetryDeck: which screens are used,
 /// for how long (active time only), and a few milestones (setup finished, pages completed).
-/// Never audio, names or file names. Off with PerfectPiano ▸ Share Anonymous Usage Data.
+/// Never audio, names or file names. Off with Pebble Piano ▸ Share Anonymous Usage Data.
 ///
 /// Only the packaged app links TelemetryDeck (App/project.yml); the Swift package build
 /// (`swift run PianoPad`) doesn't, and everything here does nothing there. Debug builds'

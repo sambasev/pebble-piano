@@ -7,7 +7,7 @@ pitches, and score the result against hand-checked notes (Fixtures/beyer/truth).
 
 The model reports where each notehead sits on its staff; this script turns that into a pitch
 from the clef, so octave mistakes can't happen. Results go to .build/ai-probe2/.
-Key: MODEL_API_KEY, or the Keychain item PerfectPiano's AI settings saved.
+Key: MODEL_API_KEY, or the Keychain item Pebble Piano's AI settings saved.
 """
 import argparse, base64, json, os, re, subprocess, sys, time, urllib.request, urllib.error
 
@@ -70,7 +70,7 @@ def api_key():
         return subprocess.run(["security", "find-generic-password", "-s", "com.sambasev.perfectpiano.ai",
                                "-a", "meta", "-w"], check=True, capture_output=True, text=True).stdout.strip()
     except Exception:
-        sys.exit("No key: save it in PerfectPiano's AI settings, or set MODEL_API_KEY.")
+        sys.exit("No key: save it in Pebble Piano's AI settings, or set MODEL_API_KEY.")
 
 
 def post(path, body, key, accept="application/json"):

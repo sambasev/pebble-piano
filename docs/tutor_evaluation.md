@@ -9,7 +9,7 @@
 
 ## Executive Summary
 
-This evaluation benchmark tests the piano AI tutor (`muse-spark-1.3`) integrated into PerfectPiano's `hackathon` branch.
+This evaluation benchmark tests the piano AI tutor (`muse-spark-1.3`) integrated into Pebble Piano's `hackathon` branch.
 The tutor serves as an adult learner's interactive music teacher beside their lesson, evaluating both pedagogical responses
 and automated player/practice actions (`practicePassage`, `listenPassage`, `setTempo`, etc.) with strict JSON schema compliance.
 

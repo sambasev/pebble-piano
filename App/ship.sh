@@ -1,5 +1,5 @@
 #!/bin/bash
-# Builds a TestFlight archive of PerfectPiano, and uploads it when run with --upload.
+# Builds a TestFlight archive of Pebble Piano, and uploads it when run with --upload.
 #
 #   App/ship.sh            merge in the packaging branch, gather backing tracks, generate the
 #                          Xcode project, build and archive (nothing leaves this Mac)
@@ -12,7 +12,7 @@ set -euo pipefail
 APP_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO="$(cd "$APP_DIR/.." && pwd)"
 BUILD="$APP_DIR/build"
-ARCHIVE="$BUILD/PerfectPiano.xcarchive"
+ARCHIVE="$BUILD/PebblePiano.xcarchive"
 mkdir -p "$BUILD"
 exec > >(tee -a "$BUILD/ship.log") 2>&1
 echo "=== $(date) ship.sh $*"
@@ -111,8 +111,8 @@ PIANOPAD_TEAM="$TEAM" xcodegen
 # one it has already seen. Set BUILD_NUMBER to override.
 BUILD_NUMBER="${BUILD_NUMBER:-$(date +%Y%m%d%H%M)}"
 rm -rf "$ARCHIVE"
-xcodebuild -project PerfectPiano.xcodeproj -scheme PianoPadApp -configuration Release \
+xcodebuild -project PebblePiano.xcodeproj -scheme PianoPadApp -configuration Release \
     -destination 'generic/platform=macOS' -archivePath "$ARCHIVE" -allowProvisioningUpdates \
     CURRENT_PROJECT_VERSION="$BUILD_NUMBER" archive
 echo "=== ARCHIVED build $BUILD_NUMBER: $ARCHIVE"
-echo "Try it: open \"$ARCHIVE/Products/Applications/PerfectPiano.app\""
+echo "Try it: open \"$ARCHIVE/Products/Applications/Pebble Piano.app\""

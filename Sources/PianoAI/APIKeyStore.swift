@@ -43,7 +43,7 @@ public enum APIKeyStore {
         var item = base
         item[kSecValueData as String] = Data(trimmed.utf8)
         item[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
-        item[kSecAttrLabel as String] = "PerfectPiano – \(provider.displayName) key"
+        item[kSecAttrLabel as String] = "Pebble Piano – \(provider.displayName) key"
         let status = SecItemAdd(item as CFDictionary, nil)
         guard status == errSecSuccess else { throw ModelError.keychain(status) }
         #else

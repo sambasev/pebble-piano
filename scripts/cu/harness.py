@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Computer Use Test Harness for PerfectPiano.
+Computer Use Test Harness for Pebble Piano.
 Manages isolated sandboxed execution, process lifecycle, native driver dispatch,
 screenshot capture, visual/state oracles, and test report generation.
 """
@@ -26,7 +26,7 @@ class CUHarness:
         self.run_id = run_id or f"run_{time.strftime('%Y%m%d_%H%M%S')}_{uuid.uuid4().hex[:6]}"
         self.run_dir = DEFAULT_RUNS_DIR / self.run_id
         self.screenshots_dir = self.run_dir / "screenshots"
-        self.sandbox_dir = Path(f"/tmp/perfectpiano_cu_{uuid.uuid4().hex[:8]}")
+        self.sandbox_dir = Path(f"/tmp/pebblepiano_cu_{uuid.uuid4().hex[:8]}")
         self.preseed_learner = preseed_learner
         self.app_process: Optional[subprocess.Popen] = None
         self.timeline: List[Dict[str, Any]] = []
@@ -81,7 +81,7 @@ class CUHarness:
 
         # Set active learner in preview UserDefaults
         subprocess.run([
-            "defaults", "write", "PerfectPiano.preview",
+            "defaults", "write", "PebblePiano.preview",
             "PianoPad.activeLearner", learner_id
         ], check=False)
 
@@ -92,7 +92,7 @@ class CUHarness:
         time.sleep(0.5)
 
         env = os.environ.copy()
-        env["PERFECTPIANO_PREVIEW_DATA"] = str(self.sandbox_dir)
+        env["PEBBLEPIANO_PREVIEW_DATA"] = str(self.sandbox_dir)
         log_file = open(self.run_dir / "app.log", "w")
 
         self.app_process = subprocess.Popen(
@@ -221,7 +221,7 @@ class CUHarness:
         html = f"""<!DOCTYPE html>
 <html>
 <head>
-    <title>PerfectPiano Computer Use Test: {self.run_id}</title>
+    <title>Pebble Piano Computer Use Test: {self.run_id}</title>
     <style>
         body {{ font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; margin: 24px; background: #f6f8fa; color: #24292f; }}
         h1 {{ font-size: 22px; }}

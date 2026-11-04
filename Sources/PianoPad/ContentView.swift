@@ -75,7 +75,7 @@ struct ContentView: View {
             Button("Calibrate now") { session.startCalibration() }
             Button("Later", role: .cancel) {}
         } message: {
-            Text("No Bluetooth MIDI piano is connected, so PerfectPiano listens through the microphone. Play C, D and E on your piano for about 10 seconds so it learns how your piano sounds.")
+            Text("No Bluetooth MIDI piano is connected, so Pebble Piano listens through the microphone. Play C, D and E on your piano for about 10 seconds so it learns how your piano sounds.")
         }
     }
 
@@ -102,7 +102,7 @@ struct ContentView: View {
                     .frame(width: 30, height: 30)
                     .background(RoundedRectangle(cornerRadius: PP.Radius.sm, style: .continuous).fill(PP.accent))
                     .accessibilityHidden(true)
-                Text("PerfectPiano").font(.ppHeadline).lineLimit(1).fixedSize()
+                Text("Pebble Piano").font(.ppHeadline).lineLimit(1).fixedSize()
             }
             Spacer()
             PPSegmented(selection: $session.tab, [

@@ -2,7 +2,7 @@
 
 Oct 25, 2026 · Sam
 
-How people move through PerfectPiano, one journey at a time. Each section covers who it's for,
+How people move through Pebble Piano, one journey at a time. Each section covers who it's for,
 the steps, what data it touches and what's left out of v1.
 
 ## 1. Multiple profiles

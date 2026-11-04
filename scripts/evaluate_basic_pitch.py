@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 Evaluate Spotify's Basic Pitch (ICASSP 2022 neural polyphonic pitch detection model)
-against audio-to-MIDI ground truth in PerfectPiano.
+against audio-to-MIDI ground truth in Pebble Piano.
 
 Parity with `grade eval`:
 - Standard MIR metrics (Precision, Recall, F1) at tolerance (default 120ms).
@@ -268,7 +268,7 @@ def evaluate_case(
 
 
 def main():
-    parser = argparse.ArgumentParser(description="Evaluate Spotify Basic Pitch against PerfectPiano benchmarks.")
+    parser = argparse.ArgumentParser(description="Evaluate Spotify Basic Pitch against Pebble Piano benchmarks.")
     parser.add_argument("--case", type=str, help="Specific case base path (e.g. Fixtures/transcription/take1)")
     parser.add_argument("--fixtures", type=str, default="Fixtures/transcription", help="Directory containing test cases")
     parser.add_argument("--tolerance", type=float, default=0.12, help="Onset matching tolerance in seconds (default: 0.12s)")
@@ -398,7 +398,7 @@ def main():
         md += "\n## Key Acoustic Insights\n\n"
         md += "1. **Harmonic Overtone Ghosting**: Uninformed polyphonic neural estimators like Basic Pitch suffer from harmonic octave triggers (+12 semitones above the fundamental) when acoustic piano strings are struck forcefully.\n"
         md += "2. **Score-Informed Advantage**: When the guide score is applied as an expectation filter, Precision jumps from **0.696 to 1.000**, and F1 from **0.821 to 1.000**.\n"
-        md += "3. **Latency & Streaming**: Basic Pitch is designed for framing/chunked inference (~150–250ms streaming latency), whereas PerfectPiano's NMF runs with 8ms hops (65–89ms latency).\n"
+        md += "3. **Latency & Streaming**: Basic Pitch is designed for framing/chunked inference (~150–250ms streaming latency), whereas Pebble Piano's NMF runs with 8ms hops (65–89ms latency).\n"
 
         with open(args.markdown, "w") as f:
             f.write(md)

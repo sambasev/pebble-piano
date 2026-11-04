@@ -2,7 +2,7 @@
 import AppKit
 import SwiftUI
 
-// PerfectPiano Expressive Glass: the app's design tokens and shared components.
+// Pebble Piano Expressive Glass: the app's design tokens and shared components.
 // The source of truth is the "PerfectPiano Expressive Glass" design system (its tokens.json);
 // keep the names and values here in step with it.
 //

@@ -1,6 +1,6 @@
 # Audio-to-MIDI Transcription Evaluation Report
 
-This report benchmarks real-time audio-to-MIDI piano transcription methods in **PerfectPiano** alongside external polyphonic pitch detection models (including **Spotify's Basic Pitch** neural network).
+This report benchmarks real-time audio-to-MIDI piano transcription methods in **Pebble Piano** alongside external polyphonic pitch detection models (including **Spotify's Basic Pitch** neural network).
 
 ---
 
@@ -24,11 +24,11 @@ Evaluated across dry studio, reverberant room, and ambient noise environments wi
 
 ### B. Real Acoustic Piano Take (`take1.wav` + Ground Truth MIDI)
 
-Direct side-by-side comparison between PerfectPiano's streaming CQT-NMF engine and **Spotify's Basic Pitch** (ICASSP 2022 CNN, ONNX runtime):
+Direct side-by-side comparison between Pebble Piano's streaming CQT-NMF engine and **Spotify's Basic Pitch** (ICASSP 2022 CNN, ONNX runtime):
 
 | Model / Configuration | Precision | Recall | F1 Score | Latency ($p_{50}$) | Latency ($p_{95}$) | RTF | False Alarms |
 |---|---|---|---|---|---|---|---|
-| **Score-Informed NMF** (PerfectPiano) | **1.000** | **1.000** | **1.000** | 59 ms | 92 ms | 0.11x | **0** |
+| **Score-Informed NMF** (Pebble Piano) | **1.000** | **1.000** | **1.000** | 59 ms | 92 ms | 0.11x | **0** |
 | **Spotify Basic Pitch (Score-Guided Filter)** | **1.000** | **1.000** | **1.000** | 86 ms | 99 ms | 0.03x | **0** |
 | **Spotify Basic Pitch (Tuned 0.6/0.4)** | 0.842 | 1.000 | 0.914 | 86 ms | 99 ms | 0.04x | 3 (2 octaves) |
 | **Spotify Basic Pitch (Default 0.5/0.3)** | 0.696 | 1.000 | 0.821 | 86 ms | 99 ms | 0.06x | 7 (5 octaves) |
@@ -45,7 +45,7 @@ Spotify's Basic Pitch (Bittner et al., ICASSP 2022) is an open-source lightweigh
 3. **Melodia Trick Post-Processing**: Traces temporal continuity to form discrete note events.
 
 ### Why Evaluate External Models?
-Evaluating external neural models answers three fundamental questions for PerfectPiano:
+Evaluating external neural models answers three fundamental questions for Pebble Piano:
 1. **Accuracy Ceiling**: What is the raw polyphonic detection accuracy of an unconstrained deep neural net on acoustic piano?
 2. **Acoustic Physics & Overtone Leakage**: Does a neural model suffer from the same harmonic overtone false positives as signal processing methods?
 3. **Latency & Embedded Suitability**: Can a neural model run on-device inside a low-latency interactive piano tutor on iOS/macOS?
@@ -66,7 +66,7 @@ Acoustic breakdown of Basic Pitch false alarms:
   - Sympathetic vibration during long key decay triggered re-attacks.
 
 ### The Score-Informed Solution
-In an interactive score tracker like PerfectPiano:
+In an interactive score tracker like Pebble Piano:
 - The app knows what notes the student is supposed to play (the guide).
 - **Score-Informed NMF** applies a penalty matrix favoring expected pitches and penalizing octave relatives ($+12, +19, +24$ semitones).
 - When the same score-expectation filter was applied to Basic Pitch's predictions, precision rose from **0.696 to 1.000**, with **zero false alarms**.
@@ -75,7 +75,7 @@ In an interactive score tracker like PerfectPiano:
 
 ## 4. Latency & Architecture Comparison
 
-| Dimension | PerfectPiano (Streaming NMF) | Spotify Basic Pitch (CNN) |
+| Dimension | Pebble Piano (Streaming NMF) | Spotify Basic Pitch (CNN) |
 |---|---|---|
 | **Pipeline Mode** | **Streaming Causal** (8ms hop increments) | **Chunked / Framing** (30s batch or sliding windows) |
 | **Algorithmic Latency** | **65 ms – 89 ms** ($p_{50}$) | **150 ms – 250 ms** (minimum chunk lookahead) |

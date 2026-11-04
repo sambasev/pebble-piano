@@ -14,7 +14,7 @@ public enum MusicXMLWriter {
         x.close("work")
         x.open("identification")
         x.open("encoding")
-        x.leaf("software", "PianoPad")
+        x.leaf("software", "Pebble Piano")
         x.close("encoding")
         x.close("identification")
         x.open("part-list")

@@ -1,4 +1,4 @@
-# PerfectPiano computer-use E2E test plan
+# Pebble Piano computer-use E2E test plan
 
 Prepared November 2, 2026; revised after review. This is a plan; no test cases have been executed.
 

@@ -9,7 +9,7 @@ public enum TutorAppGuide {
     public static let version = 1
 
     public static let text = """
-    PerfectPiano guide (v\(version)). Sections in the header: Learn (guided course: unit map,
+    Pebble Piano guide (v\(version)). Sections in the header: Learn (guided course: unit map,
     lesson pages, ear training and sight reading), Practice (open a piece: score, player, piece
     tutor and this chat), Music Library (public-domain pieces to preview and open), Books (your
     PDF books and pieces read from them), Backing Tracks (link audio to pieces).

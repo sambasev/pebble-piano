@@ -261,4 +261,4 @@ Tell friends: "install, follow setup, do Unit 1". Collect locally, then ask them
 - Sessions: TelemetryDeck's automatic `TelemetryDeck.Session.started`, one per launch. TestFlight's own per-tester session counts are in App Store Connect.
 - `Usage.activeTime` (floatValue = seconds): active time per place (`screen`: setup, practice, backingTracks, learn.unitMap, learn.step, learn.pageDone, learn.warmUp; plus `page`, `step`, `stepKind`, `songStage`, `mode`, `learner`, `input`). Active = app frontmost and a click, key or note in the last 60 s, or music playing. Sent on place change, background, quit and every 5 min.
 - Milestones: `Setup.finished` (seconds), `Lesson.pageOpened`, `Lesson.pageCompleted` (stars), `Lesson.stepSkipped`, `Lesson.stepBack`, `Lesson.performed` (stars), `Lesson.drillStarted`, `Practice.graded`, `BackingTrack.saved`.
-- Never audio, names or file names. Opt-out: PerfectPiano ▸ Share Anonymous Usage Data; the welcome screen says so.
+- Never audio, names or file names. Opt-out: Pebble Piano ▸ Share Anonymous Usage Data; the welcome screen says so.

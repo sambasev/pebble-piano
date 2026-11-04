@@ -1,4 +1,4 @@
-# PerfectPiano
+# Pebble Piano
 
 A piano tutor for the Mac that listens to you play. It hears each note through a MIDI keyboard
 or the microphone of an acoustic piano, grades it against the score (right, wrong, missed or
@@ -43,7 +43,7 @@ saved in the Keychain, never in the repo. For the command line and tests you can
 
 ## Where Meta's models are used
 
-| Model | What it does in PerfectPiano |
+| Model | What it does in Pebble Piano |
 | --- | --- |
 | Muse Spark | The tutor chat: explains a take, plans lessons, makes exercises, answers questions about your progress |
 | Muse Wonder | Reads printed sheet music line by line, so a book page becomes a playable, gradable piece |
@@ -141,7 +141,7 @@ question. Reach 80% to Continue.
 `PianoLessons.Block.sightReading` takes `level`, `stage`, optional `questions` (default 10)
 and `passAccuracy` (default 0.8). The curriculum and question generator live in
 `PianoGraderCore/SightReading` and have no UI code. Checks: `swift test --filter SightReading`.
-Debug UI previews can set `PERFECTPIANO_PREVIEW_DATA` to an isolated learner directory;
+Debug UI previews can set `PEBBLEPIANO_PREVIEW_DATA` to an isolated learner directory;
 those previews do not start usage analytics.
 
 ## Build and test
@@ -407,13 +407,13 @@ The quick way: `App/ship.sh` does steps 1 and 4 (merge, backing tracks, project,
 `App/ship.sh --upload` uploads once the app record exists.
 
 1. **Generate the project:** `brew install xcodegen`, then
-   `cd App && PIANOPAD_TEAM=<team ID> xcodegen && open PerfectPiano.xcodeproj`
+   `cd App && PIANOPAD_TEAM=<team ID> xcodegen && open PebblePiano.xcodeproj`
    (team ID: developer.apple.com → Account → Membership details).
 2. **Smoke-test the sandbox:** run the **PianoPadApp** scheme (⌘R). Check the book and examples
    load, MIDI input works, the microphone prompt appears and the mic grades notes, and importing a
    backing track still plays after quitting and relaunching.
 3. **Create the app record:** App Store Connect → Apps → + → New App → macOS, bundle ID
-   `com.sambasev.perfectpiano`. The name must be unique on the store; if "PianoPad" is taken, any
+   `com.sambasev.perfectpiano`. The name must be unique on the store; if "Pebble Piano" is taken, any
    name works here, it doesn't change the app.
 4. **Archive and upload:** in Xcode choose *Any Mac* as destination, Product → Archive, then
    Distribute App → TestFlight & App Store. Processing takes 15–60 minutes.

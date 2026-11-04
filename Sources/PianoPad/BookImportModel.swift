@@ -678,7 +678,7 @@ final class BookImportModel: ObservableObject {
                 message = "\(title) was saved before corrections were kept, and its saved reading has gone (the page has been "
                     + "scanned again since). To correct it, read it again from scratch (right-click it under Your pieces)."
             } else {
-                aiKeyNote = "Reading a new piece needs a Meta key, which you can add in AI settings. Pieces you've already read, and the rest of PerfectPiano, work without one."
+                aiKeyNote = "Reading a new piece needs a Meta key, which you can add in AI settings. Pieces you've already read, and the rest of Pebble Piano, work without one."
             }
             return
         }

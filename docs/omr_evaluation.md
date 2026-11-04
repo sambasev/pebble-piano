@@ -7,7 +7,7 @@
 
 ## Executive Summary
 
-PerfectPiano evaluates and pairs Meta's multimodal model ecosystem (**SAM 3.1**, **Muse Wonder 1.0**, **Muse Spark 1.3**, and open-weight **LEGATO / Llama 3.2 Vision 11B**) with deterministic computer vision geometry to solve end-to-end sheet music transcription from raw physical books into interactive, playable scores.
+Pebble Piano evaluates and pairs Meta's multimodal model ecosystem (**SAM 3.1**, **Muse Wonder 1.0**, **Muse Spark 1.3**, and open-weight **LEGATO / Llama 3.2 Vision 11B**) with deterministic computer vision geometry to solve end-to-end sheet music transcription from raw physical books into interactive, playable scores.
 
 ### Key Benchmark Findings
 

@@ -31,7 +31,7 @@ build_and_run() {
     if swift build --product PianoPad 2>&1 | tee -a "$log" | grep -E "error:|warning: unre|Compiling|Build complete" | grep -v "^\[.*Compiling" ; then :; fi
     if grep -q "error:" "$log"; then
         echo "✗ BUILD FAILED $(date '+%H:%M:%S') — the app still running is the previous build" | tee -a "$log"
-        osascript -e 'display notification "Build failed — see .build/dev-watch.log" with title "PianoPad"' 2>/dev/null
+        osascript -e 'display notification "Build failed — see .build/dev-watch.log" with title "Pebble Piano"' 2>/dev/null
         return
     fi
     stop_app

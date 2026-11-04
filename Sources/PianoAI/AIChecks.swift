@@ -23,7 +23,7 @@ public enum AIChecks {
             if client.endpoint.provider == .meta {
                 let wanted = [MetaModels.spark, MetaModels.sam, MetaModels.transcribe]
                 let missing = wanted.filter { !ids.contains($0) }
-                return (missing.isEmpty, missing.isEmpty ? "\(ids.count) models, including all three PianoPad uses"
+                return (missing.isEmpty, missing.isEmpty ? "\(ids.count) models, including all three Pebble Piano uses"
                                                          : "missing: \(missing.joined(separator: ", "))")
             }
             return (!ids.isEmpty, "\(ids.count) models: \(ids.prefix(5).joined(separator: ", "))")

@@ -29,7 +29,7 @@ import PianoPadState
 
 extension EarButtonStyles {
     /// Ear-training lessons inside the app use the app's pills.
-    static let perfectPiano = EarButtonStyles(
+    static let pebblePiano = EarButtonStyles(
         primary: { AnyView($0.buttonStyle(PPPrimaryButtonStyle(height: PP.Size.targetMin))) },
         secondary: { AnyView($0.buttonStyle(PPGlassButtonStyle(height: PP.Size.targetMin))) }
     )

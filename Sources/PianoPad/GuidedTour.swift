@@ -124,9 +124,9 @@ extension TourID {
         case .books:
             return [
                 TourStep(target: .library, title: "Your music books",
-                         body: "The books that come with PerfectPiano, books you've opened and pieces you've read from them."),
+                         body: "The books that come with Pebble Piano, books you've opened and pieces you've read from them."),
                 TourStep(target: .bookMain, title: "Read a piece",
-                         body: "Open a book (a PDF), pick a piece, and PerfectPiano reads the music, checks it with you and teaches it."),
+                         body: "Open a book (a PDF), pick a piece, and Pebble Piano reads the music, checks it with you and teaches it."),
                 Self.helpStep,
             ]
         case .backingTracks:

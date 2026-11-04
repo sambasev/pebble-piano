@@ -18,7 +18,7 @@ public protocol AudioTranscriber: AnyObject {
     func reset()
 }
 
-/// Standard Score-Informed NMF Transcriber (the production method used in PerfectPiano).
+/// Standard Score-Informed NMF Transcriber (the production method used in Pebble Piano).
 /// Uses dynamic score expectation penalties to favor the next expected chord while flagging mistakes.
 public final class ScoreInformedTranscriber: AudioTranscriber {
     public let name = "Score-Informed NMF"

@@ -117,13 +117,13 @@ struct OnboardingView: View {
 
     private var welcome: some View {
         VStack(alignment: .leading, spacing: PP.Space.s4) {
-            Text("Welcome to PerfectPiano").ppEyebrow()
+            Text("Welcome to Pebble Piano").ppEyebrow()
             Text("Let's get you playing in about 15 minutes.").font(.ppTitle)
                 .fixedSize(horizontal: false, vertical: true)
-            Text("A few quick questions first. Then you'll find Middle C and play your first notes, and PerfectPiano will listen and help as you go.")
+            Text("A few quick questions first. Then you'll find Middle C and play your first notes, and Pebble Piano will listen and help as you go.")
                 .font(.ppBody).foregroundColor(PP.inkMuted)
                 .fixedSize(horizontal: false, vertical: true)
-            Text("This beta sends anonymous usage stats (which screens are used, and for how long) to help improve it. Never audio or names. Turn it off under PerfectPiano ▸ Share Anonymous Usage Data.")
+            Text("This beta sends anonymous usage stats (which screens are used, and for how long) to help improve it. Never audio or names. Turn it off under Pebble Piano ▸ Share Anonymous Usage Data.")
                 .font(.ppCaption).foregroundColor(PP.inkMuted)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -180,8 +180,8 @@ struct OnboardingView: View {
             Text(isChild ? "Is \(learnerWord) at a piano or keyboard right now?" : "Are you at a piano or keyboard right now?")
                 .font(.ppTitle).fixedSize(horizontal: false, vertical: true)
             Text(isChild
-                 ? "PerfectPiano listens to real playing. Without one, \(learnerWord) can still learn on the computer: the letter keys and the on-screen keys play notes."
-                 : "PerfectPiano listens to real playing. Without one, you can still learn on the computer: the letter keys and the on-screen keys play notes.")
+                 ? "Pebble Piano listens to real playing. Without one, \(learnerWord) can still learn on the computer: the letter keys and the on-screen keys play notes."
+                 : "Pebble Piano listens to real playing. Without one, you can still learn on the computer: the letter keys and the on-screen keys play notes.")
                 .font(.ppBody).foregroundColor(PP.inkMuted)
                 .fixedSize(horizontal: false, vertical: true)
             HStack(spacing: PP.Space.s3) {
@@ -205,7 +205,7 @@ struct OnboardingView: View {
     /// Two ways to hear a piano, chosen explicitly: the microphone, or Bluetooth MIDI.
     private var inputStep: some View {
         VStack(alignment: .leading, spacing: PP.Space.s4) {
-            Text("How should PerfectPiano hear \(isChild ? learnerWord : "you")?").font(.ppTitle)
+            Text("How should Pebble Piano hear \(isChild ? learnerWord : "you")?").font(.ppTitle)
                 .fixedSize(horizontal: false, vertical: true)
             HStack(alignment: .top, spacing: PP.Space.s3) {
                 inputCard(title: "Microphone", systemImage: "mic.fill", source: .microphone,
@@ -313,7 +313,7 @@ struct OnboardingView: View {
                 Button("Measure again") { session.measureSilence() }
                     .buttonStyle(PPGlassButtonStyle())
             } else {
-                Text("Now the room: stay quiet for 3 seconds so PerfectPiano learns its background noise and only counts real notes.")
+                Text("Now the room: stay quiet for 3 seconds so Pebble Piano learns its background noise and only counts real notes.")
                     .font(.ppCallout).foregroundColor(PP.inkMuted)
                     .fixedSize(horizontal: false, vertical: true)
                 Button("Measure room noise") { session.measureSilence() }
@@ -331,7 +331,7 @@ struct OnboardingView: View {
                         String(format: "Room noise measured. Notes louder than %.0f dBFS count.", gate))
             case .tooNoisy:
                 return ("exclamationmark.triangle.fill", PP.warning,
-                        "Too noisy to measure. Turn off a fan or music, then measure again, or carry on and PerfectPiano will judge the room as it listens.")
+                        "Too noisy to measure. Turn off a fan or music, then measure again, or carry on and Pebble Piano will judge the room as it listens.")
             case .silent:
                 return ("xmark.circle.fill", PP.mistake,
                         "Nothing came in from the microphone. Check the input above, and that the Mac may use the microphone.")

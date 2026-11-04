@@ -47,7 +47,7 @@ Evaluated on `take1.wav` (32.1 seconds of acoustic piano):
 | **46 ms (Score-Guided Mask)** | 46 ms | **0.833** | 0.938 | **0.882** | 87 ms | 122 ms | **3 (0 octaves / 3 oth)** |  **Optimal Neural Sweet Spot** |
 | **93 ms Lookahead (8 frames)** | 93 ms | 0.242 | **1.000** | 0.390 | 147 ms | 212 ms | 50 (decay repeats) | ❌ High latency & chatter |
 | **Offline Full Batch (Baseline)** | ~2000 ms | 0.842 | **1.000** | 0.914 | 86 ms | 99 ms | 3 (2 octaves / 1 oth) | ℹ️ Offline reference only |
-| **PerfectPiano Score-Informed NMF** | **0 ms** | **1.000** | **1.000** | **1.000** | **59 ms** | **92 ms** | **0 (vetoed)** |  **Production Real-Time Engine** |
+| **Pebble Piano Score-Informed NMF** | **0 ms** | **1.000** | **1.000** | **1.000** | **59 ms** | **92 ms** | **0 (vetoed)** |  **Production Real-Time Engine** |
 
 ---
 

@@ -3,10 +3,10 @@
 # the app target compiles Sources/PianoPad and links the package's libraries.
 #
 #   brew install xcodegen
-#   cd App && PIANOPAD_TEAM=<your team ID> xcodegen && open PerfectPiano.xcodeproj
+#   cd App && PIANOPAD_TEAM=<your team ID> xcodegen && open PebblePiano.xcodeproj
 #
 # The .xcodeproj and App/Generated/ are generated (and git-ignored): edit this file, not them.
-name: PerfectPiano
+name: PebblePiano
 
 options:
   deploymentTarget:
@@ -67,14 +67,14 @@ targets:
     info:
       path: Generated/Info.plist
       properties:
-        CFBundleName: PerfectPiano
-        CFBundleDisplayName: PerfectPiano
+        CFBundleName: Pebble Piano
+        CFBundleDisplayName: Pebble Piano
         CFBundleShortVersionString: $(MARKETING_VERSION)
         CFBundleVersion: $(CURRENT_PROJECT_VERSION)
         LSApplicationCategoryType: public.app-category.music
         LSMinimumSystemVersion: $(MACOSX_DEPLOYMENT_TARGET)
-        NSMicrophoneUsageDescription: PerfectPiano listens to your piano through the microphone to check the notes you play.
-        NSBluetoothAlwaysUsageDescription: PerfectPiano connects to your piano over Bluetooth MIDI to hear the notes you play.
+        NSMicrophoneUsageDescription: Pebble Piano listens to your piano through the microphone to check the notes you play.
+        NSBluetoothAlwaysUsageDescription: Pebble Piano connects to your piano over Bluetooth MIDI to hear the notes you play.
         NSHumanReadableCopyright: © 2026 Sam
         # No custom encryption: skips the export-compliance question on every upload.
         ITSAppUsesNonExemptEncryption: false
@@ -94,7 +94,7 @@ targets:
         com.apple.security.network.client: true
     settings:
       base:
-        PRODUCT_NAME: PerfectPiano
+        PRODUCT_NAME: "Pebble Piano"
         PRODUCT_MODULE_NAME: PianoPadMac
         PRODUCT_BUNDLE_IDENTIFIER: com.sambasev.perfectpiano
         MARKETING_VERSION: "0.9.1"

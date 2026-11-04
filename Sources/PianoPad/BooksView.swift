@@ -57,7 +57,7 @@ struct BooksView: View {
             Spacer()
             Image(systemName: "book.pages").font(.system(size: 44)).foregroundColor(PP.accent)
             Text("Learn a piece from your own music book").font(.ppTitle)
-            Text("Choose a book on the left (or open a PDF), pick the piece, and PerfectPiano reads the music, checks it, and teaches it to you.")
+            Text("Choose a book on the left (or open a PDF), pick the piece, and Pebble Piano reads the music, checks it, and teaches it to you.")
                 .font(.ppBody).foregroundColor(PP.inkMuted).multilineTextAlignment(.center).frame(maxWidth: 520)
             Button("Open a book (PDF)…") { model.openBook() }
                 .buttonStyle(PPPrimaryButtonStyle())
@@ -412,7 +412,7 @@ struct BookPagePicker: View {
                     .font(.ppCallout)
                     .help("Lines read before are reused (instant and free). Turn this on to read them again.")
             }
-            Text("Muse Wonder reads each line; PerfectPiano measures every note's pitch on the page and flags any bar it isn't sure of.")
+            Text("Muse Wonder reads each line; Pebble Piano measures every note's pitch on the page and flags any bar it isn't sure of.")
                 .font(.ppCaption).foregroundColor(PP.inkMuted).fixedSize(horizontal: false, vertical: true)
             Spacer()
         }
@@ -719,7 +719,7 @@ struct ReviewView: View {
             }
             .frame(height: CGFloat(r.gray.height) * scale)
 
-            // What PerfectPiano read, engraved: red bars to check. Click a bar to open it.
+            // What Pebble Piano read, engraved: red bars to check. Click a bar to open it.
             if let engraved = model.engraving(ofSystem: r.id) {
                 NotationView(score: engraved.score, scoreID: model.engravingIDs[r.id] ?? UUID(),
                              overlay: ScoreOverlay(mistakeMeasures: engraved.flagged),

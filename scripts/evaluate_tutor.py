@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Evaluation Suite for PerfectPiano's AI Tutor (Meta Model API).
+"""Evaluation Suite for Pebble Piano's AI Tutor (Meta Model API).
 
 Model-only checks with short written contexts: topic guardrails, jailbreaks, pedagogy, reading
 a real scanned page, and single actions. The instructions and schema come from
@@ -754,7 +754,7 @@ def generate_markdown_report(summary: Dict[str, Any], results: List[Dict[str, An
         "",
         "## Executive Summary",
         "",
-        "This evaluation benchmark tests the piano AI tutor (`muse-spark-1.3`) integrated into PerfectPiano's `hackathon` branch.",
+        "This evaluation benchmark tests the piano AI tutor (`muse-spark-1.3`) integrated into Pebble Piano's `hackathon` branch.",
         "The tutor serves as an adult learner's interactive music teacher beside their lesson, evaluating both pedagogical responses",
         "and automated player/practice actions (`practicePassage`, `listenPassage`, `setTempo`, etc.) with strict JSON schema compliance.",
         "",
@@ -839,7 +839,7 @@ def generate_markdown_report(summary: Dict[str, Any], results: List[Dict[str, An
 # ==============================================================================
 
 def main():
-    parser = argparse.ArgumentParser(description="Evaluate PerfectPiano AI Tutor with Meta Model API")
+    parser = argparse.ArgumentParser(description="Evaluate Pebble Piano AI Tutor with Meta Model API")
     parser.add_argument(
         "--suite",
         choices=["all", "guardrails", "adversarial", "pedagogy", "multimodal", "actions", "multiturn"],
@@ -854,7 +854,7 @@ def main():
 
     api_key = "" if args.dry_run else get_api_key()
     print(f"\n======================================================================")
-    print(f" PerfectPiano AI Tutor Evaluation Suite")
+    print(f" Pebble Piano AI Tutor Evaluation Suite")
     print(f" Target Model : {args.model}")
     print(f" Mode         : {'DRY RUN' if args.dry_run else 'LIVE META API'}")
     print(f" Test Suite   : {args.suite}")

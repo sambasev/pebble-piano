@@ -23,9 +23,9 @@ struct PianoPadApp: App {
     init() {
         #if DEBUG
         // Isolated UI verification: never create test learners or practice records in real history.
-        if let path = ProcessInfo.processInfo.environment["PERFECTPIANO_PREVIEW_DATA"] {
+        if let path = ProcessInfo.processInfo.environment["PEBBLEPIANO_PREVIEW_DATA"] {
             let store = LearnerStore(baseURL: URL(fileURLWithPath: path),
-                                     defaults: UserDefaults(suiteName: "PerfectPiano.preview")!)
+                                     defaults: UserDefaults(suiteName: "PebblePiano.preview")!)
             _session = StateObject(wrappedValue: PlaySession(learnerStore: store))
             return
         }
@@ -36,7 +36,7 @@ struct PianoPadApp: App {
     }
 
     var body: some Scene {
-        WindowGroup("PerfectPiano") {
+        WindowGroup("Pebble Piano") {
             PPWindowFit { ContentView() }
                 .environmentObject(session)
                 // Full screen ignores this minimum (the 13" MacBook Neo is 752 pt tall, ~728 with

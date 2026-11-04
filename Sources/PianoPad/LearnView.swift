@@ -126,7 +126,7 @@ private struct PagePlayerView: View {
     private func content(_ block: Block) -> some View {
         if case .earTraining(let config) = block {
             EarLessonQuizView(session: session.earTraining.session, passAccuracy: config.passAccuracy) { runner.finishEarExercise() }
-                .environment(\.earButtonStyles, .perfectPiano)
+                .environment(\.earButtonStyles, .pebblePiano)
                 .ppGlass(cornerRadius: PP.Radius.lg, padding: 0)
         } else if case .sightReading(let config) = block {
             SightReadingQuizView(session: runner.sightReading, passAccuracy: config.passAccuracy) { runner.finishSightExercise() }
