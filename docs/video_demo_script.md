@@ -9,9 +9,9 @@
 | Timestamp | Section | Visual Focus | Key Narrative |
 |---|---|---|---|
 | **0:00–0:35** | **The Hook & Problem** | Pebble Piano interactive app + Physical Beyer book | The grand staff OMR challenge for piano beginners |
-| **0:35–1:15** | **SAM 3.1 Layout Understanding** | Raw scan + Live SAM 3.1 zero-shot segmentation | Extracting systems and barlines in < 2 seconds |
+| **0:35–1:15** | **From Book Page to Lines** | Books view: open a PDF, staves boxed automatically, pick a piece | Pebble Piano finds each system by its staff lines; Muse Wonder reads them |
 | **1:15–1:55** | **The Model Shootout** | Benchmark charts & tables (LEGATO vs Spark vs Wonder) | Why Muse Wonder's high reasoning dominates polyphony |
-| **1:55–2:30** | **The Hybrid Breakthrough** | Visual overlay (`ai_probe3 --draw`) with green noteheads | Pairing Wonder's rhythm with CV notehead geometry = 99% |
+| **1:55–2:30** | **The Hybrid Breakthrough** | Visual overlay (`ai_probe3 --draw`) with green noteheads | Pairing Wonder's rhythm with CV notehead geometry: 94.8% on 1895 scans, 100% on modern scores |
 | **2:30–3:00** | **Turnkey Scale & In-App Play** | Automated LilyPond compiler + In-App Wait Mode | 170+ exercises generated; live interactive piano guide |
 
 ---
@@ -28,23 +28,21 @@
   > "Learning the piano is magical when software listens and guides you in real time.
   > But millions of students learn from physical books—like Ferdinand Beyer's classic Op. 101.
   > Traditional Optical Music Recognition falls apart on piano grand staves: dual treble clefs, independent voice timing, and vintage paper textures cause missing notes and broken measures.
-  > For this hackathon, we set out to solve the piano OMR challenge using Meta's multimodal model ecosystem—turning raw sheet music into interactive, playable lessons with 99% accuracy."
+  > For this hackathon, we set out to solve the piano OMR challenge using Meta's multimodal model ecosystem—turning raw sheet music into interactive, playable lessons."
 
 ---
 
-### Scene 2: Document Layout Understanding with SAM 3.1 (0:35 – 1:15)
+### Scene 2: From Book Page to Lines of Music (0:35 – 1:15)
 
 - **On Screen**:
-  - Show the 1895 Beyer scan (`op101-p24.png` or `op101-p27.png`) with non-uniform margins and historical print noise.
-  - Terminal or UI showing SAM 3.1 call via Meta Model API:
-    `client.segment(image: pageData, prompt: "grand staff")`
-  - Bounding boxes appear dynamically around each system, accompanied by SAM's segmentation output tokens.
-  - Transition to cropped systems ready for notation transcription.
+  - In Pebble Piano, open **Books** and click **Open a book (PDF)…**. Choose the Beyer *Op. 101* PDF and go to a page with non-uniform margins and historical print noise.
+  - Numbered boxes appear around each grand-staff system on the page, found automatically.
+  - Click the first line of the piece, then Shift-click its last line. Drag one box edge to show it can be adjusted by hand.
+  - Start the reading: "Reading the piece…" while Muse Wonder reads each line.
 - **Voiceover**:
-  > "First: page layout understanding.
-  > Instead of fragile classical edge-detection, we use Meta's Segment Anything Model—SAM 3.1—hosted on the Meta Model API.
-  > With zero fine-tuning, SAM reliably segments grand staves, music systems, and barlines in under 2 seconds.
-  > It handles historical ink bleed, page rotation, and non-standard spacing, cleanly isolating each musical system for reading."
+  > "First, open the book. Pebble Piano finds every system on the page by its staff lines, then pairs each treble staff with the bass staff below it. This is plain geometry running on the Mac, with no AI and no upload, and it copes with uneven margins and old print.
+  > Pick the piece: click its first line, then Shift-click its last. If a box misses a note, drag its edge.
+  > Each line is then cut out and sent to Meta's Muse Wonder to read. In our benchmark, one line at a time read far more accurately than a whole page."
 
 ---
 
@@ -81,8 +79,8 @@
 
 - **On Screen**:
   - Quick cut to `scripts/expand_benchmark.py`: compiling LilyPond sources on Modal to scale the benchmark across 170+ two-hand exercises.
-  - Seamless import: click `Open MIDI file…` in Pebble Piano.
-  - The freshly transcribed piece is rendered instantly on the screen as engraved notation.
+  - Back in **Books**, step through the bars it flagged with **Next to check**, then click **Save and practise**.
+  - The piece opens in Practice, ready to play.
   - The presenter plays the piece: notes light up green, the wait playhead tracks every chord, and the auto-grader awards 3 stars upon completion.
 - **Voiceover**:
   > "To ensure our evaluation is rigorous, our automated LilyPond pipeline scales this benchmark across 170+ progressive two-hand exercises in the cloud.
@@ -101,7 +99,7 @@
   - `.build/eval_charts/hybrid_ablation_breakthrough.png`
   - `.build/eval_charts/omr_pareto_frontier.png`
   - `.build/ai-probe3/scan-no12.png` and `modern-no12.png` (with green circle overlays)
-  - `Fixtures/beyer/midi/no12-wonder.mid` (ready to drag into Pebble Piano)
+  - `Books/F_Beyer-Op101.pdf` (for the Books scene; read the piece once beforehand so a saved reading is ready if the live one is slow)
 - [ ] **Software Ready**:
   - Pebble Piano running in Xcode with Sound on and Guide toggled on.
   - Modal dashboard or terminal with `uv run` commands ready.
