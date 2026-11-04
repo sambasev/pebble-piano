@@ -13,7 +13,8 @@ those measurements: what went wrong, which bar to drill and what to practise nex
 - Xcode 15 or later (Swift 5.9). Nothing else to install: Swift Package Manager fetches the
   three dependencies.
 - **Something to play on**, any of:
-  - a MIDI keyboard over USB or Bluetooth (most accurate),
+  - a MIDI keyboard over USB or Bluetooth (supported, but Bluetooth MIDI is untested; see
+    *Known issues*),
   - an acoustic piano and the Mac's microphone (works best in a quiet room), or
   - nothing at all: the computer keyboard plays notes (A S D F … is C D E F …), and you can
     click the on-screen keys.
@@ -61,6 +62,9 @@ work as alternative hosts for open-weight models.
 This was built quickly, and these are the rough edges we know about:
 
 - **Mac only.** The libraries build for iOS, but there is no iPad or iPhone app yet.
+- **Bluetooth MIDI is untested.** We tested with the microphone (an acoustic piano) and the
+  computer keyboard only. Pairing a Bluetooth MIDI piano and playing through it should work,
+  but we haven't tried it on a real instrument.
 - **The microphone is less reliable than MIDI.** In a noisy room it misses many soft notes (about
   a quarter of clean chords accepted on our synthetic benchmark, against about 84% in a quiet one).
   Its sustain check is tuned to avoid phantom notes, so it lets some real wrong notes through.
