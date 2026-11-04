@@ -1300,6 +1300,8 @@ final class LessonRunner: ObservableObject, PlayerObserver {
             if !resumingQuietly { player.startListening() }
         case .timed(let b):
             load(b.midi, mode: .playAlong, tempo: b.tempo, countIn: b.countInBeats)
+            // The count-in starts by itself, so the step never sits waiting for Start.
+            if !resumingQuietly { player.startTimedRun() }
         case .songChallenge(let b):
             let path = songPath(b)
             if let step = drill?.step {

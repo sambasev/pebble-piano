@@ -61,7 +61,7 @@
         {
           "type": "timed",
           "midi": "p1-ex3.mid",
-          "prompt": "Now play it with the clicks. Press Start (or Space), and come in after the count-in.",
+          "prompt": "Now play it with the clicks. Listen to the count-in, then come in.",
           "tempo": 60,
           "countInBeats": 4,
           "fingering": [
