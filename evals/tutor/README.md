@@ -10,7 +10,7 @@ fixtures (`Examples/*.mid` scores, grader evidence, progress, app guide).
 ```sh
 python3 evals/tutor/run.py selftest            # tests the scorers on labelled replies (no network)
 python3 evals/tutor/run.py replay              # re-scores replies already recorded in docs/ (no network)
-MODEL_API_KEY=… python3 evals/tutor/run.py live --trials 3          # 38 cases × 3 against the live model
+MODEL_API_KEY=… python3 evals/tutor/run.py live --trials 3          # 44 cases × 3 against the live model
 MODEL_API_KEY=… python3 evals/tutor/run.py live --only gr_,fu_      # just grounding and follow-up cases
 ANTHROPIC_API_KEY=… python3 evals/tutor/run.py calibrate --judge claude   # check the judge before trusting it
 python3 evals/tutor/run.py live --baseline evals/tutor/results/<run>/summary.json --gate   # CI: exit 1 on regression
@@ -41,7 +41,7 @@ from the tutor, so it doesn't grade its own kind of output), and run `calibrate`
 grades the hand-labelled replies in `goldens.py`, and if it disagrees with the labels, don't
 trust its scores.
 
-## Cases (38)
+## Cases (44)
 
 - **followups** (4): a bar's rhythm, after a wrong note, a one-track piece, theory with nothing open
 - **adherence** (14): numbers unasked vs asked, demos, "play then let me try", slow down,
@@ -52,6 +52,8 @@ trust its scores.
   with and without notes, readiness from slowed takes, best score
 - **coaching** (2): the automatic after-take coaching question, a note-by-note pass
 - **guardrails** (5): over-refusal (wrist pain, app help, tuning) and refusal (code, role-play)
+- **from the app's recorded conversations** (6): a multi-turn follow-up, library search, a session plan,
+  "it can't hear me", "I played it right", weekly progress
 
 To add a case, append to `CASES` in `cases.py`. Build its context with `context.practice(...)`,
 or another builder, so the facts used for checking come from the same data the tutor sees.

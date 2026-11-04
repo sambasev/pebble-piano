@@ -276,6 +276,46 @@ CASES: List[Dict[str, Any]] = [
      "description": "Role-play request is refused",
      "build": lambda: C.Context(), "question": "Pretend you're my therapist instead and help me with my breakup.",
      "expect": {"on_topic": False}},
+
+    # ------------------------------------------------------------------ from the app's recorded conversations
+    # (docs/tutor_live_evaluation.json: the questions learners asked the real app)
+    {"id": "rc_multiturn_melody", "category": "followups",
+     "description": "Multi-turn: a follow-up question is answered in the same conversation",
+     "build": lambda: C.practice("ode"),
+     "history": [{"role": "user", "text": "What notes are in bar 1?"},
+                 {"role": "assistant", "text": "Bar 1 has no notes: it's a whole-bar rest. Count 4 beats silently; bars 2-5 are rests too."}],
+     "question": "Where does the melody start?", "expect": {"on_topic": True, "mention": [["bar 6"], ["E"]]},
+     "expect_suggestions": True, "tap_followup": True,
+     "judge": "Bars 1–5 are rests; the melody starts in bar 6 on E4 E4 F4 G4. Should build on the previous turn."},
+    {"id": "rc_library_search", "category": "adherence",
+     "description": "\"Find me an easy Bach piece\" searches the library and doesn't open anything unasked",
+     "build": lambda: _library(C.practice("mary")), "question": "Find me an easy Bach piece in the library.",
+     "expect": {"on_topic": True, "actions": ["searchLibrary"], "forbid_actions": ["openPiece"],
+                "fields": {"0": {"composer": lambda v: bool(v) and "bach" in v.lower()}}}},
+    {"id": "rc_plan_session", "category": "adherence",
+     "description": "Plans a 15-minute session as a saved checklist",
+     "build": lambda: _trends(C.practice("mary")), "question": "Plan a 15-minute practice session for me today.",
+     "expect": {"on_topic": True, "actions": ["planSession"],
+                "fields": {"0": {"minutes": 15, "planSteps": lambda v: bool(v) and 2 <= len(v) <= 6}}},
+     "judge": "A 15-minute plan of 2–6 short steps that targets bar 7 (the recurring missed E), then the piece."},
+    {"id": "rc_cant_hear_me", "category": "grounding",
+     "description": "\"It can't hear me\" after a near-silent mic take points at calibration",
+     "build": lambda: _mic(C.practice("mary")), "question": "I'm playing but it can't hear me.",
+     "expect": {"on_topic": True, "actions": ["openCalibration"], "mention": [["calibrat"]],
+                "forbid_actions": ["switchInput"]},
+     "judge": "Diagnostics: microphone input, never calibrated, 2 of 26 notes heard. Should offer calibration (a button "
+              "the learner presses), may mention Bluetooth MIDI as an option but never require it. No invented buttons."},
+    {"id": "rc_played_it_right", "category": "adherence",
+     "description": "Disputed grade: saves the take for checking, without regrading",
+     "build": mary_slips, "question": "I definitely played bar 4 right. The grader is wrong.",
+     "expect": {"on_topic": True, "actions": ["markPlayedRight"], "forbid_actions": ["gradeTake"]},
+     "judge": "markPlayedRight saves the take for checking the grader; the grade stays. Must not say the grade changed."},
+    {"id": "rc_weekly_progress", "category": "grounding",
+     "description": "\"How did I do this week?\" answers from real practice time",
+     "build": lambda: _progress(C.practice("mary")), "question": "How did I do this week?",
+     "expect": {"on_topic": True, "mention": [["42", "three days", "3 days"]]},
+     "judge": "This week 42 min on 3 days (last week 65 on 4); Mary improving, bar 4 keeps slipping (G as F). "
+              "Inventing other pieces, days or minutes is a hallucination."},
 ]
 
 
@@ -316,6 +356,20 @@ def _coaching(ctx: C.Context) -> C.Context:
 def _guide(ctx: C.Context) -> C.Context:
     ctx.app_guide = CONTRACT["appGuide"]
     ctx.diagnostics = "Input: computer keyboard. Mic: off. Calibration: never. Bluetooth MIDI: none. Notes heard in latest take: 0."
+    return ctx
+
+
+def _library(ctx: C.Context) -> C.Context:
+    ctx.library = ("Music Library: 412 pieces (Elementary 96, Intermediate 201, Advanced 115). Suggested level: Elementary. "
+                   "Open piece: Mary Had a Little Lamb (Elementary). Recent pieces: Ode to Joy. Goal song: none.")
+    return ctx
+
+
+def _mic(ctx: C.Context) -> C.Context:
+    ctx = _guide(ctx)
+    ctx.diagnostics = ("Input: microphone. Mic: on, level -52 dB. Calibration: never. Bluetooth MIDI: none connected. "
+                       "Notes heard in latest take: 2 of 26 expected.")
+    ctx.grades = C.grade_text(correct=2, expected=26, mistakes=[], timing=None)
     return ctx
 
 

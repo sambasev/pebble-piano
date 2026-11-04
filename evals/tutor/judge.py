@@ -68,7 +68,8 @@ class Judge:
         self.meta_key = meta_key
         if backend == "claude":
             import anthropic  # pip install anthropic
-            self.client = anthropic.Anthropic()
+            # Explicit base URL: a sandbox may set ANTHROPIC_BASE_URL for its own use.
+            self.client = anthropic.Anthropic(base_url=os.environ.get("JUDGE_ANTHROPIC_BASE_URL", "https://api.anthropic.com"))
 
     @staticmethod
     def pick(choice: str, meta_key: Optional[str]) -> "Judge":

@@ -26,9 +26,10 @@ BASE_URL = os.environ.get("MODEL_BASE_URL", "https://api.meta.ai/v1")
 
 
 def api_key() -> Optional[str]:
-    key = os.environ.get("MODEL_API_KEY", "").strip()
-    if key:
-        return key
+    for name in ("MODEL_API_KEY", "META_API_KEY", "META_MODEL_API_KEY", "LLAMA_API_KEY"):
+        key = os.environ.get(name, "").strip()
+        if key:
+            return key
     try:  # the app's Keychain item, on a Mac
         return subprocess.run(["security", "find-generic-password", "-s", "com.sambasev.perfectpiano.ai", "-a", "meta", "-w"],
                               capture_output=True, text=True, check=True).stdout.strip() or None
