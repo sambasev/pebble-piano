@@ -88,4 +88,8 @@ GOLDENS = [
     ("gr_not_ready", "bad", reply("Not yet: your latest take was 85% and your best 88%, all slowed down. Try one full-speed take."),
      "adherence.no_numbers"),
     ("gr_not_ready", "good", reply("Not quite yet. Your passes so far were slowed down, so let's try one take at full speed next."), None),
+    ("co_auto_event", "good", reply("Nice run! Bar 4's G slipped to F, so let's take bars 3–4 a little slower. Ready when you are.",
+                                    [act("continueLesson")]), None),
+    ("co_auto_event", "bad", reply("Lovely! Let's play the whole piece again at full speed.",
+                                   [act("practicePassage", fromBar=1, toBar=8, hand="LR", tempoPercent=100)]), "task.action_field"),
 ]

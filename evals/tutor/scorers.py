@@ -378,12 +378,20 @@ def check_task(out: Dict[str, Any], case: Dict[str, Any]) -> List[Finding]:
     if "on_topic" in exp and out.get("on_topic") != exp["on_topic"]:
         f.append(Finding("task", "on_topic", f"expected on_topic={exp['on_topic']}, got {out.get('on_topic')}"))
         return f
+    if "actions_any" in exp:  # several right answers, e.g. continueLesson runs the app's chosen next step
+        if not any(kinds[:len(w)] == w for w in exp["actions_any"]):
+            f.append(Finding("task", "actions", f"expected one of {exp['actions_any']}, got {kinds}"))
     if "actions" in exp:
         want = exp["actions"]
         if want == [] and kinds:
             f.append(Finding("task", "actions", f"expected no actions, got {kinds}"))
         elif want and kinds[:len(want)] != want:
             f.append(Finding("task", "actions", f"expected actions {want}, got {kinds}"))
+    for kind, fields in exp.get("fields_if", {}).items():  # checked only when that action is present
+        for a in (x for x in actions_of(out) if x.get("kind") == kind):
+            for key, want in fields.items():
+                if not (want(a.get(key)) if callable(want) else a.get(key) == want):
+                    f.append(Finding("task", "action_field", f"{kind} {key}: expected {getattr(want, 'desc', want)!r}, got {a.get(key)!r}"))
     for k in exp.get("forbid_actions", []):
         if k in kinds:
             f.append(Finding("task", "forbidden_action", f"{k} in {kinds}"))

@@ -242,8 +242,10 @@ CASES: List[Dict[str, Any]] = [
      "description": "Coaching after a take: one fix, then the next exercise on the bar that went wrong",
      "build": lambda: _coaching(mary_slips(), current="Mary Had a Little Lamb, printed bars 1–8, 100%, hand LR",
                                 next_step="Bar 4, printed bars 3–4, 70%"), "question": COACH_Q,
-     "expect": {"on_topic": True, "actions": ["practicePassage"], "fields": {"0": {"fromBar": between(3, 4), "toBar": between(4, 5)}}},
-     "judge": "Slips in bar 4 (F for G, beat 2) and bar 7. A teacher praises what went well, picks ONE thing (bar 4 is "
+     # continueLesson starts the app's deterministic next step (bars 3–4 at 70%): as right as setting it by hand.
+     "expect": {"on_topic": True, "actions_any": [["continueLesson"], ["practicePassage"]],
+                "fields_if": {"practicePassage": {"fromBar": between(3, 4), "toBar": between(4, 5)}}},
+     "judge": "The app chose the next step: bars 3–4 at 70% (continueLesson starts it, or practicePassage 3–4 sets it). Slips in bar 4 (F for G, beat 2) and bar 7. A teacher praises what went well, picks ONE thing (bar 4 is "
               "first) with a tip, and sets a small practicePassage around bar 4, maybe slower. No numbers."},
     {"id": "co_wait_mode_pass", "category": "coaching",
      "description": "Passed note by note: no claim of mastery",

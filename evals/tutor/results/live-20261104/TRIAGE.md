@@ -128,3 +128,12 @@ praise for things the grader doesn't measure: "Lovely singing tone" (#1), and "t
 replies. #2 also says "bars 1-3 hands together" on a one-track piece. That isn't a rule failure: hand LR is
 allowed, and `hand_tracks` only checks R/L. Latency in this small rerun (n=6) is first visible text
 p50 9.1 s / p90 15.8 s and full reply p50 9.9 s / p90 16.8 s, slower than the main run.
+
+### Coaching rerun: one verdict reversed (parent session)
+
+`co_auto_event` #3 used `continueLesson`. In the app that starts the tutor's deterministic next
+step (`startTutorExercise`, `PlaySession+TutorChatActions.swift:235`), here bars 3–4 at 70%: the
+right exercise, and the reply's "bars 3-4 a bit slower… I'll set that up" is accurate. The case
+now accepts `continueLesson` or `practicePassage` 3–4 (goldens added). Re-scored: 4 of 6 pass
+(67%). The remaining two are real: #2 replays bars 1–8 at full speed instead of the chosen step,
+and two replies offer left-hand practice on one-track pieces.
