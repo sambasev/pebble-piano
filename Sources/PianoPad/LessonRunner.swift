@@ -53,6 +53,7 @@ final class LessonRunner: ObservableObject, PlayerObserver {
         sightReading.start(config)
         sightReading.onAnswered = { [weak self] correct in
             guard let self, self.shownBlock?.kind == .sightReading else { return }
+            self.feedback = nil
             self.noteActivity()
             self.react(correct ? .cheer : .oops)
             self.saveSession()
@@ -864,7 +865,14 @@ final class LessonRunner: ObservableObject, PlayerObserver {
     /// A key played during a reading quiz answers a note-name question. The mic must hear it
     /// twice in a row, as for find-it notes.
     private func sightNotePlayed(_ pitch: Int, source: InputSource) {
-        guard sightReading.canAnswer, sightReading.question?.playPitch != nil else { return }
+        guard sightReading.canAnswer, let question = sightReading.question else { return }
+        guard question.playPitch != nil else {
+            // Lines and spaces, clefs: no key is the answer. Say so rather than stay silent.
+            if source != .microphone {
+                feedback = Feedback(kind: .hint, text: "That's \(NoteName(pitch: pitch).name). This question is answered with the buttons above.")
+            }
+            return
+        }
         if source == .microphone {
             let now = ProcessInfo.processInfo.systemUptime
             guard let first = micCandidate, first.pitch == pitch, now - first.at < 3 else {

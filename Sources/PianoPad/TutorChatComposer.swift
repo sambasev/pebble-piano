@@ -8,6 +8,8 @@ struct TutorChatComposer: NSViewRepresentable {
     @Binding var focused: Bool
     @Binding var height: CGFloat
     var send: () -> Void
+    /// Esc stops the tutor's answer; nil while none is on its way, so Esc behaves as usual.
+    var stop: (() -> Void)? = nil
 
     func makeNSView(context: Context) -> NSScrollView {
         let scroll = NSScrollView()
@@ -70,6 +72,11 @@ struct TutorChatComposer: NSViewRepresentable {
         func textDidEndEditing(_ notification: Notification) { parent.focused = false }
 
         func textView(_ textView: NSTextView, doCommandBy commandSelector: Selector) -> Bool {
+            if commandSelector == #selector(NSResponder.cancelOperation(_:)), !textView.hasMarkedText(),
+               let stop = parent.stop {
+                stop()
+                return true
+            }
             // Shift-Return inserts a line break. Return sends, except during input-method composition.
             guard commandSelector == #selector(NSResponder.insertNewline(_:)),
                   !textView.hasMarkedText(),

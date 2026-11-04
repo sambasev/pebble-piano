@@ -29,7 +29,7 @@ extension PlaySession {
         tutorChatRecentGrades = Array((tutorChatRecentGrades + [evidence]).suffix(3))
         guard tutorChatCoaching, !lastTake.isEmpty, !advanceTutorChatPlan() else { return }
         tutorChatObserve("Take graded · \(tutorTitle) · \(Int(report.notes.score * 100))% notes",
-                         question: "The grader has finished a real take. Use the latest grader evidence and musical goal to explain what improved, identify one concrete issue, and select the next practice action. Do not claim mastery from wait mode or a slowed run.")
+                         question: "The grader has finished a real take. Using the latest grader evidence and musical goal, tell me like my teacher what went well and the one thing to work on, in plain words without numbers, and select the next practice action. Do not claim mastery from wait mode or a slowed run.")
     }
 
     /// A demonstration ended: a passage, or the tutor's `playNotes`. A queued plan goes on.
