@@ -59,6 +59,13 @@ final class TutorChatTests: XCTestCase {
         XCTAssertEqual(TutorChatContext().prompt, "No lesson or book is open.")
     }
 
+    func testBothTutorPromptsSpeakPlainlyWithoutNumbers() {
+        for prompt in [TutorChatInstructions.musicOnly, TutorFeedbackInstructions.teacher] {
+            XCTAssertTrue(prompt.contains(TutorVoice.plainLanguage))
+        }
+        XCTAssertTrue(TutorVoice.plainLanguage.contains("Unless the learner asks for numbers"))
+    }
+
     func testBookSearchFindsTheMatchingPages() {
         let pages = ["Middle C and the treble clef", "Staccato: play the notes short and detached",
                      "Legato means smooth", "Staccato and legato together"]
