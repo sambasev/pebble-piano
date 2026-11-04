@@ -215,7 +215,7 @@ def check_adherence(out: Dict[str, Any], case: Dict[str, Any], facts: Facts) -> 
         if k in TERMINAL and i != len(kinds) - 1:
             f.append(Finding("adherence", "terminal_last", f"{k} isn't last in {kinds}"))
     for a in acts:
-        f += check_action(a, facts, child, question)
+        f += check_action(a, facts, child, question, reply)
     if "practiceExercise" in kinds and len(notes_in(reply)) >= 4:
         f.append(Finding("adherence", "exercise_notes_listed", "lists the notes of an exercise the app writes and grades"))
     if "gradeTake" in kinds and not re.search(r"\bgrade|\bscore|how did i do|check (my|this|the) take", question, re.I):
@@ -226,7 +226,7 @@ def check_adherence(out: Dict[str, Any], case: Dict[str, Any], facts: Facts) -> 
     return f
 
 
-def check_action(a: Dict[str, Any], facts: Facts, child: bool, question: str) -> List[Finding]:
+def check_action(a: Dict[str, Any], facts: Facts, child: bool, question: str, reply: str = "") -> List[Finding]:
     f: List[Finding] = []
     kind = a.get("kind")
     if kind not in FIELDS:
@@ -252,7 +252,13 @@ def check_action(a: Dict[str, Any], facts: Facts, child: bool, question: str) ->
             if facts.bar_count and facts.empty_bars and all(b in facts.empty_bars for b in range(fb, tb + 1)):
                 f.append(Finding("grounding", "action_empty_bars", f"{kind} bars {fb}–{tb} are all rests", hard=False))
         if a.get("hand") in ("R", "L") and facts.bar_count and not facts.two_hands:
-            f.append(Finding("grounding", "hand_tracks", f"{kind} hand {a['hand']} but the piece has one track"))
+            # On a one-track piece the app ignores the hand and plays/sets up all of its notes
+            # (PlaySession+TutorChatActions.swift, both listenPassage paths and practicePassage), so a
+            # silent "R" changes nothing the learner sees. "L", or a reply that talks about hands, still
+            # claims a part the piece doesn't have.
+            silent = a["hand"] == "R" and not HAND_WORDS.search(reply)
+            f.append(Finding("grounding", "hand_tracks", f"{kind} hand {a['hand']} but the piece has one track",
+                             hard=not silent))
     if kind == "playNotes":
         notes = a.get("notes") or []
         cap = 8 if child else 32
@@ -315,7 +321,7 @@ def check_grounding(out: Dict[str, Any], case: Dict[str, Any], facts: Facts) -> 
             f.append(Finding("grounding", "contradicts_grade", "calls the take perfect; the grader found mistakes"))
         if facts.passed is False and PASS_WORDS.search(reply) and not re.search(r"\b(not yet|not quite|almost)\b", reply, re.I):
             f.append(Finding("grounding", "claims_pass", "says they passed/are ready; the grader says not passed"))
-        if not facts.has_timing and TIMING_WORDS.search(reply) and not re.search(r"\b(wasn't|not) (checked|assessed|measured)|note[- ]by[- ]note|wait mode", reply, re.I):
+        if not facts.has_timing and TIMING_WORDS.search(reply) and not re.search(r"\b(wasn't|not) (checked|assessed|measured|tracked)|note[- ]by[- ]note|wait mode", reply, re.I):
             f.append(Finding("grounding", "timing_unassessed",
                              f"judges timing ({TIMING_WORDS.search(reply).group(0)!r}) but timing wasn't assessed"))
     if not facts.today and DATE.search(reply) and not DATE.search(case.get("question", "")):
@@ -345,7 +351,9 @@ def check_followups(out: Dict[str, Any], case: Dict[str, Any], facts: Facts) -> 
         if TUTOR_VOICE.search(s.strip()):
             f.append(Finding("followups", "learner_voice", f"in the tutor's voice, not the learner's: {s!r}"))
         t = tokens(s)
-        if q and t and len(t & q) / len(t | q) > 0.7:
+        # A chip about a different bar ("bar 4" after "bar 12?") is a new question, not an echo.
+        same_bars = set(bar_refs(s)) == set(bar_refs(case.get("question", "")))
+        if q and t and same_bars and len(t & q) / len(t | q) > 0.7:
             f.append(Finding("followups", "echo", f"repeats the question just asked: {s!r}"))
         if any(t and len(t & o) / len(t | o) > 0.7 for o in seen):
             f.append(Finding("followups", "duplicate", f"near-duplicate chip: {s!r}", hard=False))
@@ -354,7 +362,9 @@ def check_followups(out: Dict[str, Any], case: Dict[str, Any], facts: Facts) -> 
             bad = [b for b in bar_refs(s) if b > facts.bar_count]
             if bad:
                 f.append(Finding("followups", "infeasible", f"chip about bar {bad} the piece doesn't have: {s!r}"))
-            if not facts.two_hands and re.search(r"\b(left hand|lh)\b", s, re.I):
+            # A generated exercise (practiceExercise) has its own hand, so "left hand" is possible there.
+            exercise = any(a.get("kind") == "practiceExercise" for a in actions_of(out))
+            if not facts.two_hands and not exercise and re.search(r"\b(left hand|lh)\b", s, re.I):
                 f.append(Finding("followups", "infeasible", f"left-hand chip on a one-track piece: {s!r}"))
     return f
 

@@ -1,0 +1,194 @@
+{
+ "meta": {
+  "model": "muse-spark-1.3",
+  "mode": "live",
+  "title": "live",
+  "date": "20261104-224828"
+ },
+ "samples": 132,
+ "cases": 44,
+ "metrics": {
+  "task": {
+   "pass": 125,
+   "n": 132,
+   "rate": 0.946969696969697,
+   "ci95": [
+    0.8945808779221942,
+    0.974077912904769
+   ]
+  },
+  "adherence": {
+   "pass": 125,
+   "n": 132,
+   "rate": 0.946969696969697,
+   "ci95": [
+    0.8945808779221942,
+    0.974077912904769
+   ]
+  },
+  "grounding": {
+   "pass": 106,
+   "n": 132,
+   "rate": 0.803030303030303,
+   "ci95": [
+    0.7270324134183684,
+    0.8618888007016065
+   ]
+  },
+  "followups": {
+   "pass": 127,
+   "n": 132,
+   "rate": 0.9621212121212122,
+   "ci95": [
+    0.9143907904747873,
+    0.9837140610581746
+   ]
+  },
+  "overall": {
+   "pass": 94,
+   "n": 132,
+   "rate": 0.7121212121212122,
+   "ci95": [
+    0.6297449765987901,
+    0.7824998732851924
+   ]
+  },
+  "hallucination_rate": {
+   "bad": 26,
+   "n": 126,
+   "rate": 0.20634920634920634,
+   "ci95": [
+    0.14488830948972267,
+    0.2851864893420847
+   ]
+  },
+  "followup_coverage": {
+   "n": 126,
+   "rate": 0.9206349206349206
+  },
+  "followup_answerable": {
+   "pass": 12,
+   "n": 12,
+   "rate": 1.0,
+   "ci95": [
+    0.7574992425007574,
+    1.0
+   ]
+  }
+ },
+ "by_category": {
+  "adherence": {
+   "n": 51,
+   "overall": 0.6470588235294118
+  },
+  "coaching": {
+   "n": 6,
+   "overall": 0.0
+  },
+  "followups": {
+   "n": 15,
+   "overall": 0.7333333333333333
+  },
+  "grounding": {
+   "n": 45,
+   "overall": 0.7777777777777778
+  },
+  "guardrails": {
+   "n": 15,
+   "overall": 1.0
+  }
+ },
+ "rules": {
+  "grounding.hand_tracks": 21,
+  "task.action_field": 8,
+  "adherence.unused_fields_null (soft)": 7,
+  "adherence.claims_done": 5,
+  "followups.infeasible": 4,
+  "followups.missing (soft)": 4,
+  "grounding.invented_date": 3,
+  "grounding.action_bar_exists": 3,
+  "adherence.no_numbers": 2,
+  "grounding.bar_notes": 1,
+  "followups.echo": 1,
+  "grounding.timing_unassessed": 1,
+  "grounding.bar_exists": 1,
+  "task.actions": 1
+ },
+ "latency": {
+  "ttft_s": {
+   "n": 132,
+   "mean": 5.997789640810604,
+   "p50": 5.807618530000013,
+   "p90": 8.717560517600004,
+   "p95": 9.928630115949996,
+   "max": 14.841625082999997
+  },
+  "ttfv_s": {
+   "n": 126,
+   "mean": 6.603170364603171,
+   "p50": 6.331604913999939,
+   "p90": 9.38781555899999,
+   "p95": 10.528989455249999,
+   "max": 15.843242791999955
+  },
+  "total_s": {
+   "n": 132,
+   "mean": 7.247002080083331,
+   "p50": 6.959130458499999,
+   "p90": 10.65855798200007,
+   "p95": 11.318794433300003,
+   "max": 16.996638199000017
+  },
+  "tokens_per_s": {
+   "n": 132,
+   "mean": 720.6627522552246,
+   "p50": 573.6789000426461,
+   "p90": 1113.2315276658687,
+   "p95": 1645.6842993944263,
+   "max": 3407.5875678252896
+  }
+ },
+ "judge": {
+  "grounding": 4.6893939393939394,
+  "helpfulness": 4.363636363636363,
+  "teaching": 3.7954545454545454,
+  "followups": 3.9242424242424243,
+  "n": 132,
+  "with_unsupported_claims": 0.1893939393939394,
+  "model": "claude:claude-opus-5-5"
+ },
+ "errors": 0,
+ "consistency": {
+  "trials": 3,
+  "all_trials_pass": 27,
+  "flaky": [
+   "fu_one_track_hands",
+   "gr_missing_bar",
+   "gr_not_ready",
+   "gr_timing_unassessed",
+   "ia_grown_up",
+   "ia_no_numbers",
+   "ia_scale_exercise",
+   "rc_plan_session",
+   "rc_played_it_right"
+  ],
+  "cases": 44
+ },
+ "usage": {
+  "input_mean": 4068.2727272727275,
+  "output_mean": 735.8181818181819
+ },
+ "judge_errors": 0,
+ "latency_budget": {
+  "ttfv_s": {
+   "p90": 9.38781555899999,
+   "limit": 4.0,
+   "ok": false
+  },
+  "total_s": {
+   "p90": 10.65855798200007,
+   "limit": 10.0,
+   "ok": false
+  }
+ }
+}
