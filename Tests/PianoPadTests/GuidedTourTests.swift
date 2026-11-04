@@ -12,6 +12,21 @@ final class GuidedTourTests: XCTestCase {
         }
     }
 
+    func testPracticeTourSkipsWhatTheLessonTourShowed() {
+        let first = TourID.practice.steps(seen: [])
+        XCTAssertEqual(first.map(\.target), TourID.practice.steps.map(\.target), "Practice first: the whole tour")
+
+        let after = TourID.practice.steps(seen: [TourID.lessonPage.rawValue])
+        let targets = after.map(\.target)
+        for repeated in [TourTarget.keyboard, .dancers, .help] {
+            XCTAssertFalse(targets.contains(repeated), "\(repeated) was shown in the lesson tour")
+        }
+        XCTAssertEqual(after.first { $0.target == .music }?.title, "Start from any bar")
+        XCTAssertTrue(targets.contains(.mode) && targets.contains(.gradeReset), "Practice's own steps stay")
+        XCTAssertEqual(TourID.lessonPage.steps(seen: [TourID.lessonPage.rawValue]).count,
+                       TourID.lessonPage.steps.count, "Other tours are unchanged")
+    }
+
     func testNoTourPointsAtTheSameThingTwice() {
         for tour in TourID.allCases {
             let targets = tour.steps.map(\.target)

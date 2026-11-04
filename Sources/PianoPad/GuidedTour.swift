@@ -168,6 +168,21 @@ extension TourID {
         }
     }
 
+    /// The steps for this learner. Practice leaves out what the lesson tour already showed
+    /// (the keyboard, the Pebbles, the ? button) once that tour has been seen; the music step
+    /// keeps only what's new here, starting from any bar.
+    func steps(seen: [String]) -> [TourStep] {
+        guard self == .practice, seen.contains(TourID.lessonPage.rawValue) else { return steps }
+        return steps.compactMap { step in
+            switch step.target {
+            case .keyboard, .dancers, .help: return nil
+            case .music: return TourStep(target: .music, title: "Start from any bar",
+                                         body: "Click a bar in the music to start from there.")
+            default: return step
+            }
+        }
+    }
+
     private static let helpStep = TourStep(
         target: .help, title: "Come back any time",
         body: "Press ? here (or Help → Show Me Around) to see this tour again.",
@@ -205,7 +220,7 @@ struct TourOverlay: View {
             GeometryReader { geo in
                 let bounds = CGRect(origin: .zero, size: geo.size)
                 // Only the steps whose target is on screen (at least partly).
-                let shown: [(step: TourStep, rect: CGRect)] = tour.steps.compactMap { step in
+                let shown: [(step: TourStep, rect: CGRect)] = tour.steps(seen: session.learnerSettings.seenTours).compactMap { step in
                     guard let anchor = anchors[step.target] else { return nil }
                     let rect = geo[anchor].intersection(bounds)
                     return rect.isNull || rect.width < 4 || rect.height < 4 ? nil : (step, rect)

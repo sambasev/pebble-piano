@@ -49,7 +49,7 @@ extension PlaySession {
     /// Plays `tour` from the start, seen or not (the ? button).
     func startTour(_ tour: TourID) {
         tourStep = 0
-        tourStepCount = tour.steps.count
+        tourStepCount = tour.steps(seen: learnerSettings.seenTours).count
         tourLetsYouPlay = false
         activeTour = tour
     }
