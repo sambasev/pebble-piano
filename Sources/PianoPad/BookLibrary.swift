@@ -10,6 +10,26 @@ struct LibraryBook: Identifiable, Hashable {
     /// Shipped with the app (Books/), as opposed to one the learner opened.
     let bundled: Bool
     var title: String { url.deletingPathExtension().lastPathComponent }
+
+    /// A file name made readable: "learning-the-code-book1" → "Learning the Code Book 1".
+    /// A name that already has spaces is kept as it is.
+    static func displayTitle(_ name: String) -> String {
+        let name = (name as NSString).pathExtension.lowercased() == "pdf" ? (name as NSString).deletingPathExtension : name
+        guard !name.contains(" ") else { return name }
+        let small: Set<String> = ["a", "an", "and", "the", "of", "in", "on", "for", "to", "at", "by", "or"]
+        var words: [String] = []
+        for part in name.split(whereSeparator: { $0 == "-" || $0 == "_" || $0 == "." }) {
+            // "book1" → "book", "1"
+            var word = String(part)
+            if let i = word.firstIndex(where: \.isNumber), i != word.startIndex, word[i...].allSatisfy(\.isNumber) {
+                words.append(String(word[..<i])); word = String(word[i...])
+            }
+            words.append(word)
+        }
+        return words.enumerated().map { i, w in
+            i > 0 && small.contains(w.lowercased()) ? w.lowercased() : w.prefix(1).uppercased() + w.dropFirst()
+        }.joined(separator: " ")
+    }
 }
 
 /// A piece read from a book and saved: what it came from, so it can be read again on demand.

@@ -250,7 +250,7 @@ extension PlaySession {
         let texts = Self.pageTexts(of: book.document)
         let near = Set((book.page - 1)...(book.page + 1)).filter { texts.indices.contains($0) }
         let matching = BookTextSearch.best(for: question, in: texts, excluding: near)
-        context.bookTitle = book.title
+        context.bookTitle = LibraryBook.displayTitle(book.title)
         context.currentPage = book.page + 1
         context.pages = (near.sorted() + matching).compactMap { i in
             let text = BookTextSearch.excerpt(texts[i])

@@ -105,6 +105,7 @@ struct TutorChatView: View {
             if session.tutorChatIsChild {
                 childButtons
             } else {
+            if let page = session.tutorChatBookPage { pageChip(page) }
             HStack(alignment: .bottom, spacing: PP.Space.s2) {
                 TutorChatComposer(text: $draft, focused: $focused, height: $composerHeight,
                                   send: send)
@@ -133,10 +134,45 @@ struct TutorChatView: View {
                 .strokeBorder(focused ? PP.focusRing : PP.inkStaff.opacity(0.45), lineWidth: focused ? 2 : 1)
                 .allowsHitTesting(false))
             }
-            if !session.tutorChatIsChild, let book = session.tutorChatBookLabel {
-                Toggle(isOn: $session.tutorChatUsesBook) { Text("Use \(book)").font(.caption) }
-                    .help("Send the book page's text and a picture of it with each question")
+        }
+    }
+
+    /// The book page sent with each question, shown like an attachment. ✕ leaves it out; the
+    /// faint chip that's left adds it back.
+    @ViewBuilder
+    private func pageChip(_ page: PlaySession.TutorChatBookPage) -> some View {
+        if session.tutorChatUsesBook {
+            HStack(spacing: PP.Space.s2) {
+                Image(systemName: "book.closed").font(.system(size: 11, weight: .semibold))
+                    .foregroundColor(PP.accent)
+                Text("\(page.title) · page \(page.page)")
+                    .lineLimit(1).truncationMode(.middle)
+                Button { session.tutorChatUsesBook = false } label: {
+                    Image(systemName: "xmark").font(.system(size: 9, weight: .bold))
+                        .frame(width: 18, height: 18)
+                        .contentShape(Circle())
+                }
+                .buttonStyle(.plain)
+                .foregroundColor(PP.inkMuted)
+                .accessibilityLabel("Don't send this page")
+                .help("Don't send this page with your questions")
             }
+            .font(.system(size: 12, weight: .medium))
+            .foregroundColor(PP.ink)
+            .padding(.leading, PP.Space.s3).padding(.trailing, PP.Space.s1)
+            .frame(minHeight: 26)
+            .background(Capsule().fill(PP.surfaceGlass))
+            .overlay(Capsule().strokeBorder(PP.inkStaff.opacity(0.45), lineWidth: 1))
+            .help("Your tutor sees this page's text and a picture of it with each question")
+            .accessibilityElement(children: .contain)
+            .accessibilityLabel("Your tutor can see \(page.title), page \(page.page)")
+        } else {
+            Button { session.tutorChatUsesBook = true } label: {
+                Label("Add page \(page.page)", systemImage: "plus")
+            }
+            .buttonStyle(PPGlassButtonStyle(height: 26))
+            .opacity(0.7)
+            .help("Send \(page.title), page \(page.page), with your questions")
         }
     }
 
@@ -209,11 +245,17 @@ struct TutorChatView: View {
 }
 
 extension PlaySession {
-    /// "page 12 of Learning the Code", when the open piece came from a book.
-    var tutorChatBookLabel: String? {
-        if let book, let passage { return "page \(passage.page) of \(book.annotations.title)" }
+    struct TutorChatBookPage: Equatable {
+        var title: String
+        /// Printed page number, from 1.
+        var page: Int
+    }
+
+    /// The book page the open piece came from, for the chip above the question box.
+    var tutorChatBookPage: TutorChatBookPage? {
+        if let book, let passage { return .init(title: LibraryBook.displayTitle(book.annotations.title), page: passage.page) }
         guard let piece = tutorChatSavedPiece else { return nil }
-        return "page \(piece.page + 1) of \((piece.book as NSString).deletingPathExtension)"
+        return .init(title: LibraryBook.displayTitle(piece.book), page: piece.page + 1)
     }
 }
 #endif
