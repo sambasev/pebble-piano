@@ -113,8 +113,11 @@ final class TutorLiveEvalTests: XCTestCase {
                                           model: AISettings.shared.tutorModel)
         var outcomes: [Outcome] = []
 
+        // TUTOR_LIVE_ONLY=b5,b6 runs just those (and doesn't rewrite the reports).
+        let only = ProcessInfo.processInfo.environment["TUTOR_LIVE_ONLY"].map { $0.split(separator: ",").map(String.init) }
         func run(_ id: String, _ scenario: String, _ description: String,
                  _ body: () async throws -> (PlaySession?, [String])) async {
+            if let only, !only.contains(where: { id.hasPrefix($0) }) { return }
             let start = Date()
             var failures: [String] = []
             var transcript: [String] = []
@@ -133,6 +136,7 @@ final class TutorLiveEvalTests: XCTestCase {
                                   failures: failures, seconds: (Date().timeIntervalSince(start) * 10).rounded() / 10,
                                   transcript: transcript)
             print("\(outcome.passed ? "PASS" : "FAIL") \(id) (\(outcome.seconds)s)" + failures.map { "\n    - \($0)" }.joined())
+            if only != nil { print(transcript.map { "    | \($0)" }.joined(separator: "\n")) }
             outcomes.append(outcome)
             sandbox.remove(); sandbox = AppDataSandbox("LiveEval")
         }
@@ -164,6 +168,33 @@ final class TutorLiveEvalTests: XCTestCase {
             var f: [String] = []
             if !Self.has(appNotes(s), ["bars 1–2"]) { f.append("No demonstration of bars 1–2 started: \(appNotes(s))") }
             if s.tutorChatQueuedActions.first?.kind != .practicePassage { f.append("Practice wasn't queued after the demonstration: \(s.tutorChatQueuedActions.map(\.summary))") }
+            return (s, f)
+        }
+        await run("b5_refused_demo_is_honest", "B", "Asked for a demo mid-take: keeps the take and never claims it played") {
+            let s = try session(client: client)
+            s.resetTake()
+            for _ in 0..<3 {
+                for _ in 0..<40 where s.expected.isEmpty { try? await Task.sleep(nanoseconds: 5_000_000) }
+                for key in s.expected.sorted() { s.mouseDown(on: key); s.mouseUp() }
+            }
+            let reply = await ask(s, "Play bar 6 slowly for me.")
+            var f: [String] = []
+            if s.phase != .recording { f.append("The learner's take was thrown away") }
+            if !Self.has(appNotes(s), ["still recording"]) { f.append("The tutor didn't try the demo, so nothing was refused: \(appNotes(s))") }
+            if Self.has(reply, ["I played", "I've played", "I just played", "here it is", "there you go"]) { f.append("Claims it played: \(reply)") }
+            if Self.has(appNotes(s), ["still recording"]) && !Self.has(reply, ["record", "take", "grade", "stop", "finish", "couldn't", "can't", "didn't"]) {
+                f.append("A refused demo but the reply doesn't say why: \(reply)")
+            }
+            return (s, f)
+        }
+        await run("b6_stray_note_demo", "B", "A stray note doesn't block the demo") {
+            let s = try session(client: client)
+            s.resetTake()
+            s.mouseDown(on: 30); s.mouseUp()  // a low note the mic picked up
+            _ = await ask(s, "Play bar 6 slowly for me.")
+            var f: [String] = []
+            if Self.has(appNotes(s), ["still recording"]) { f.append("The stray note blocked the demo: \(appNotes(s))") }
+            if !Self.has(appNotes(s), ["bars 6"]) { f.append("No demonstration of bar 6: \(appNotes(s))") }
             return (s, f)
         }
         await run("b2_recurring_mistakes", "B", "After three real takes with the same slip, names the bar") {
@@ -314,7 +345,7 @@ final class TutorLiveEvalTests: XCTestCase {
             return (s, f)
         }
 
-        try Self.write(outcomes, model: client.model)
+        if only == nil { try Self.write(outcomes, model: client.model) }
         let failed = outcomes.filter { !$0.passed }
         XCTAssertTrue(failed.isEmpty, "\(failed.count) of \(outcomes.count) live scenarios failed: \(failed.map(\.id))")
     }

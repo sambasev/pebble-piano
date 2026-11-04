@@ -144,10 +144,62 @@ final class TutorChatCoachingTests: XCTestCase {
             XCTAssertFalse(session.tutorChatCoaching)
         }
         session.mouseDown(on: 60); session.mouseUp()
+        session.mouseDown(on: 62); session.mouseUp()
         let result = session.applyTutorChatAction(.init(kind: .practicePassage, fromBar: 4, toBar: 4))
         XCTAssertTrue(result.contains("still recording"))
-        XCTAssertEqual(session.noteCount, 1)
+        XCTAssertEqual(session.noteCount, 2)
         XCTAssertEqual(session.phase, .recording)
+    }
+
+    /// A stray note (the mic hearing something) starts a take, but it isn't a performance:
+    /// the tutor's demo or passage replaces it instead of being refused.
+    @MainActor func testAStrayNoteDoesNotBlockTheTutor() throws {
+        let session = try player()
+        session.mouseDown(on: 60); session.mouseUp()
+        XCTAssertEqual(session.phase, .recording)
+        let result = session.applyTutorChatAction(.init(kind: .practicePassage, fromBar: 4, toBar: 4, mode: .wait))
+        XCTAssertTrue(result.contains("Started bars 4–4"), result)
+        XCTAssertEqual(session.noteCount, 0)
+        session.pauseTutorChatCoaching(); session.endTutoring()
+    }
+
+    /// The reply said "I'll play bar 4" but a real take was recording: the app asks once more
+    /// and the bubble says what really happened.
+    @MainActor func testARefusedActionGetsAnHonestReply() async throws {
+        let session = try player()
+        let chat = CoachingChat()
+        chat.replies = [
+            TutorChatReply(onTopic: true, reply: "I played bar 4 slowly for you.",
+                           actions: [.init(kind: .listenPassage, fromBar: 4, toBar: 4, tempoPercent: 50)]),
+            TutorChatReply(onTopic: true, reply: "I couldn't play it: your take is still recording. Grade it first.",
+                           suggestions: ["Play it now"]),
+        ]
+        session.tutorChatClient = chat
+        session.mouseDown(on: 60); session.mouseUp()
+        session.mouseDown(on: 62); session.mouseUp()
+        session.sendTutorChat("Play bar 4 slowly for me")
+        await settle(session)
+        XCTAssertEqual(chat.calls.count, 2)
+        XCTAssertTrue(chat.calls[1].1.contains("could not do what your last reply said"), chat.calls[1].1)
+        XCTAssertTrue(chat.calls[1].1.contains("still recording"))
+        let tutor = session.tutorChat.turns.filter { $0.role == .tutor }
+        XCTAssertEqual(tutor.map(\.text), ["I couldn't play it: your take is still recording. Grade it first."])
+        XCTAssertEqual(session.tutorChat.suggestions, ["Play it now"])
+        XCTAssertEqual(session.phase, .recording)
+    }
+
+    /// An action that runs needs no second call.
+    @MainActor func testARunActionIsNotReasked() async throws {
+        let session = try player()
+        let chat = CoachingChat()
+        chat.replies = [TutorChatReply(onTopic: true, reply: "I'll set up bar 4; play when ready.",
+                                       actions: [.init(kind: .practicePassage, fromBar: 4, toBar: 4, mode: .wait)])]
+        session.tutorChatClient = chat
+        session.sendTutorChat("Help me with bar 4")
+        await settle(session)
+        XCTAssertEqual(chat.calls.count, 1)
+        XCTAssertEqual(session.tutorChat.turns.last(where: { $0.role == .tutor })?.text, "I'll set up bar 4; play when ready.")
+        session.pauseTutorChatCoaching(); session.endTutoring()
     }
 
     /// Found by the live eval: on a one-track file, "right hand" can only mean its notes.

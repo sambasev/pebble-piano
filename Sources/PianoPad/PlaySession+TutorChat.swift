@@ -12,6 +12,12 @@ struct TutorChatConfirmation: Equatable {
 
 enum TutorChatPanel: String, Equatable { case input, practice, ai }
 
+/// A tutor action the app wouldn't run, and why.
+struct TutorChatRefusal: Equatable {
+    var action: String
+    var reason: String
+}
+
 struct TutorChatObservation {
     var label: String
     var question: String
@@ -71,16 +77,20 @@ extension PlaySession {
                 })
                 self?.tutorChatStreamingText = nil
                 guard let self, !Task.isCancelled, self.tutorChatGeneration == generation, self.canAskTutor else { return }
-                self.tutorChat.answer(reply, to: id)
+                let answer = self.tutorChat.answer(reply, to: id)
                 self.tutorChatBusy = false
                 self.tutorChatRequestTurn = nil
                 self.tutorChatTask = nil
-                if reply.onTopic, !reply.reply.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                if let answer {
                     // A grown-up's question gets an answer only; a child's, only the child actions.
                     let actions = context.audience == .grownUp ? []
                         : context.audience == .child ? reply.actions.filter { TutorChildPrompts.actions.contains($0.kind) }.prefix(2).map { $0 }
                         : Array(reply.actions.prefix(TutorChatReply.actionLimit))
-                    self.runTutorChatPlan(actions, scoreID: scoreID)
+                    if let refused = self.runTutorChatPlan(actions, scoreID: scoreID) {
+                        // The answer promised something that didn't happen: ask for an honest one.
+                        self.reviseTutorChat(answer, refused: refused, client: client, context: context)
+                        return
+                    }
                 }
                 self.saveTutorChat()
                 self.flushTutorChatObservation()
@@ -97,8 +107,31 @@ extension PlaySession {
         }
     }
 
+    /// Rewrites `answer` after the app refused one of its actions, so the chat never says the
+    /// tutor did something it didn't. One extra call, made only when an action is refused; if
+    /// it fails, the answer stays and the app's note under it says what happened.
+    func reviseTutorChat(_ answer: UUID, refused: TutorChatRefusal, client: any TutorChatClient,
+                         context: TutorChatContext) {
+        let generation = UUID()
+        tutorChatGeneration = generation
+        tutorChatBusy = true
+        let history = tutorChat.history
+        let question = TutorChatInstructions.correction(refused: refused.action, reason: refused.reason)
+        tutorChatTask = Task { @MainActor [weak self] in
+            let reply = try? await client.reply(history: history, context: context, question: question)
+            guard let self, !Task.isCancelled, self.tutorChatGeneration == generation else { return }
+            if let reply { self.tutorChat.revise(answer, with: reply) }
+            self.tutorChatBusy = false
+            self.tutorChatTask = nil
+            self.saveTutorChat()
+            self.flushTutorChatObservation()
+        }
+    }
+
     /// Runs a reply's first action now and queues the rest. A failed step drops what's left.
-    func runTutorChatPlan(_ actions: [TutorChatAction], scoreID: UUID) {
+    /// Returns the step the app refused in this pass, if any.
+    @discardableResult
+    func runTutorChatPlan(_ actions: [TutorChatAction], scoreID: UUID) -> TutorChatRefusal? {
         tutorChatQueuedActions = []
         tutorChatQueueScoreID = nil
         var remaining = actions[...]
@@ -112,18 +145,19 @@ extension PlaySession {
             recordTutorChatOutcome(outcome)
             guard ran, !remaining.isEmpty else {
                 if !remaining.isEmpty { recordTutorChatOutcome(Self.skippedSteps(remaining.count)) }
-                return
+                return ran ? nil : TutorChatRefusal(action: action.summary, reason: outcome)
             }
             if action.endsPlan {
                 recordTutorChatOutcome(Self.skippedSteps(remaining.count))
-                return
+                return nil
             }
             if action.waitsForPlayer {
                 tutorChatQueuedActions = Array(remaining)
                 tutorChatQueueScoreID = self.scoreID
-                return
+                return nil
             }
         }
+        return nil
     }
 
     /// The next queued step, when the one before it has finished. False when nothing is queued

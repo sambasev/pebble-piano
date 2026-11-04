@@ -27,6 +27,15 @@ practice take is graded), without another model request. The chat shows what's q
 (“Then: Practise bars 3–4”). A failed step, a lesson or Stop ends the plan; a new question,
 pausing coaching or changing piece cancels what's left.
 
+**Honest about what ran.** The model writes its answer and its actions in one reply, before
+the app runs anything, so it's told to say what it *will* do ("I'll play bar 3 slowly"),
+never that it did. If the app then refuses an action (a take is recording, a demonstration is
+playing, the bars don't exist), it asks the model once more with the reason
+(`TutorChatInstructions.correction`) and replaces the bubble with that answer: what didn't
+happen and what the learner can do. This extra call happens only on a refusal. A take with
+fewer than two notes (a stray note the mic heard) isn't a performance: a tutor action discards
+it instead of being refused; a take with real playing is never replaced.
+
 The conversation is saved per learner in `Learners/<id>/tutor/chat.json` and reopens with the
 same piece (even after relaunch, for up to a week). Switching learner keeps it for their
 return. Opening another piece or **New chat** ends it: the tutor writes a few lines about it to

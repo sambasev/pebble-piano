@@ -54,6 +54,18 @@ extension PlaySession {
         requestTutorChat(event.question, context: event.context, observation: event.label, scoreID: event.scoreID)
     }
 
+    /// Fewer notes than this in a recording take: nothing worth keeping for the grader.
+    static let tutorChatEmptyTakeNotes = 2
+
+    /// Throws away a recording take with no real playing in it, so a tutor action can run.
+    /// False (and the take is kept) once the learner has played.
+    func discardTutorChatEmptyTake() -> Bool {
+        guard phase == .recording, noteCount < Self.tutorChatEmptyTakeNotes else { return false }
+        if isPlayingAlong { stopPlayAlong(discard: true) }
+        resetTake()
+        return true
+    }
+
     /// Only these bounded player operations can be requested by model output.
     @discardableResult
     func applyTutorChatAction(_ action: TutorChatAction) -> String {
@@ -62,7 +74,9 @@ extension PlaySession {
             return "Tutor actions are available only for the active adult learner."
         }
         // Never replace an ungraded performance or cut off a demonstration with an old decision.
-        if phase == .recording && ![.gradeTake, .stop, .setGoal, .setTempo, .searchLibrary, .highlight].contains(action.kind) {
+        // A take with no real playing in it (a stray note, a count-in) isn't a performance.
+        let keepsTake: Set<TutorChatAction.Kind> = [.gradeTake, .stop, .setGoal, .setTempo, .searchLibrary, .highlight]
+        if phase == .recording && !keepsTake.contains(action.kind) && !discardTutorChatEmptyTake() {
             return "A take is still recording. Finish it with Grade, or ask me to grade it, before changing the exercise."
         }
         if isAuditioning && ![.stop, .setGoal, .searchLibrary, .highlight].contains(action.kind) {
