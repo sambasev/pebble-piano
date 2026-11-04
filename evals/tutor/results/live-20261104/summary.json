@@ -18,12 +18,12 @@
    ]
   },
   "adherence": {
-   "pass": 125,
+   "pass": 122,
    "n": 132,
-   "rate": 0.946969696969697,
+   "rate": 0.9242424242424242,
    "ci95": [
-    0.8945808779221942,
-    0.974077912904769
+    0.8661573143115245,
+    0.9583323854564404
    ]
   },
   "grounding": {
@@ -45,12 +45,12 @@
    ]
   },
   "overall": {
-   "pass": 114,
+   "pass": 111,
    "n": 132,
-   "rate": 0.8636363636363636,
+   "rate": 0.8409090909090909,
    "ci95": [
-    0.7947332041514426,
-    0.9119722527925274
+    0.7690084599146942,
+    0.8935279059702776
    ]
   },
   "hallucination_rate": {
@@ -79,7 +79,7 @@
  "by_category": {
   "adherence": {
    "n": 51,
-   "overall": 0.9215686274509803
+   "overall": 0.8627450980392157
   },
   "coaching": {
    "n": 6,
@@ -102,12 +102,12 @@
   "grounding.hand_tracks (soft)": 21,
   "task.action_field": 8,
   "adherence.unused_fields_null (soft)": 7,
-  "adherence.claims_done": 5,
+  "adherence.claims_done": 7,
   "followups.missing (soft)": 4,
+  "adherence.no_numbers": 3,
   "grounding.invented_date": 3,
   "grounding.action_bar_exists": 3,
   "followups.infeasible": 2,
-  "adherence.no_numbers": 2,
   "grounding.bar_notes": 1,
   "grounding.bar_exists": 1,
   "task.actions": 1
@@ -158,13 +158,13 @@
  "errors": 0,
  "consistency": {
   "trials": 3,
-  "all_trials_pass": 35,
+  "all_trials_pass": 34,
   "flaky": [
    "fu_one_track_hands",
    "gr_timing_unassessed",
    "ia_grown_up",
    "ia_listen_then_try",
-   "rc_played_it_right"
+   "rc_plan_session"
   ],
   "cases": 44
  },

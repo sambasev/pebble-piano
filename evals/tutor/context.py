@@ -46,6 +46,7 @@ class Facts:
     lesson_ids: List[str] = field(default_factory=list)
     goal: str = ""
     no_numbers: bool = True  # the learner hasn't asked for numbers
+    has_progress: bool = False  # progress or trends (scores over time) are in context
 
 
 def _fmt(q: float) -> str:

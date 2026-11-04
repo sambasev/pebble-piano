@@ -126,7 +126,7 @@ def promises_action(text: str) -> bool:
     return re.search(pattern, lower) is not None
 
 
-CLAIMS_DONE = re.compile(r"\bi(?:'ve| have)?\s+(?:just\s+)?(played|demonstrated|started|opened|slowed|looped|set|highlighted|saved)\b"
+CLAIMS_DONE = re.compile(r"\bi(?:'ve| have)?\s+(?:just\s+)?(played|demonstrated|started|opened|slowed|looped|set|highlighted|saved|flagged|marked|sent|queued|added)\b"
                          r"|\bhere it is\b|\bthere you go\b", re.I)
 NUMBERS = re.compile(r"\d+(?:\.\d+)?\s*%|\b\d+\s*/\s*\d+\b|\bbpm\b|\bcv\b|\brhythm error\b|\bthreshold\b|\bscore of\b", re.I)
 TIMING_WORDS = re.compile(r"\b(rhythm was|timing was|in time|steady|steadier|even(ly)?|sped up|rushed|dragged|slowed down|on the beat|tempo was)\b", re.I)
@@ -189,7 +189,7 @@ def check_adherence(out: Dict[str, Any], case: Dict[str, Any], facts: Facts) -> 
             f.append(Finding("adherence", "length", f"{n} words (max 100)", hard=False))
 
     # Numbers about a take, unless asked.
-    if facts.has_grades and not ASKS_NUMBERS.search(question):
+    if (facts.has_grades or facts.has_progress) and not ASKS_NUMBERS.search(question):
         hits = sorted({m.group(0) for m in NUMBERS.finditer(reply)})
         if hits:
             f.append(Finding("adherence", "no_numbers", f"quotes grader numbers unasked: {hits}"))

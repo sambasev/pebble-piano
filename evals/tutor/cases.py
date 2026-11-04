@@ -240,14 +240,17 @@ CASES: List[Dict[str, Any]] = [
     # ------------------------------------------------------------------ coaching
     {"id": "co_auto_event", "category": "coaching",
      "description": "Coaching after a take: one fix, then the next exercise on the bar that went wrong",
-     "build": lambda: _coaching(mary_slips()), "question": COACH_Q,
+     "build": lambda: _coaching(mary_slips(), current="Mary Had a Little Lamb, printed bars 1–8, 100%, hand LR",
+                                next_step="Bar 4, printed bars 3–4, 70%"), "question": COACH_Q,
      "expect": {"on_topic": True, "actions": ["practicePassage"], "fields": {"0": {"fromBar": between(3, 4), "toBar": between(4, 5)}}},
      "judge": "Slips in bar 4 (F for G, beat 2) and bar 7. A teacher praises what went well, picks ONE thing (bar 4 is "
               "first) with a tip, and sets a small practicePassage around bar 4, maybe slower. No numbers."},
     {"id": "co_wait_mode_pass", "category": "coaching",
      "description": "Passed note by note: no claim of mastery",
      "build": lambda: _coaching(C.practice("five", grades=C.grade_text(correct=9, expected=9, passed=True),
-                                           passed=True, mode="wait")),
+                                           passed=True, mode="wait"),
+                                current="Five-Finger Warm-up, printed bars 1–3, 100%, hand LR",
+                                next_step="Five-Finger Warm-up timed, printed bars 1–3, 80%"),
      "question": COACH_Q, "expect": {"on_topic": True},
      "judge": "All notes right, note by note (timing not assessed). Praise the notes; don't call it mastered or in time; "
               "suggest a timed take next."},
@@ -325,6 +328,7 @@ def _book(ctx: C.Context, text: str) -> C.Context:
 
 
 def _progress(ctx: C.Context) -> C.Context:
+    ctx.facts.has_progress = True
     ctx.progress = ("This week: 42 min on 3 days. Last week: 65 min on 4 days.\n"
                     "Pieces under way: Mary Had a Little Lamb (6 takes, best 88%, last played Nov 3).")
     ctx.trends = ("Mary Had a Little Lamb, last 6 takes: first 61%, latest 92%, best 92%; the last three improved on the three "
@@ -333,6 +337,7 @@ def _progress(ctx: C.Context) -> C.Context:
 
 
 def _trends(ctx: C.Context) -> C.Context:
+    ctx.facts.has_progress = True
     ctx.progress = ("This week: 42 min on 3 days. Last week: 65 min on 4 days.\n"
                     "Pieces under way: Mary Had a Little Lamb (6 takes, best 88%, last played Nov 3).")
     ctx.trends = ("Mary Had a Little Lamb, last 6 saved takes: first 61%, latest 85%, best 88%. Last three improved on "
@@ -347,9 +352,11 @@ def _memory(ctx: C.Context) -> C.Context:
     return ctx
 
 
-def _coaching(ctx: C.Context) -> C.Context:
+def _coaching(ctx: C.Context, current: str, next_step: str) -> C.Context:
+    """After a coaching take the app has already picked the next exercise (the screen's
+    "Deterministic next step"); its question asks the tutor to guide the learner into it."""
     ctx.screen = ctx.screen.replace("Coaching after takes: false", "Coaching after takes: true")
-    ctx.screen += " Current exercise: Mary Had a Little Lamb, printed bars 1–8, 100%, hand LR."
+    ctx.screen += f" Current exercise: {current}. Deterministic next step: {next_step}."
     return ctx
 
 

@@ -6,16 +6,16 @@ Model `muse-spark-1.3` · mode `live` · 20261104-224828 · 44 cases × 3 trials
 
 | Metric | Result (95% CI) | What it measures |
 |---|---|---|
-| **overall** | 86% (79%–91%) | No hard failure on any metric |
+| **overall** | 84% (77%–89%) | No hard failure on any metric |
 | **task** | 95% (89%–97%) | Did what this case asks (right action, refusal, key fact) |
-| **adherence** | 95% (89%–97%) | Follows the system prompt: JSON, ≤100 words, no unasked numbers, honest tense, action rules |
+| **adherence** | 92% (87%–96%) | Follows the system prompt: JSON, ≤100 words, no unasked numbers, honest tense, action rules |
 | **grounding** | 95% (89%–97%) | No claim the context contradicts (bars, notes, grades, dates, memory) |
 | **followups** | 98% (95%–100%) | Chips: ≤3, ≤60 chars, learner's voice, not echoes, possible in the app |
 | **hallucination_rate** | 6% (3%–11%) | Answered replies with ≥1 unsupported claim (lower is better) |
 | **followup_coverage** | 92% | Answered replies that offer chips |
 | **followup_answerable** | 100% (76%–100%) | Tapping the first chip gets an on-topic answer |
 
-Consistency: 35/44 cases pass every trial; flaky: fu_one_track_hands, gr_timing_unassessed, ia_grown_up, ia_listen_then_try, rc_played_it_right.
+Consistency: 34/44 cases pass every trial; flaky: fu_one_track_hands, gr_timing_unassessed, ia_grown_up, ia_listen_then_try, rc_plan_session.
 
 ### LLM judge (1–5)
 
@@ -36,7 +36,7 @@ Consistency: 35/44 cases pass every trial; flaky: fu_one_track_hands, gr_timing_
 
 | Category | Samples | Pass |
 |---|---|---|
-| adherence | 51 | 92% |
+| adherence | 51 | 86% |
 | coaching | 6 | 0% |
 | followups | 15 | 93% |
 | grounding | 45 | 84% |
@@ -49,12 +49,12 @@ Consistency: 35/44 cases pass every trial; flaky: fu_one_track_hands, gr_timing_
 | `grounding.hand_tracks (soft)` | 21 |
 | `task.action_field` | 8 |
 | `adherence.unused_fields_null (soft)` | 7 |
-| `adherence.claims_done` | 5 |
+| `adherence.claims_done` | 7 |
 | `followups.missing (soft)` | 4 |
+| `adherence.no_numbers` | 3 |
 | `grounding.invented_date` | 3 |
 | `grounding.action_bar_exists` | 3 |
 | `followups.infeasible` | 2 |
-| `adherence.no_numbers` | 2 |
 | `grounding.bar_notes` | 1 |
 | `grounding.bar_exists` | 1 |
 | `task.actions` | 1 |
@@ -185,12 +185,12 @@ Consistency: 35/44 cases pass every trial; flaky: fu_one_track_hands, gr_timing_
 | `rc_library_search` #3 | adherence | ✅ | 5.8s | OK |
 | `rc_plan_session` #1 | adherence | ✅ | 13.3s | (soft) grounding.hand_tracks: practicePassage hand R but the piece has one track |
 | `rc_plan_session` #2 | adherence | ✅ | 10.6s | OK |
-| `rc_plan_session` #3 | adherence | ✅ | 5.0s | (soft) grounding.hand_tracks: practicePassage hand R but the piece has one track |
+| `rc_plan_session` #3 | adherence | ❌ | 5.0s | adherence.no_numbers: quotes grader numbers unasked: ['85%']; (soft) grounding.hand_tracks: practicePassage hand R but the piece has one track |
 | `rc_cant_hear_me` #1 | grounding | ✅ | 9.2s | OK |
 | `rc_cant_hear_me` #2 | grounding | ✅ | 4.1s | OK |
 | `rc_cant_hear_me` #3 | grounding | ✅ | 5.8s | OK |
-| `rc_played_it_right` #1 | adherence | ✅ | 7.6s | (soft) grounding.hand_tracks: practicePassage hand R but the piece has one track |
-| `rc_played_it_right` #2 | adherence | ✅ | 7.3s | OK |
+| `rc_played_it_right` #1 | adherence | ❌ | 7.6s | adherence.claims_done: says it already acted: "I've flagged"; (soft) grounding.hand_tracks: practicePassage hand R but the piece has one track |
+| `rc_played_it_right` #2 | adherence | ❌ | 7.3s | adherence.claims_done: says it already acted: "I've flagged" |
 | `rc_played_it_right` #3 | adherence | ❌ | 8.3s | task.actions: expected actions ['markPlayedRight'], got ['highlight', 'markPlayedRight']; (soft) adherence.unused_fields_null: highlight sets unrelated fields ['fromBar', 'toBar'] |
 | `rc_weekly_progress` #1 | grounding | ✅ | 8.9s | OK |
 | `rc_weekly_progress` #2 | grounding | ✅ | 7.9s | OK |
@@ -334,6 +334,27 @@ Consistency: 35/44 cases pass every trial; flaky: fu_one_track_hands, gr_timing_
 - **Actions:** ['practicePassage'] · **Chips:** ['Play it for me first', 'Slower, right hand only', 'Count me in']
 - ❌ grounding.action_bar_exists: practicePassage bars 1–8; the piece has 3
 - Judge, unsupported: ['"with good fingers" (fingering was not assessed; the grader evidence covers note correctness only)']
+
+### `rc_plan_session`
+
+- **Question:** Plan a 15-minute practice session for me today.
+- **Reply:** "Lovely work — you're up to 85% and climbing! Here's a focused 15 minutes: warm up, fix that tricky E in bar 7, then put it all together. I'll set you up on bars 1-2 slow and note-by-note to get your fingers warm, then it's your turn."
+- **Actions:** ['planSession', 'practicePassage'] · **Chips:** ['Start with bar 7 instead', 'Play the whole piece now', 'Make it slower please']
+- ❌ adherence.no_numbers: quotes grader numbers unasked: ['85%']
+
+### `rc_played_it_right`
+
+- **Question:** I definitely played bar 4 right. The grader is wrong.
+- **Reply:** "I hear you — that's frustrating when it felt right! In that take I heard bar 4 as E, F, G instead of E, G, G, a very easy slip with 5th finger reaching up. I've flagged your take for us to check the grader, and I'll set up bar 4 note-by-note so you can show me that G."
+- **Actions:** ['markPlayedRight', 'practicePassage'] · **Chips:** ['Let me try bar 4 again', 'Play bar 4 for me', 'Was bar 7 wrong too?']
+- ❌ adherence.claims_done: says it already acted: "I've flagged"
+
+### `rc_played_it_right`
+
+- **Question:** I definitely played bar 4 right. The grader is wrong.
+- **Reply:** "I hear you — that E to G jump in bar 4 catches lots of players! The app heard an F instead of G on beat 2 there, plus a missed E in bar 7. I've flagged your take for us to check the listening, so keep that 5th finger curved and ready for the G."
+- **Actions:** ['markPlayedRight'] · **Chips:** ['Play bar 4 for me slowly', 'Let me retry bars 4-5', 'Try bar 7 again']
+- ❌ adherence.claims_done: says it already acted: "I've flagged"
 
 ### `rc_played_it_right`
 
