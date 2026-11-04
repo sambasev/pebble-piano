@@ -23,12 +23,12 @@ those measurements: what went wrong, which bar to drill and what to practise nex
 **Build and run:**
 
 ```sh
-git clone https://github.com/sambasev/interactive-piano.git && cd interactive-piano
+git clone https://github.com/sambasev/pebble-piano.git && cd pebble-piano
 swift run PebblePiano
 ```
 
-Or open `Package.swift` in Xcode, choose the **PianoPad** scheme and press ⌘R. A clean build
-takes about 30 seconds on an M-series Mac. `swift test` runs the 738 unit tests (none need
+Or open `Package.swift` in Xcode, choose the **PebblePiano** scheme and press ⌘R. A clean build
+takes about 30 seconds on an M-series Mac. `swift test` runs the 743 unit tests (none need
 the network).
 
 **Add the Meta key:** in the app, open the **⋯** menu → **AI settings…** and paste it. It is
@@ -195,7 +195,7 @@ saved under `takes/` and then graded.
 
 ## PianoPad: the Mac app
 
-The quickest way to test. In Xcode choose the **PianoPad** scheme (Product → Scheme → PianoPad)
+The quickest way to test. In Xcode choose the **PebblePiano** scheme (Product → Scheme → PebblePiano)
 and press ⌘R. A window opens with an on-screen keyboard:
 
 - Press **Space** (or **Listen**) to hear the reference through the built-in piano, with its keys
