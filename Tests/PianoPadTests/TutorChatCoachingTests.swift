@@ -163,21 +163,36 @@ final class TutorChatCoachingTests: XCTestCase {
         session.pauseTutorChatCoaching(); session.endTutoring()
     }
 
-    /// The reply said "I'll play bar 4" but a real take was recording: the app asks once more
-    /// and the bubble says what really happened.
+    /// Asked to hear a passage mid-take, the tutor plays it: the half-played take is set
+    /// aside rather than the learner being told to grade it first.
+    @MainActor func testListeningMidTakeSetsTheTakeAsideAndPlays() throws {
+        let session = try player()
+        session.mouseDown(on: 60); session.mouseUp()
+        session.mouseDown(on: 62); session.mouseUp()
+        XCTAssertEqual(session.phase, .recording)
+        let result = session.applyTutorChatAction(.init(kind: .listenPassage, fromBar: 1, toBar: 2, tempoPercent: 50))
+        XCTAssertTrue(result.contains("set aside"), result)
+        XCTAssertFalse(result.contains("still recording"), result)
+        XCTAssertTrue(session.tutorChatActionRan)
+        XCTAssertEqual(session.noteCount, 0)
+        session.pauseTutorChatCoaching(); session.endTutoring()
+    }
+
+    /// The reply said "I'll practise bar 4" but a real take was recording: the app asks once
+    /// more and the bubble says what really happened.
     @MainActor func testARefusedActionGetsAnHonestReply() async throws {
         let session = try player()
         let chat = CoachingChat()
         chat.replies = [
-            TutorChatReply(onTopic: true, reply: "I played bar 4 slowly for you.",
-                           actions: [.init(kind: .listenPassage, fromBar: 4, toBar: 4, tempoPercent: 50)]),
+            TutorChatReply(onTopic: true, reply: "Let's practise bar 4 slowly now.",
+                           actions: [.init(kind: .practicePassage, fromBar: 4, toBar: 4, tempoPercent: 50)]),
             TutorChatReply(onTopic: true, reply: "I couldn't play it: your take is still recording. Grade it first.",
                            suggestions: ["Play it now"]),
         ]
         session.tutorChatClient = chat
         session.mouseDown(on: 60); session.mouseUp()
         session.mouseDown(on: 62); session.mouseUp()
-        session.sendTutorChat("Play bar 4 slowly for me")
+        session.sendTutorChat("Let me practise bar 4 slowly")
         await settle(session)
         XCTAssertEqual(chat.calls.count, 2)
         XCTAssertTrue(chat.calls[1].1.contains("could not do what your last reply said"), chat.calls[1].1)

@@ -440,6 +440,8 @@ public enum TutorChatInstructions {
     describing buttons. Your actions run only after your reply is shown, and the app may
     refuse one (a take is recording, a demonstration is playing): say what you will do ("I'll
     play bar 3 slowly, then it's your turn"), never that you did it ("I played it").
+    When the learner asks to hear something, play it with listenPassage or playNotes even
+    mid-take: the app sets the unfinished take aside. Never tell them to grade first.
     For an automatic graded-take event while coaching is on, say what went well, name the
     one thing to work on in plain words, and select the next exercise, continueLesson, or
     stop when the goal is reached. Never claim

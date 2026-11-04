@@ -113,12 +113,27 @@ extension PlaySession {
         // Never replace an ungraded performance or cut off a demonstration with an old decision.
         // A take with no real playing in it (a stray note, a count-in) isn't a performance.
         let keepsTake: Set<TutorChatAction.Kind> = [.gradeTake, .stop, .setGoal, .setTempo, .searchLibrary, .highlight]
+        var setAside = false
         if phase == .recording && !keepsTake.contains(action.kind) && !discardTutorChatEmptyTake() {
-            return "A take is still recording. Finish it with Grade, or ask me to grade it, before changing the exercise."
+            // Asked to hear it: a teacher stops and plays it, so the half-played take is set aside.
+            guard Self.tutorChatDemonstrations.contains(action.kind), !isAuditioning else {
+                return "A take is still recording. Finish it with Grade, or ask me to grade it, before changing the exercise."
+            }
+            if isPlayingAlong { stopPlayAlong(discard: true) }
+            discardTake()
+            setAside = true
         }
         if isAuditioning && ![.stop, .setGoal, .searchLibrary, .highlight].contains(action.kind) {
             return "The demonstration is still playing. Let it finish, or stop it before changing exercises."
         }
+        let outcome = performTutorChatAction(action)
+        return setAside ? "Your unfinished take was set aside (not graded) so I could play. " + outcome : outcome
+    }
+
+    /// Demonstrations the learner can ask for mid-take: they stop the take instead of being refused.
+    static let tutorChatDemonstrations: Set<TutorChatAction.Kind> = [.listenPassage, .playNotes]
+
+    private func performTutorChatAction(_ action: TutorChatAction) -> String {
         switch action.kind {
         case .setTempo:
             guard let speed = action.tempoPercent, speed.isFinite, (25...100).contains(speed) else {
