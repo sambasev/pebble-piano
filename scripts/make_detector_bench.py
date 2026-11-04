@@ -137,7 +137,7 @@ def main():
     nrng = np.random.default_rng(7)
 
     cases = []  # (name, truth notes(seconds), guide notes(seconds))
-    for f in ['five-finger.mid', 'mary-had-a-little-lamb.mid', 'ltc-p29-rh-seconds.mid'] + args.extra_midi:
+    for f in ['five-finger.mid', 'mary-had-a-little-lamb.mid', 'ode-to-joy-c.mid'] + args.extra_midi:
         path = f if os.path.isabs(f) else os.path.join(args.examples, f)
         n = midi_notes(path)
         cases.append((os.path.splitext(os.path.basename(path))[0], n, n))

@@ -49,9 +49,6 @@ struct CreditsView: View {
                         }
                     }
                     section("Books and music") {
-                        contentRow("Learning the Code, Book 1",
-                                   "James L. King III, 2003. Creative Commons Attribution-ShareAlike 4.0 (originally GNU Free Documentation License 1.1 or later). The passage notes and reference MIDI made from it are shared under the same licence.",
-                                   url: "https://creativecommons.org/licenses/by-sa/4.0/")
                         contentRow("Beyer, Vorschule im Klavierspiel, Op. 101",
                                    "Ferdinand Beyer, ed. Ruthardt (Peters, 1895). Public domain. Scan from IMSLP #81208.",
                                    url: nil)

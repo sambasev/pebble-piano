@@ -26,7 +26,7 @@ Each passage in the book's annotations JSON gets an optional `backing` entry:
 
 ```json
 "backing": {
-  "file": "../Backing/ltc-p29-rh-seconds.m4a",
+  "file": "../Backing/passage-1.m4a",
   "startSeconds": 1.84,
   "bpm": 92,
   "timeSignature": "4/4",

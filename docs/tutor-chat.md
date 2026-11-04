@@ -3,7 +3,7 @@
 The adult learner's Ask panel shares the open score with the tutor: pitches, rhythms,
 suggested fingering, printed and played bar numbers, a rendered score excerpt, the current
 guide/player state, the active lesson, saved lesson progress and recent grading evidence.
-When the open piece came from a book, a chip above the question box ("Learning the Code Book 1 · page 47") shows that the page's picture and relevant page text are sent too; its ✕ leaves the page out and "Add page 47" puts it back.
+When the open piece came from a book, a chip above the question box ("Beyer Op 101 · page 24") shows that the page's picture and relevant page text are sent too; its ✕ leaves the page out and "Add page 24" puts it back.
 Only the active learner's history is used. The tutor remembers a stated musical goal in
 that learner's settings.
 

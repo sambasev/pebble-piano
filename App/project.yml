@@ -29,7 +29,7 @@ targets:
       - path: ../Sources/PianoPad
       - path: Resources/Assets.xcassets
       # Copied into the bundle as folders, so PlaySession finds Books/… and Examples/…
-      # under Bundle.main.resourceURL. Remove the Books entry to ship without the book.
+      # under Bundle.main.resourceURL. Remove the Books entry to ship without the books.
       - path: ../Books
         type: folder
         buildPhase: resources

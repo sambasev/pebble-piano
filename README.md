@@ -29,7 +29,7 @@ swift run PebblePiano
 ```
 
 Or open `Package.swift` in Xcode, choose the **PebblePiano** scheme and press ⌘R. A clean build
-takes about 30 seconds on an M-series Mac. `swift test` runs the 743 unit tests (none need
+takes about 30 seconds on an M-series Mac. `swift test` runs the 741 unit tests (none need
 the network).
 
 **Add the Meta key:** in the app, open the **⋯** menu → **AI settings…** and paste it. It is
@@ -38,7 +38,7 @@ saved in the Keychain, never in the repo. For the command line and tests you can
 
 **Try it in two minutes:**
 
-1. Open **Learn** and start the first lesson, or stay on **Practice** with the bundled book page.
+1. Open **Learn** and start the first lesson, or stay on **Practice** with Ode to Joy.
 2. Play the passage (press **Space** first to hear it). Play a wrong note on purpose.
 3. Read the grade, then ask the tutor in the chat panel what went wrong.
 
@@ -80,17 +80,17 @@ This was built quickly, and these are the rough edges we know about:
 - **Grading:** tempo is fitted for the whole take, so steadily slowing down counts as rhythm
   error. More in *Known limits* below.
 - **The sandboxed TestFlight build:** importing a PDF from Books works, but the older
-  developer command **Choose Book…** (a hand-made `.annotations.json` file) only works for the
-  bundled book.
+  developer command **Choose Book…** (a hand-made `.annotations.json` file) doesn't, because the
+  sandbox can't open the PDF beside it. Use PDF import there instead.
 
 ## Bundled content and licences
 
 Copyright © 2026 Sambasevam Shanmugam. All rights reserved, except for the third-party material
 listed in [CREDITS.md](CREDITS.md), which keeps its own licence.
 
-The books, scans and font in this repo come from other people and keep their own licences:
-*Learning the Code, Book 1* (CC BY-SA 4.0 / GNU FDL), Beyer's Op. 101 (public domain) and the
-Bravura font (SIL OFL). See [CREDITS.md](CREDITS.md). No backing-track audio is bundled.
+Two things in this repo come from other people and keep their own licences: Beyer's Op. 101
+(public domain) and the Bravura font (SIL OFL). The *Pebble Piano Starter Book* was written for
+this project. See [CREDITS.md](CREDITS.md). No backing-track audio is bundled.
 
 ---
 
@@ -228,7 +228,7 @@ and press ⌘R. A window opens with an on-screen keyboard:
 - **Open any MIDI file** (⋯ menu → Open MIDI file…). It is transcribed into a score and engraved in
   the window, and the playhead waits on each chord until you play it (wait mode), with green notes for
   what to play next. **Export MusicXML…** saves the transcription for MuseScore, Dorico or Finale.
-- It opens the bundled book page by default. Use the passage picker for another passage, the ⋯ menu
+- It opens Ode to Joy by default. Use the passage picker for another passage, the ⋯ menu
   for a MIDI file, and the rubric picker for Beginner, Intermediate or your own rubric file.
 - Computer-keyboard notes play through macOS's piano sound (**Sound** toggle). MIDI notes don't,
   since your piano makes its own. **Rescan MIDI** picks up a keyboard connected after launch.
@@ -424,7 +424,7 @@ The quick way: `App/ship.sh` does steps 1 and 4 (merge, backing tracks, project,
 1. **Generate the project:** `brew install xcodegen`, then
    `cd App && PIANOPAD_TEAM=<team ID> xcodegen && open PebblePiano.xcodeproj`
    (team ID: developer.apple.com → Account → Membership details).
-2. **Smoke-test the sandbox:** run the **PianoPadApp** scheme (⌘R). Check the book and examples
+2. **Smoke-test the sandbox:** run the **PianoPadApp** scheme (⌘R). Check the books and examples
    load, MIDI input works, the microphone prompt appears and the mic grades notes, and importing a
    backing track still plays after quitting and relaunching.
 3. **Create the app record:** App Store Connect → Apps → + → New App → macOS, bundle ID
@@ -448,4 +448,4 @@ Differences in the packaged app:
   `defaults write com.sambasev.perfectpiano RecordMicDebug -bool YES`; they land in
   `~/Library/Containers/com.sambasev.perfectpiano/Data/Music/PianoPad Mic`.
 - **Choose Book…** can open only the annotations file the user picks, not the PDF beside it, so
-  only the bundled book works.
+  it doesn't work there; import the PDF from Books instead.

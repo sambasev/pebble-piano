@@ -35,6 +35,6 @@ and repeats, and draw the book from that instead of the PDF image.
 
 ### 3. Recolour the printed noteheads in the page image (alternative)
 
-PianoPad already knows where each printed note is (the green circles line up with every note on
-p. 29). Turn that notehead's dark pixels green in the page image, so the book looks as printed with
+PianoPad already knows where each printed note is (the green circles line up with every printed
+note). Turn that notehead's dark pixels green in the page image, so the book looks as printed with
 real green notes. Moderate work; the staff line through a notehead may pick up a little green.

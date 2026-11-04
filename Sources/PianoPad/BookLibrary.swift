@@ -11,7 +11,7 @@ struct LibraryBook: Identifiable, Hashable {
     let bundled: Bool
     var title: String { url.deletingPathExtension().lastPathComponent }
 
-    /// A file name made readable: "learning-the-code-book1" → "Learning the Code Book 1".
+    /// A file name made readable: "beyer-vorschule-book1" → "Beyer Vorschule Book 1".
     /// A name that already has spaces is kept as it is.
     static func displayTitle(_ name: String) -> String {
         let name = (name as NSString).pathExtension.lowercased() == "pdf" ? (name as NSString).deletingPathExtension : name

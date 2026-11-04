@@ -792,10 +792,6 @@ final class PlaySession: ObservableObject {
                 }
         }
         rebuildPieces()
-        if let annotations = roots.map({ $0.appendingPathComponent("Books/learning-the-code-book1.annotations.json") })
-            .first(where: { fm.fileExists(atPath: $0.path) }) {
-            loadBook(annotations)
-        }
         if let ode = roots.map({ $0.appendingPathComponent("Examples/ode-to-joy-c.mid") })
             .first(where: { fm.fileExists(atPath: $0.path) }) {
             loadReference(ode)

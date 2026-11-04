@@ -60,7 +60,6 @@ Prepare a fixture folder and a manifest containing each file's purpose, expected
 | New `e2e-eight-notes.mid` and notes-only rubric | Two bars of quarter notes C4 D4 E4 F4 G4 A4 B4 C5, 4/4; exact note-classification assertions from on-screen clicks without requiring a rhythm pass |
 | `Examples/take-clean.mid`, `take-wrong-note.mid`, `take-rushed.mid`, `take-skipped-with-warmup.mid` | Existing known takes; useful for controlled MIDI replay and grader cross-checks |
 | `Examples/ode-to-joy-c.mid`, `mary-had-a-little-lamb.mid` | Longer score, scrolling, practice, and tutor journeys |
-| `Books/learning-the-code-book1.pdf` and annotations; `Examples/ltc-p29-rh-seconds.mid` | Bundled book rendering, passage selection, repeats, and overlays |
 | `Lessons/unit1/` | Explain, concept, wait, listen, timed, and song-challenge paths |
 | New short chord/repeated-note MIDI | Chord completeness, extra notes, releases, and repeated pitch handling |
 | New grand-staff/accidentals/rests/ties/range-extremes MIDI | Notation and hit-test coverage |

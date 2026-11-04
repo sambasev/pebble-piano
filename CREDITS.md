@@ -2,17 +2,6 @@
 
 Pebble Piano bundles the following works by others. Each keeps its own licence.
 
-## Learning the Code, Book 1
-
-- **Files:** `Books/learning-the-code-book1.pdf`, and the passage annotations and reference MIDI
-  made from it (`Books/learning-the-code-book1.annotations.json`, `Examples/ltc-*.mid`).
-- **Author:** James L. King III, 2003.
-- **Source:** IMSLP.
-- **Licence:** Creative Commons Attribution-ShareAlike 4.0 International (as listed on IMSLP);
-  originally released under the GNU Free Documentation License 1.1 or later. The PDF is
-  unmodified. The annotations and MIDI made from it are shared under the same CC BY-SA 4.0
-  licence. See `LICENSES/CC-BY-SA-4.0.txt`.
-
 ## Beyer, Vorschule im Klavierspiel, Op. 101
 
 - **Files:** `Books/F_Beyer-Op101.pdf`, and the page images and crops in `Fixtures/beyer/`.

@@ -77,20 +77,4 @@ final class BookAnnotationsTests: XCTestCase {
         let report = Grader().grade(reference: seq(bar + bar), take: seq(take))
         XCTAssertEqual(passage().measuresWithMistakes(in: report), [2])
     }
-
-    func testDecodesTheBundledAnnotations() throws {
-        let url = URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("Books/learning-the-code-book1.annotations.json")
-        let book = try BookAnnotations.load(url: url)
-        XCTAssertEqual(book.pdf, "learning-the-code-book1.pdf")
-        let p29 = try XCTUnwrap(book.passages.first)
-        XCTAssertEqual(p29.page, 29)
-        XCTAssertEqual(p29.measures.count, 4)
-        XCTAssertEqual(p29.order.count, 8)
-        // Every measure box sits inside the passage box.
-        for m in p29.measures {
-            XCTAssertEqual(p29.box.union(m.box), p29.box)
-        }
-    }
 }

@@ -427,52 +427,6 @@ final class StaffDetectionTests: XCTestCase {
         XCTAssertEqual(p.y(ofStep: 8), 132)
         XCTAssertEqual(p.y(ofStep: -2), 92) // ledger line below
     }
-
-    /// Optional check against a real book page. Render one with
-    ///   pdftoppm -f 29 -l 29 -r 216 -gray Books/learning-the-code-book1.pdf page
-    /// and set PIANO_PAGE_PGM to the .pgm path; skipped otherwise.
-    func testRealBookPage() throws {
-        guard let path = ProcessInfo.processInfo.environment["PIANO_PAGE_PGM"] else { throw XCTSkip("PIANO_PAGE_PGM not set") }
-        let image = try XCTUnwrap(readPGM(URL(fileURLWithPath: path)))
-        let annotations = try BookAnnotations.load(url: URL(fileURLWithPath: #filePath)
-            .deletingLastPathComponent().deletingLastPathComponent().deletingLastPathComponent()
-            .appendingPathComponent("Books/learning-the-code-book1.annotations.json"))
-        let passage = annotations.passages[0]
-        let scale = Double(image.width) / 612 // US Letter width in points
-        for m in passage.measures {
-            let staves = StaffLineDetector.detect(
-                in: image,
-                x0: Int((m.box.x + 0.1 * m.box.width) * scale), x1: Int((m.box.maxX - 0.1 * m.box.width) * scale),
-                y0: Int((792 - m.box.maxY) * scale), y1: Int((792 - m.box.y) * scale))
-            XCTAssertEqual(staves.count, 1, "measure \(m.number)")
-            if let staff = staves.first {
-                // The book's staff lines are about 15 pt apart, and the staff sits inside the measure box.
-                XCTAssertEqual(staff.spacing / scale, 15, accuracy: 2, "measure \(m.number)")
-                let bottomLineY = 792 - staff.bottom / scale
-                XCTAssertGreaterThan(bottomLineY, m.box.y, "measure \(m.number)")
-                XCTAssertLessThan(bottomLineY + 4 * staff.spacing / scale, m.box.maxY, "measure \(m.number)")
-            }
-        }
-    }
-
-    private func readPGM(_ url: URL) -> GrayImage? {
-        guard let data = try? Data(contentsOf: url) else { return nil }
-        let bytes = [UInt8](data)
-        var fields: [String] = []
-        var i = 0
-        while fields.count < 4, i < bytes.count {
-            while i < bytes.count, bytes[i] == 0x20 || bytes[i] == 0x0A || bytes[i] == 0x0D || bytes[i] == 0x09 { i += 1 }
-            var token = ""
-            while i < bytes.count, !(bytes[i] == 0x20 || bytes[i] == 0x0A || bytes[i] == 0x0D || bytes[i] == 0x09) {
-                token.append(Character(UnicodeScalar(bytes[i])))
-                i += 1
-            }
-            fields.append(token)
-        }
-        i += 1
-        guard fields.first == "P5", let w = Int(fields[1]), let h = Int(fields[2]), bytes.count - i >= w * h else { return nil }
-        return GrayImage(width: w, height: h, pixels: Array(bytes[i..<(i + w * h)]))
-    }
 }
 
 final class AnnotationStaffTests: XCTestCase {
