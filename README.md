@@ -144,7 +144,7 @@ Checks: `swift test --filter 'Ear|LessonEngine|LessonModel|UnitLoader|PracticeSe
 The lesson map also has a **Sight reading path** (between the piano lessons and ear
 training): 15 pages over five levels. They cover the staff and clefs, Middle C, treble
 clef notes, bass clef notes, note values (whole, half, dotted half, quarter, eighth) and
-rests. Each page is a short lesson, with the stage's keys lit, followed by a ten-question
+rests. Each page is a short lesson, with the stage's keys lit, followed by a five-question
 quiz. Every question shows a single staff, drawn by the score renderer. Note-name
 questions can be answered with a letter button or by playing the exact key (MIDI, mouse,
 musical typing or mic; the mic has to hear the note twice). Answering turns the symbol

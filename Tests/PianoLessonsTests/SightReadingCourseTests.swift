@@ -6,7 +6,7 @@ final class SightReadingCourseTests: XCTestCase {
     func testBlockDecodesDefaultsAndRoundTrips() throws {
         let block = try JSONDecoder().decode(Block.self, from: Data(#"{"type":"sightReading","level":2,"stage":1}"#.utf8))
         guard case .sightReading(let config) = block else { return XCTFail("Missing sight-reading quiz") }
-        XCTAssertEqual(config.questions, 10)
+        XCTAssertEqual(config.questions, 5)
         XCTAssertEqual(config.passAccuracy, 0.8)
         XCTAssertTrue(block.isGraded)
         XCTAssertFalse(block.awardsStars)

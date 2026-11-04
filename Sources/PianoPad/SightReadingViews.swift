@@ -12,12 +12,17 @@ final class SightReadingSession: ObservableObject {
     /// An answer went in: right or wrong.
     var onAnswered: ((Bool) -> Void)?
     var onFinished: ((SightQuizResult) -> Void)?
+    /// A right answer moves on by itself after this long; a wrong one waits for Next,
+    /// so the explanation can be read.
+    static let advanceDelay = 1.0
+    private var pendingAdvance: DispatchWorkItem?
 
     var question: SightQuestion? { quiz?.question }
     var result: SightQuizResult? { quiz?.result }
     var canAnswer: Bool { quiz?.question != nil && quiz?.response == nil }
 
     func start(_ config: Block.SightReading) {
+        cancelAdvance()
         self.config = config
         examples = SightQuestionGenerator.examples(stage: config.stageID)
         quiz = SightQuiz(questions: SightQuestionGenerator.quiz(stage: config.stageID, seed: .random(in: 0...UInt64.max),
@@ -29,6 +34,7 @@ final class SightReadingSession: ObservableObject {
     }
 
     func stop() {
+        cancelAdvance()
         quiz = nil
         config = nil
         onAnswered = nil
@@ -37,20 +43,39 @@ final class SightReadingSession: ObservableObject {
 
     func answer(_ id: String?) {
         guard quiz?.submit(answerID: id) == true else { return }
-        onAnswered?(quiz?.response?.isCorrect ?? false)
+        answered()
     }
 
     /// A key played: answers a note-name question. False when the question doesn't take one.
     @discardableResult
     func play(_ pitch: Int) -> Bool {
         guard quiz?.submit(playedPitch: pitch) == true else { return false }
-        onAnswered?(quiz?.response?.isCorrect ?? false)
+        answered()
         return true
     }
 
     func next() {
+        cancelAdvance()
         guard quiz?.next() == true else { return }
         if let result { onFinished?(result) }
+    }
+
+    private func answered() {
+        let correct = quiz?.response?.isCorrect ?? false
+        onAnswered?(correct)
+        guard correct, let index = quiz?.index else { return }
+        cancelAdvance()
+        let work = DispatchWorkItem { [weak self] in
+            guard let self, self.quiz?.index == index, self.quiz?.response != nil else { return }
+            self.next()
+        }
+        pendingAdvance = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.advanceDelay, execute: work)
+    }
+
+    private func cancelAdvance() {
+        pendingAdvance?.cancel()
+        pendingAdvance = nil
     }
 }
 

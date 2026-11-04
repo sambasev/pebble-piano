@@ -144,7 +144,7 @@ public enum Block: Equatable, Sendable {
         public var stage: Int
         public var questions: Int
         public var passAccuracy: Double
-        public init(level: Int, stage: Int, questions: Int = 10, passAccuracy: Double = 0.8) {
+        public init(level: Int, stage: Int, questions: Int = 5, passAccuracy: Double = 0.8) {
             self.level = level; self.stage = stage; self.questions = questions; self.passAccuracy = passAccuracy
         }
         public var stageID: SightStageID { SightStageID(level: level, stage: stage) }
@@ -153,7 +153,7 @@ public enum Block: Equatable, Sendable {
             let c = try decoder.container(keyedBy: CodingKeys.self)
             level = try c.decode(Int.self, forKey: .level)
             stage = try c.decode(Int.self, forKey: .stage)
-            questions = try c.decodeIfPresent(Int.self, forKey: .questions) ?? 10
+            questions = try c.decodeIfPresent(Int.self, forKey: .questions) ?? 5
             passAccuracy = try c.decodeIfPresent(Double.self, forKey: .passAccuracy) ?? 0.8
         }
     }

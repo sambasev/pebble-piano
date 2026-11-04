@@ -1,7 +1,7 @@
 import Foundation
 import PianoGraderCore
 
-/// The reading course: one page per stage, a lesson then a ten-question quiz.
+/// The reading course: one page per stage, a lesson then a five-question quiz.
 public enum SightReadingCourse {
     public static let unitID = "sight-reading"
 
