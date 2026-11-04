@@ -82,13 +82,16 @@ extension PlaySession {
                 self.tutorChatRequestTurn = nil
                 self.tutorChatTask = nil
                 if let answer {
-                    // A grown-up's question gets an answer only; a child's, only the child actions.
-                    let actions = context.audience == .grownUp ? []
-                        : context.audience == .child ? reply.actions.filter { TutorChildPrompts.actions.contains($0.kind) }.prefix(2).map { $0 }
-                        : Array(reply.actions.prefix(TutorChatReply.actionLimit))
-                    if let refused = self.runTutorChatPlan(actions, scoreID: scoreID) {
+                    let actions = Self.tutorChatAllowedActions(reply.actions, audience: context.audience)
+                    if let refused = self.runTutorChatPlan(actions, scoreID: scoreID)
+                        ?? Self.tutorChatDroppedAction(reply.actions, kept: actions, audience: context.audience) {
                         // The answer promised something that didn't happen: ask for an honest one.
                         self.reviseTutorChat(answer, refused: refused, client: client, context: context)
+                        return
+                    }
+                    if reply.actions.isEmpty, context.audience != .grownUp, TutorChatReply.promisesAction(reply.reply) {
+                        // "Let me play it" with no action: ask once for the action that does it.
+                        self.retryTutorChatMissingAction(answer, client: client, context: context, scoreID: scoreID)
                         return
                     }
                 }
@@ -104,6 +107,58 @@ extension PlaySession {
                 if !Task.isCancelled { self.tutorChatNote = "Couldn't reach your tutor just now. Try again in a moment." }
                 self.flushTutorChatObservation()
             }
+        }
+    }
+
+    /// The actions a reply may run: a grown-up's question gets an answer only; a child's, only
+    /// the child actions.
+    static func tutorChatAllowedActions(_ actions: [TutorChatAction],
+                                        audience: TutorChatContext.Audience) -> [TutorChatAction] {
+        switch audience {
+        case .grownUp: return []
+        case .child: return Array(actions.filter { TutorChildPrompts.actions.contains($0.kind) }.prefix(2))
+        case .adult: return Array(actions.prefix(TutorChatReply.actionLimit))
+        }
+    }
+
+    /// The first action the reply asked for that was left out, as a refusal; nil when none was.
+    static func tutorChatDroppedAction(_ asked: [TutorChatAction], kept: [TutorChatAction],
+                                       audience: TutorChatContext.Audience) -> TutorChatRefusal? {
+        // A grown-up's answer is a progress summary: a stray action there promised nothing.
+        guard audience != .grownUp, kept.count < asked.count,
+              let dropped = asked.first(where: { !kept.contains($0) }) else { return nil }
+        let reason = audience == .child
+            ? "With a child, the tutor can only play a few notes, light up keys, change the speed or stop."
+            : "Only \(TutorChatReply.actionLimit) steps run from one reply."
+        return TutorChatRefusal(action: dropped.summary, reason: reason)
+    }
+
+    /// The reply promised to play or show something but carried no action. One more call asks
+    /// for the action (or a reply that stops promising it); its actions run as usual.
+    func retryTutorChatMissingAction(_ answer: UUID, client: any TutorChatClient,
+                                     context: TutorChatContext, scoreID: UUID) {
+        let generation = UUID()
+        tutorChatGeneration = generation
+        tutorChatBusy = true
+        let history = tutorChat.history
+        tutorChatTask = Task { @MainActor [weak self] in
+            let reply = try? await client.reply(history: history, context: context,
+                                                question: TutorChatInstructions.missingAction)
+            guard let self, !Task.isCancelled, self.tutorChatGeneration == generation else { return }
+            self.tutorChatBusy = false
+            self.tutorChatTask = nil
+            if let reply, self.tutorChat.revise(answer, with: reply) {
+                let actions = Self.tutorChatAllowedActions(reply.actions, audience: context.audience)
+                if let refused = self.runTutorChatPlan(actions, scoreID: scoreID)
+                    ?? Self.tutorChatDroppedAction(reply.actions, kept: actions, audience: context.audience) {
+                    self.reviseTutorChat(answer, refused: refused, client: client, context: context)
+                    return
+                }
+            } else {
+                self.tutorChat.observe("Nothing was played. Ask again, for example \"Play bars 1–2\".")
+            }
+            self.saveTutorChat()
+            self.flushTutorChatObservation()
         }
     }
 

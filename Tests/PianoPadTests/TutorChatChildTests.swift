@@ -73,6 +73,10 @@ final class TutorChatChildTests: XCTestCase {
         await settle(session)
         XCTAssertNil(session.tutor, "practicePassage isn't a child action")
         XCTAssertEqual(session.tutorChatHighlightKeys, [60])
+        // The reply promised more than ran, so it's rewritten honestly.
+        XCTAssertEqual(fake.calls.count, 2)
+        XCTAssertTrue(fake.calls[1].question.contains("could not do what your last reply said"), fake.calls[1].question)
+        XCTAssertEqual(session.tutorChat.turns.last { $0.role == .tutor }?.text, "Nearly! Try C again.")
         XCTAssertTrue(session.applyTutorChatAction(.init(kind: .switchInput, input: "computerKeyboard")).contains("adult learner"))
     }
 

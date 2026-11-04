@@ -89,6 +89,14 @@ public struct TutorChatReply: Codable, Equatable, Sendable {
         try c.encode(suggestions, forKey: .suggestions)
     }
 
+    /// Whether reply text promises something the player does ("I'll play bars 2–3", "Let me
+    /// show you", "Listen!"), so a reply saying so without an action can be caught.
+    public static func promisesAction(_ text: String) -> Bool {
+        let lower = text.lowercased().replacingOccurrences(of: "\u{2019}", with: "'")
+        let pattern = #"\b(i'll|i will|i'm going to|let me)\s+(now\s+)?(play|demonstrate|highlight|slow|speed|loop|light up)\b|\blet's\s+(listen|hear)\b|\blisten( now| closely| carefully)?\s*!|\bhere'?s how it sounds\b"#
+        return lower.range(of: pattern, options: .regularExpression) != nil
+    }
+
     /// Follow-ups as they're shown: trimmed, short, distinct, at most `suggestionLimit`.
     public static func clean(suggestions: [String]) -> [String] {
         var seen = Set<String>()
@@ -364,6 +372,15 @@ public enum TutorChatInstructions {
         """
     }
 
+    /// Sent when the last reply said the tutor would play or show something but carried no
+    /// action, so the tutor can add the action or stop promising it.
+    public static let missingAction = """
+    Your last reply told the learner you would play, show or start something, but it \
+    included no action, so nothing happened. Reply again with the same answer and the \
+    action(s) that do what it says. If no action can, rewrite the reply so it doesn't promise \
+    it, with "actions" [].
+    """
+
     public static let refusal = "I can only help with music: your lessons, this book, playing the piano, theory, and anything else about music. Ask me something about that and I'll gladly help."
 
     public static let child = """
@@ -442,6 +459,9 @@ public enum TutorChatInstructions {
     play bar 3 slowly, then it's your turn"), never that you did it ("I played it").
     When the learner asks to hear something, play it with listenPassage or playNotes even
     mid-take: the app sets the unfinished take aside. Never tell them to grade first.
+    In a Learn lesson listenPassage only plays the bars; the lesson keeps its own exercise.
+    Never promise anything ("I'll play bars 2–3", "Listen!") without including the action
+    that does it in the same reply; if no action can do it, don't offer it.
     For an automatic graded-take event while coaching is on, say what went well, name the
     one thing to work on in plain words, and select the next exercise, continueLesson, or
     stop when the goal is reached. Never claim

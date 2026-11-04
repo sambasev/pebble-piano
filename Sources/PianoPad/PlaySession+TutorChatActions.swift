@@ -239,6 +239,22 @@ extension PlaySession {
             return ran(tutorChatAwaitingStart ? "The next step is ready. Press Start practice when you're ready for the count-in."
                 : "Started \(tutorAttempt?.title ?? "the demonstration") for \(tutorTitle).")
 
+        case .listenPassage where isInLesson:
+            // A Learn lesson keeps its own exercise: the bars are only played, not set up to practise.
+            guard let full = tutorFullReference ?? reference, !full.notes.isEmpty else { return "No music is open to play." }
+            guard let start = action.fromBar, let end = action.toBar, start >= 1, end >= start,
+                  end - start < 16, let played = tutorChatPlayedRange(start...end, full: full) else {
+                return "Those bars aren't in this lesson's music. Nothing was played."
+            }
+            let speed = action.tempoPercent ?? 60
+            guard speed.isFinite, (25...100).contains(speed) else { return "Choose a speed from 25% to 100%. Nothing was played." }
+            let hand: Hand? = full.hasTwoHands && action.hand != .both ? action.hand : nil
+            let music = full.measures(played).hand(hand)
+            guard auditionSequence(music, speed: speed / 100, onFinish: { [weak self] in self?.tutorChatDidListen() }) else {
+                return "The piano couldn't play just now. Check that sound output is available."
+            }
+            return ran("Playing bars \(start)–\(end), \(hand?.rawValue ?? "both hands"), \(Int(speed))%. The lesson carries on when it ends.")
+
         case .practicePassage, .listenPassage:
             guard !isInLesson, let full = tutorFullReference ?? reference, !full.notes.isEmpty else {
                 return "Open a piece in Practice to practise a specific passage. Finish or leave the Learn lesson first."

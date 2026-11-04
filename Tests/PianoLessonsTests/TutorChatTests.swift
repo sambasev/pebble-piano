@@ -66,6 +66,17 @@ final class TutorChatTests: XCTestCase {
         XCTAssertTrue(TutorVoice.plainLanguage.contains("Unless the learner asks for numbers"))
     }
 
+    func testPromisesToPlayAreRecognised() {
+        for text in ["Let me play bars 2–3 for you.", "I’ll play it slowly first.", "I'm going to slow it down.",
+                     "Listen!", "Let's listen to the left hand.", "Here's how it sounds."] {
+            XCTAssertTrue(TutorChatReply.promisesAction(text), text)
+        }
+        for text in ["Let me show you a trick: count out loud.", "Listen for the long notes.",
+                     "Let's start by counting.", "You played bar 2 well.", "Try playing it hands separately."] {
+            XCTAssertFalse(TutorChatReply.promisesAction(text), text)
+        }
+    }
+
     func testBookSearchFindsTheMatchingPages() {
         let pages = ["Middle C and the treble clef", "Staccato: play the notes short and detached",
                      "Legato means smooth", "Staccato and legato together"]

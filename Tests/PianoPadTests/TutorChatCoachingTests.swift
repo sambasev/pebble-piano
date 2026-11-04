@@ -534,6 +534,52 @@ final class TutorChatCoachingTests: XCTestCase {
         session.pauseTutorChatCoaching(); session.endTutoring()
     }
 
+    /// "Let me play it" with no action: the app asks once for the action, and it runs.
+    @MainActor func testAPromiseWithoutAnActionIsAskedForItsAction() async throws {
+        let session = try player()
+        let chat = CoachingChat()
+        chat.replies = [
+            TutorChatReply(onTopic: true, reply: "Let me play bars 1–2 for you slowly."),
+            TutorChatReply(onTopic: true, reply: "Let me play bars 1–2 for you slowly.",
+                           actions: [.init(kind: .listenPassage, fromBar: 1, toBar: 2, tempoPercent: 50)]),
+        ]
+        session.tutorChatClient = chat
+        session.sendTutorChat("Can you play bars 1 and 2?")
+        await settle(session)
+        XCTAssertEqual(chat.calls.count, 2)
+        XCTAssertEqual(chat.calls[1].1, TutorChatInstructions.missingAction)
+        XCTAssertTrue(session.tutorChatActionResults.contains { $0.contains("bars 1–2") }, session.tutorChatActionResults.joined())
+        XCTAssertEqual(session.tutorChat.turns.filter { $0.role == .tutor }.count, 1)
+        session.stopAudition(); session.pauseTutorChatCoaching(); session.endTutoring()
+    }
+
+    /// Plain advice isn't mistaken for a promise: no second call.
+    @MainActor func testAdviceWithoutAPromiseNeedsNoAction() async throws {
+        let session = try player()
+        let chat = CoachingChat()
+        chat.replies = [TutorChatReply(onTopic: true, reply: "Let me show you a trick: count 1-and-2 out loud.")]
+        session.tutorChatClient = chat
+        session.sendTutorChat("How do I count this?")
+        await settle(session)
+        XCTAssertEqual(chat.calls.count, 1)
+    }
+
+    /// In a Learn lesson the tutor can still play bars; the lesson's own exercise stays.
+    @MainActor func testListeningInALessonPlaysTheBars() throws {
+        let session = try player()
+        let file = sandbox.folder.appendingPathComponent("Eight bars.mid")
+        session.loadLessonBlock(midi: file, piece: .passage("lesson"), mode: .wait, tempo: nil, countInBeats: 4)
+        XCTAssertTrue(session.isInLesson)
+        let notes = session.reference?.notes.count
+        let result = session.applyTutorChatAction(.init(kind: .listenPassage, fromBar: 1, toBar: 1, tempoPercent: 60))
+        XCTAssertFalse(result.contains("Open a piece in Practice"), result)
+        try XCTSkipUnless(session.isAuditioning, "No piano audio output is available: \(result)")
+        XCTAssertTrue(result.contains("Playing bars 1–1"), result)
+        XCTAssertEqual(session.reference?.notes.count, notes, "The lesson's music is left as it was")
+        XCTAssertNil(session.tutor)
+        session.stopAudition()
+    }
+
     @MainActor func testStockLessonOpensWithoutLosingTheConversation() async throws {
         let session = try player()
         session.sendTutorChat("Teach me the basics")

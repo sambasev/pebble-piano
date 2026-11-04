@@ -1567,6 +1567,22 @@ final class PlaySession: ObservableObject {
         return isAuditioning
     }
 
+    /// A tutor's demonstration of some bars (`MIDISequence.measures`) at `speed` (1 = written
+    /// tempo), lighting their keys. The reference and score are left as they were.
+    @discardableResult
+    func auditionSequence(_ music: MIDISequence, speed: Double, onFinish: (() -> Void)? = nil) -> Bool {
+        let leadIn = 0.25, speed = max(0.1, speed)
+        let start = music.notes.map(\.onset).min() ?? 0
+        let notes = music.notes.map { n in
+            PianoSynth.SequenceNote(pitch: n.pitch, velocity: n.velocity,
+                                    start: leadIn + (n.onset - start) / speed,
+                                    end: leadIn + max(n.offset - start, n.onset - start + 0.05) / speed)
+        }
+        guard !notes.isEmpty else { return false }
+        audition(notes, clock: nil, steps: [], onFinish: onFinish)
+        return isAuditioning
+    }
+
     /// Plays notes through the built-in piano with the microphone muted, lighting their keys.
     /// With a clock, the playhead follows the music, stepping between `steps` (note onsets).
     private func audition(_ notes: [PianoSynth.SequenceNote], clock: AuditionClock?, steps: [Double],
