@@ -12,7 +12,7 @@ let package = Package(
         .library(name: "PianoAI", targets: ["PianoAI"]),
         .library(name: "PianoCatalog", targets: ["PianoCatalog"]),
         .executable(name: "grade", targets: ["grade"]),
-        .executable(name: "PianoPad", targets: ["PianoPad"]),
+        .executable(name: "PebblePiano", targets: ["PianoPad"]),
         .library(name: "EarTrainingUI", targets: ["EarTrainingUI"]),
         .library(name: "EarTrainingIntegration", targets: ["EarTrainingIntegration"]),
         .executable(name: "EarTrainer", targets: ["EarTrainer"]),
@@ -74,7 +74,7 @@ let package = Package(
             name: "PianoPad",
             dependencies: ["PianoGraderCore", "PianoGraderIO", "PianoPadState", "PianoLessons", "PianoAI", "EarTrainingUI", "EarTrainingIntegration", "PianoCatalog"],
             // A bare executable has no Info.plist, so macOS would name the app after the binary
-            // ("PianoPad") in the menu bar. Embed one that only sets the display name.
+            // ("PebblePiano") in the menu bar. Embed one that only sets the display name.
             linkerSettings: [.unsafeFlags(["-Xlinker", "-sectcreate", "-Xlinker", "__TEXT",
                                            "-Xlinker", "__info_plist", "-Xlinker", "Support/PianoPad-Info.plist"])]
         ),

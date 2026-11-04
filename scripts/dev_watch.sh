@@ -21,21 +21,21 @@ snapshot() {  # newest modification time of anything that affects the build
 
 stop_app() {
     [ -n "$app_pid" ] && kill "$app_pid" 2>/dev/null && wait "$app_pid" 2>/dev/null
-    pkill -x PianoPad 2>/dev/null
+    pkill -x PebblePiano 2>/dev/null
     app_pid=""
 }
 
 build_and_run() {
     touch "$stamp"
     echo "── $(date '+%H:%M:%S') building $(git -C "$root" rev-parse --abbrev-ref HEAD 2>/dev/null) in $root" | tee "$log"
-    if swift build --product PianoPad 2>&1 | tee -a "$log" | grep -E "error:|warning: unre|Compiling|Build complete" | grep -v "^\[.*Compiling" ; then :; fi
+    if swift build --product PebblePiano 2>&1 | tee -a "$log" | grep -E "error:|warning: unre|Compiling|Build complete" | grep -v "^\[.*Compiling" ; then :; fi
     if grep -q "error:" "$log"; then
         echo "✗ BUILD FAILED $(date '+%H:%M:%S') — the app still running is the previous build" | tee -a "$log"
         osascript -e 'display notification "Build failed — see .build/dev-watch.log" with title "Pebble Piano"' 2>/dev/null
         return
     fi
     stop_app
-    "$root/.build/debug/PianoPad" >>"$root/.build/dev-watch.app.log" 2>&1 &
+    "$root/.build/debug/PebblePiano" >>"$root/.build/dev-watch.app.log" 2>&1 &
     app_pid=$!
     echo "✓ BUILD OK $(date '+%H:%M:%S') — PianoPad restarted (pid $app_pid)" | tee -a "$log"
 }

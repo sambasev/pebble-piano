@@ -17,7 +17,7 @@ from typing import Optional, Dict, Any, List
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 DRIVER_BIN = REPO_ROOT / "scripts" / "cu" / "driver"
-APP_BIN = REPO_ROOT / ".build" / "debug" / "PianoPad"
+APP_BIN = REPO_ROOT / ".build" / "debug" / "PebblePiano"
 DEFAULT_RUNS_DIR = REPO_ROOT / "test-runs"
 
 
@@ -44,7 +44,7 @@ class CUHarness:
 
         if not APP_BIN.exists():
             print("Building PianoPad binary...")
-            subprocess.run(["swift", "build", "--product", "PianoPad"], cwd=str(REPO_ROOT), check=True)
+            subprocess.run(["swift", "build", "--product", "PebblePiano"], cwd=str(REPO_ROOT), check=True)
 
         if self.preseed_learner:
             self._create_preseeded_learner(self.preseed_learner)
@@ -88,7 +88,7 @@ class CUHarness:
     def launch_app(self, timeout_sec: float = 12.0) -> bool:
         """Launches PianoPad isolated to the sandbox directory."""
         # Ensure no old process is running
-        subprocess.run(["pkill", "-x", "PianoPad"], stderr=subprocess.DEVNULL)
+        subprocess.run(["pkill", "-x", "PebblePiano"], stderr=subprocess.DEVNULL)
         time.sleep(0.5)
 
         env = os.environ.copy()
@@ -128,7 +128,7 @@ class CUHarness:
                 self.app_process.kill()
             self.app_process = None
 
-        subprocess.run(["pkill", "-x", "PianoPad"], stderr=subprocess.DEVNULL)
+        subprocess.run(["pkill", "-x", "PebblePiano"], stderr=subprocess.DEVNULL)
 
         # Save timeline JSON
         with open(self.run_dir / "timeline.json", "w") as f:

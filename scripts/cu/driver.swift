@@ -16,7 +16,7 @@ enum DriverError: Error {
 final class CUDriver {
     static let shared = CUDriver()
 
-    var targetAppName = "PianoPad"
+    var targetAppName = "PebblePiano"
     var cachedWindowID: CGWindowID?
     var cachedWindowBounds: CGRect?
 
@@ -29,7 +29,7 @@ final class CUDriver {
         let windowList = CGWindowListCopyWindowInfo([.optionOnScreenOnly, .excludeDesktopElements], kCGNullWindowID) as? [[String: Any]] ?? []
         for w in windowList {
             let owner = w[kCGWindowOwnerName as String] as? String ?? ""
-            if owner.contains("PianoPad") || owner.contains("Pebble Piano") {
+            if owner.contains("PebblePiano") || owner.contains("Pebble Piano") || owner.contains("PianoPad") {
                 if let idNum = w[kCGWindowNumber as String] as? NSNumber,
                    let boundsDict = w[kCGWindowBounds as String] as? [String: Any],
                    let bounds = CGRect(dictionaryRepresentation: boundsDict as CFDictionary) {

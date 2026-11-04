@@ -24,7 +24,7 @@ those measurements: what went wrong, which bar to drill and what to practise nex
 
 ```sh
 git clone https://github.com/sambasev/interactive-piano.git && cd interactive-piano
-swift run PianoPad
+swift run PebblePiano
 ```
 
 Or open `Package.swift` in Xcode, choose the **PianoPad** scheme and press ⌘R. A clean build
@@ -103,7 +103,7 @@ The rest of this README covers each part in detail. The code is a Swift package:
 
 ## Ear Training inside lessons
 
-Run `swift run PianoPad` and open **Learn**. One scrolling lesson map shows the piano
+Run `swift run PebblePiano` and open **Learn**. One scrolling lesson map shows the piano
 lessons first, followed by a separate **Ear training path** with its own progress and
 Start/Continue action. Both paths return to this shared map; there is no course switcher.
 
