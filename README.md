@@ -75,7 +75,9 @@ This was built quickly, and these are the rough edges we know about:
   starting on an upbeat has its barlines a beat early.
 - **Grading:** tempo is fitted for the whole take, so steadily slowing down counts as rhythm
   error. More in *Known limits* below.
-- **The sandboxed TestFlight build** can only open the bundled book, not other book files.
+- **The sandboxed TestFlight build:** importing a PDF from Books works, but the older
+  developer command **Choose Book…** (a hand-made `.annotations.json` file) only works for the
+  bundled book.
 
 ---
 
