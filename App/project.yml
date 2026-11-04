@@ -97,7 +97,7 @@ targets:
         PRODUCT_NAME: "Pebble Piano"
         PRODUCT_MODULE_NAME: PianoPadMac
         PRODUCT_BUNDLE_IDENTIFIER: com.sambasev.perfectpiano
-        MARKETING_VERSION: "0.9.1"
+        MARKETING_VERSION: "0.10.0"
         # ship.sh overrides this with a fresh build number (date and time) on every archive.
         CURRENT_PROJECT_VERSION: "1"
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
