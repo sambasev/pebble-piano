@@ -47,5 +47,4 @@ To run or test the ByteDance GPU transcription service on Modal:
 modal run scripts/bytedance_modal.py
 ```
 
-Live deployed endpoint:
-`https://sambasevam--perfectpiano-bytedance-bytedancepianotranscr-ae20ab.us-east.modal.run`
+Deployed endpoint: printed by `modal deploy scripts/bytedance_modal.py` (your own Modal account; not published here).

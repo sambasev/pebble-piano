@@ -34,7 +34,7 @@ This document provides a comprehensive evaluation of the **Dual-Time-Scale Archi
 ## 2. Live Modal Deployment Details
 
 * **Deployment Host**: Modal Serverless Cloud (`us-east`)
-* **Endpoint URL**: `https://sambasevam--perfectpiano-bytedance-bytedancepianotranscr-ae20ab.us-east.modal.run`
+* **Endpoint URL**: your own deployment's URL (from `modal deploy scripts/bytedance_modal.py`)
 * **GPU Spec**: NVIDIA T4 (16 GB VRAM)
 * **Model Checkpoint**: Official ByteDance Zenodo checkpoint `CRNN_note_F1=0.9677_pedal_F1=0.9186.pth` (172.0 MB, Zenodo ID `4034264`)
 * **Script**: `scripts/bytedance_modal.py`
