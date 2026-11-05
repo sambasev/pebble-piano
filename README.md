@@ -57,6 +57,33 @@ Mac, so the tutor reasons from real measurements of your playing, not from guess
 audio never leaves the Mac. `Sources/PianoAI` holds the model client; Fireworks and Modal
 work as alternative hosts for open-weight models.
 
+## Before and during the hackathon
+
+**Before (October 2026):** the app was [PianoPad](https://github.com/sambasev/interactive-piano),
+a Mac piano trainer on TestFlight with **no AI**. It graded takes against a score with our own
+code: MIDI, computer-keyboard and mic note detection (score-informed DSP), alignment, and
+rhythm and tempo checks from a rubric. On top of that sat Learn lessons with stars and child mode,
+Practice on a hand-annotated book page, MIDI-to-score engraving with MusicXML export, backing
+tracks and progress. Its "coach" was a fixed rule that picked the next lesson page. Each rubric
+already held written guidance "for the future tutor".
+
+**During the hackathon:** we added the Meta model layer (`Sources/PianoAI`) and built the AI
+features on that grader, so the AI reasons from measured notes and timing, not guesses.
+
+| AI feature | Before | Now |
+| --- | --- | --- |
+| Tutor chat beside the lesson | — | Muse Spark answers questions about the open piece, streams its replies, offers follow-up chips and refuses off-topic questions |
+| Coaching from graded takes | Pass/fail report only | After each take: what went well, one thing to fix in plain words, then the next exercise |
+| Tutor drives the player | — | Plays or loops bars at a set tempo or hand, demonstrates notes and chords, highlights bars and keys, and chains "play it, then let me try" |
+| Exercises and lessons | Fixed lesson unit | Generates graded scales, arpeggios and five-finger drills in any key; plans a lesson for the open piece; opens ear-training and sight-reading courses |
+| Progress and memory | Stars and practice history, no interpretation | Names the bars that keep going wrong; answers "how did I do this week"; saves dated goals and session checklists; remembers past chats |
+| Help and diagnostics | — | Answers app questions from a built-in guide and suggests calibration or another input when few notes are heard |
+| Library | — | Searches 30 Mutopia pieces by composer and level, then previews or opens one |
+| Reading sheet music | Hand-made annotation file for one bundled book | Import a PDF: Muse Wonder reads it line by line and CV geometry snaps noteheads to the staff, so any page becomes a gradable piece |
+| Evaluation | Grader fixture check | Benchmarks for the tutor (31/31 scripted, 22/22 live in-app) and for score reading and audio transcription; summary in [`docs/charts/eval_summary.png`](docs/charts/eval_summary.png) |
+
+The hackathon also renamed the app to Pebble Piano.
+
 ## Known issues
 
 This was built quickly, and these are the rough edges we know about:
