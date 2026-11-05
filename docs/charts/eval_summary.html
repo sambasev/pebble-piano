@@ -1,0 +1,145 @@
+<!doctype html>
+<!-- Source for eval_summary.png. Numbers come from docs/*_eval*.md and docs/*_evaluation.md.
+     Re-render: node scripts/render_eval_slide.js -->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Pebble Piano Evals</title>
+<style>
+  :root {
+    --bg: #fbfaf7; --ink: #1d1f24; --muted: #6b6f78; --rule: #e4e1da;
+    --hero: #2f6f5e; --base: #b9bec7; --warn: #c2553f; --soft: #e9f1ee;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { width: 1920px; height: 1080px; background: var(--bg); color: var(--ink);
+    font-family: "Inter", "Helvetica Neue", Helvetica, Arial, sans-serif; }
+  .slide { width: 1920px; height: 1080px; padding: 72px 88px 56px; display: flex; flex-direction: column; }
+  header h1 { font-size: 60px; font-weight: 700; letter-spacing: -1px; }
+  header p { font-size: 26px; color: var(--muted); margin-top: 12px; }
+  .grid { flex: 1; display: grid; grid-template-columns: 1.15fr 1fr 0.8fr; gap: 56px; margin-top: 56px; }
+  .panel { display: flex; flex-direction: column; }
+  .kicker { font-size: 18px; font-weight: 700; letter-spacing: 2px; text-transform: uppercase; color: var(--hero); }
+  .panel h2 { font-size: 32px; font-weight: 700; margin-top: 8px; line-height: 1.2; }
+  .panel .sub { font-size: 19px; color: var(--muted); margin-top: 8px; line-height: 1.35; }
+  .chart { margin-top: 28px; }
+  .row { display: grid; grid-template-columns: 275px 1fr 64px; align-items: center; gap: 14px; height: 44px; }
+  .row .lbl { font-size: 19px; line-height: 1.15; }
+  .row .lbl small { display: block; font-size: 15px; color: var(--muted); }
+  .track { height: 22px; background: transparent; position: relative; }
+  .bar { height: 22px; border-radius: 0 4px 4px 0; background: var(--base); }
+  .bar.hero { background: var(--hero); }
+  .bar.warn { background: var(--warn); }
+  .val { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; text-align: right; }
+  .row.hl .lbl { font-weight: 700; }
+  /* OMR paired bars */
+  .orow { display: grid; grid-template-columns: 170px 1fr; gap: 14px; align-items: center; margin-bottom: 22px; }
+  .orow .lbl { font-size: 19px; line-height: 1.15; }
+  .orow.hl .lbl { font-weight: 700; }
+  .pair { display: flex; flex-direction: column; gap: 6px; }
+  .pbar { display: flex; align-items: center; gap: 10px; }
+  .pbar .bar { height: 18px; }
+  .pbar span { font-size: 17px; font-weight: 700; font-variant-numeric: tabular-nums; }
+  .bar.old { background: #9fb9b0; }
+  .bar.old.base { background: #d6d9de; }
+  .legend { display: flex; gap: 22px; font-size: 16px; color: var(--muted); margin-top: 22px; margin-bottom: 18px; }
+  .legend i { display: inline-block; width: 14px; height: 14px; border-radius: 3px; vertical-align: -2px; margin-right: 6px; }
+  /* tutor tiles */
+  .tile { background: var(--soft); border-radius: 14px; padding: 26px 28px; margin-top: 24px; }
+  .tile .big { font-size: 72px; font-weight: 800; color: var(--hero); letter-spacing: -2px; line-height: 1; font-variant-numeric: tabular-nums; }
+  .tile .big em { font-style: normal; font-size: 36px; color: var(--muted); font-weight: 700; letter-spacing: 0; }
+  .tile .what { font-size: 20px; margin-top: 10px; line-height: 1.3; }
+  .tile .what small { display: block; color: var(--muted); font-size: 16px; margin-top: 4px; }
+  .takeaway { margin-top: auto; padding-top: 20px; border-top: 2px solid var(--rule); font-size: 20px; line-height: 1.35; }
+  .takeaway b { color: var(--hero); }
+  footer { margin-top: 36px; font-size: 15px; color: var(--muted); display: flex; justify-content: space-between; }
+</style>
+</head>
+<body>
+<div class="slide">
+  <header>
+    <h1>What our evals show</h1>
+    <p>Three things a piano tutor has to get right: hear the notes, read the page, and teach. Knowing the score is what makes the first two work.</p>
+  </header>
+
+  <div class="grid">
+    <!-- 1. Hearing -->
+    <section class="panel">
+      <div class="kicker">1 · Hearing notes</div>
+      <h2>Score-informed NMF: perfect F1 at 59 ms, on-device</h2>
+      <div class="sub">Note F1 on a real acoustic piano take (32 s, 16 notes), with median latency</div>
+      <div class="chart" id="hear"></div>
+      <div class="takeaway">Neural models hear <b>ghost octaves</b>. Filtering by the expected score lifts Basic Pitch precision from 0.70 to <b>1.00</b>.</div>
+    </section>
+
+    <!-- 2. Reading -->
+    <section class="panel">
+      <div class="kicker">2 · Reading sheet music</div>
+      <h2>Muse Wonder + CV geometry reads 1895 scans at 94.8%</h2>
+      <div class="sub">Note accuracy on one-line passage crops (28–56 bars per condition)</div>
+      <div class="legend"><span><i style="background:#9fb9b0"></i>Historical 1895 scan</span><span><i style="background:var(--hero)"></i>Modern engraving</span></div>
+      <div id="omr"></div>
+      <div class="takeaway">The LLM gets rhythm right (<b>100%</b>); snapping noteheads to staff lines fixes pitch. Modern scores: <b>155/155</b> notes.</div>
+    </section>
+
+    <!-- 3. Teaching -->
+    <section class="panel">
+      <div class="kicker">3 · Teaching</div>
+      <h2>Muse Spark 1.3 tutor passes every case</h2>
+      <div class="tile">
+        <div class="big">31<em>/31</em></div>
+        <div class="what">Scripted tutor checks<small>Guardrails, jailbreaks, pedagogy, score vision, player actions</small></div>
+      </div>
+      <div class="tile">
+        <div class="big">22<em>/22</em></div>
+        <div class="what">Live in-app scenarios<small>Real pieces, graded takes, library, memory, child mode</small></div>
+      </div>
+      <div class="tile">
+        <div class="big">5.3<em> s</em></div>
+        <div class="what">Median reply time<small>Scripted suite</small></div>
+      </div>
+    </section>
+  </div>
+
+  <footer>
+    <span>Sources: docs/transcription_evaluation.md · streaming_basic_pitch_eval.md · bytedance_retrospective_eval.md · omr_evaluation.md · tutor_evaluation.md · tutor_live_evaluation.md</span>
+    <span>Pebble Piano · Nov 2026</span>
+  </footer>
+</div>
+
+<script>
+  // Hearing: F1 on take1.wav, sorted. ms = median latency.
+  const hear = [
+    { n: "Score-informed NMF", s: "Pebble Piano, on-device", f1: 1.000, ms: "59 ms", c: "hero", hl: true },
+    { n: "Basic Pitch + score filter", s: "offline", f1: 1.000, ms: "86 ms", c: "" },
+    { n: "ByteDance CRNN", s: "whole file, cloud GPU", f1: 0.927, ms: "~3.5 s", c: "" },
+    { n: "Basic Pitch, tuned", s: "offline", f1: 0.914, ms: "86 ms", c: "" },
+    { n: "Basic Pitch, streaming", s: "46 ms lookahead", f1: 0.882, ms: "87 ms", c: "" },
+    { n: "Basic Pitch, default", s: "offline", f1: 0.821, ms: "86 ms", c: "" },
+    { n: "Spectral peak baseline", s: "FFT", f1: 0.561, ms: "93 ms", c: "" },
+    { n: "ByteDance CRNN", s: "1-bar chunks, cloud GPU", f1: 0.309, ms: "~950 ms", c: "warn" },
+  ];
+  document.getElementById("hear").innerHTML = hear.map(r => `
+    <div class="row${r.hl ? " hl" : ""}" style="height:56px">
+      <div class="lbl">${r.n}<small>${r.s} · ${r.ms}</small></div>
+      <div class="track"><div class="bar ${r.c}" style="width:${r.f1 * 100}%"></div></div>
+      <div class="val">${r.f1.toFixed(2)}</div>
+    </div>`).join("");
+
+  // Reading: note accuracy, historical vs modern (1-line crops).
+  const omr = [
+    { n: "Wonder + CV", s: "hybrid", h: 94.8, m: 100.0, hl: true },
+    { n: "Muse Wonder 1.0", h: 87.7, m: 88.4 },
+    { n: "LEGATO", s: "Llama 3.2 Vision", h: 0.0, m: 89.5, note: "loops" },
+    { n: "Muse Spark 1.3", h: 47.1, m: 69.7 },
+  ];
+  document.getElementById("omr").innerHTML = omr.map(r => `
+    <div class="orow${r.hl ? " hl" : ""}">
+      <div class="lbl">${r.n}${r.s ? `<small style="display:block;font-size:15px;color:var(--muted);font-weight:400">${r.s}</small>` : ""}</div>
+      <div class="pair">
+        <div class="pbar"><div class="bar old${r.hl ? "" : " base"}" style="width:${Math.max(r.h, 0.6) * 0.82}%"></div><span>${r.h.toFixed(1)}%${r.note ? ` <small style="font-weight:400;color:var(--muted)">(${r.note})</small>` : ""}</span></div>
+        <div class="pbar"><div class="bar ${r.hl ? "hero" : ""}" style="width:${r.m * 0.82}%"></div><span>${r.m.toFixed(1)}%</span></div>
+      </div>
+    </div>`).join("");
+</script>
+</body>
+</html>
